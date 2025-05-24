@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use utils::fixed_math;
 
 use crate::character::enemy::Enemy;
 
@@ -39,7 +40,7 @@ pub fn update_health_bars(
             if let Ok((mut transform, mut sprite)) = health_bar_query.get_mut(*child) {
                 // Update the health bar size based on current/max health
                 let health_ratio = health.current / health.max;
-                sprite.custom_size = Some(Vec2::new(30.0 * health_ratio, 3.0));
+                sprite.custom_size = Some(Vec2::new(30.0 * fixed_math::to_f32(health_ratio), 3.0));
             }
         }
     }

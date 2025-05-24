@@ -2,7 +2,7 @@ mod args;
 
 use args::get_args;
 use bevy::{asset::AssetMetaCheck, prelude::*, utils::hashbrown::HashMap, window::WindowResolution};
-use game::{character::{enemy::create::spawn_enemy, movement::Velocity, player::{ control::{get_input_map, PlayerAction}, LocalPlayer, Player}}, collider::{spawn_test_wall, CollisionSettings}, frame::FrameDebugUIPlugin, global_asset::GlobalAsset, jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration}, plugins::{AppState, BaseZombieGamePlugin}, weapons::WeaponsConfig};
+use game::{character::{ movement::Velocity, player::{ control::{get_input_map, PlayerAction}, LocalPlayer, Player}}, collider::{spawn_test_wall, CollisionSettings}, frame::FrameDebugUIPlugin, global_asset::GlobalAsset, jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration}, plugins::{AppState, BaseZombieGamePlugin}, weapons::WeaponsConfig};
 
 use utils::{web::WebPlugin};
 

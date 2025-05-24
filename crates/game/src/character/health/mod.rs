@@ -5,6 +5,7 @@ use bevy_ggrs::Rollback;
 use ggrs::PlayerHandle;
 use pathfinding::matrix::directions::N;
 use serde::{Deserialize, Serialize};
+use utils::fixed_math;
 
 
 #[derive(Component, Reflect, Debug, Clone, Serialize, Deserialize)]
@@ -16,14 +17,14 @@ pub enum HitBy {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HealthConfig {
-    pub max: f32,
+    pub max: fixed_math::Fixed,
 }
 
 
-#[derive(Component, Reflect, Clone, Debug, Serialize, Default, Deserialize)]
+#[derive(Component, Clone, Debug, Serialize, Default, Deserialize)]
 pub struct Health {
-    pub current: f32,
-    pub max: f32,
+    pub current: fixed_math::Fixed,
+    pub max: fixed_math::Fixed,
     pub invulnerable_until_frame: Option<u32>,  // Optional invulnerability window
 }
 
@@ -33,9 +34,9 @@ pub struct Death {
     pub last_hit_by: Option<HitBy>,
 }
 
-#[derive(Component, Reflect, Clone, Serialize, Deserialize, Default)]
+#[derive(Component, Clone, Serialize, Deserialize, Default)]
 pub struct DamageAccumulator {
-    pub total_damage: f32,
+    pub total_damage: fixed_math::Fixed,
     pub hit_count: u32,
     pub last_hit_by: Option<HitBy>,
 }

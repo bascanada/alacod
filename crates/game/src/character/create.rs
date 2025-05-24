@@ -2,7 +2,7 @@
 use animation::{create_child_sprite, AnimationBundle, SpriteSheetConfig};
 use bevy::{prelude::*};
 use bevy_kira_audio::prelude::*;
-use utils::math::round_vec3;
+use utils::fixed_math;
 
 use crate::{character::{config::CharacterConfigHandles, movement::Velocity}, collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings}, global_asset::GlobalAsset, weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig}};
 
@@ -22,7 +22,7 @@ pub fn create_character(
 
     skin: Option<String>,
     color_health_bar: Color,
-    translation: Vec3,
+    translation: fixed_math::FixedVec3,
 
     collision_layer: CollisionLayer,
 ) -> Entity {
@@ -39,13 +39,21 @@ pub fn create_character(
     let animation_bundle =
         AnimationBundle::new(map_layers.clone(), animation_handle.clone(),0, starting_layer.clone());
 
+
+    let transform_fixed = fixed_math::FixedTransform3D::new(
+        translation,
+        fixed_math::FixedMat3::IDENTITY,
+        fixed_math::FixedVec3::splat(config.scale)
+    );
+
     let collider: Collider = (&config.collider).into();
     let health: Health = config.base_health.clone().into();
     let mut entity = commands.spawn((
-        Transform::from_scale(Vec3::splat(config.scale)).with_translation(round_vec3(translation)),
+        transform_fixed.to_bevy_transform(),
+        transform_fixed,
         Visibility::default(),
         SpatialAudioEmitter {instances: vec![]},
-        Velocity(Vec2::ZERO),
+        Velocity(fixed_math::FixedVec2::ZERO),
         SprintState::default(),
         DashState::default(),
         collider,

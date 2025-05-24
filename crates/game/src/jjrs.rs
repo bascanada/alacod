@@ -8,7 +8,7 @@ use ggrs::UdpNonBlockingSocket;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 use utils::rng::RollbackRng;
 
-use crate::{character::{config::CharacterConfig, enemy::{spawning::EnemySpawnerState}, player::{create::create_player, jjrs::PeerConfig}}, collider::{spawn_test_wall, CollisionSettings}, global_asset::GlobalAsset, plugins::AppState, weapons::{WeaponAsset, WeaponsConfig}};
+use crate::{character::{config::CharacterConfig, player::{create::create_player, jjrs::PeerConfig}}, collider::{spawn_test_wall, CollisionSettings}, global_asset::GlobalAsset, plugins::AppState, weapons::{WeaponAsset, WeaponsConfig}};
 
 pub struct GggrsConnectionConfiguration {
     pub max_player: usize,
@@ -237,7 +237,7 @@ fn spawn_test_enemy_spawner(
 ) {
     commands.spawn((
         Transform::from_translation(position),
-        EnemySpawnerState::default(),
+        //EnemySpawnerState::default(),
         EnemySpawnerComponent::default()
     )).add_rollback();
 }

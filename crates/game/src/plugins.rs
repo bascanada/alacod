@@ -2,13 +2,13 @@ use bevy::{asset::AssetMetaCheck, prelude::*};
 use bevy_ggrs::{prelude::*, GgrsSchedule};
 use bevy_kira_audio::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
-use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use utils::rng::RollbackRng;
+use utils::{fixed_math::{self, sync_bevy_transforms_from_fixed}, rng::RollbackRng};
 use std::hash::Hash;
 use bevy_common_assets::ron::RonAssetPlugin;
 
 use animation::{set_sprite_flip, D2AnimationPlugin};
 use bevy_ggrs::GgrsPlugin;
+
 
 use crate::{
     audio::ZAudioPlugin,
@@ -17,6 +17,7 @@ use crate::{
         config::CharacterConfig,
         dash::DashState,
         enemy::{
+            /*
             ai::pathing::{
                 calculate_paths,
                 check_direct_paths,
@@ -27,7 +28,7 @@ use crate::{
             },
             spawning::{
                 enemy_spawn_from_spawners_system, EnemySpawnerState
-            },
+            },*/
             Enemy
         },
         health::{
@@ -87,18 +88,22 @@ impl Plugin for BaseZombieGamePlugin {
 
         app.init_state::<AppState>();
 
-        app.init_resource::<PathfindingConfig>();
+        //app.init_resource::<PathfindingConfig>();
+        //app.init_resource::<EnemySpawnSystemHolder>();
+        //app.init_resource::<EnemySpawnState>();
 
         app.set_rollback_schedule_fps(60);
         app.add_plugins(GgrsPlugin::<PeerConfig>::default())
             .rollback_resource_with_copy::<RollbackRng>()
-            .rollback_resource_with_reflect::<PathfindingConfig>()
+            //.rollback_resource_with_reflect::<PathfindingConfig>()
+            //.rollback_resource_with_reflect::<EnemySpawnState>()
+            //.rollback_component_with_clone::<EnemySpawnerComponent>()
+            //.rollback_component_with_reflect::<EnemyPath>()
             .rollback_resource_with_copy::<PointerWorldPosition>()
             .rollback_resource_with_copy::<FrameCount>()
-            .rollback_component_with_clone::<EnemySpawnerComponent>()
-            .rollback_component_with_reflect::<EnemySpawnerState>()
-            .rollback_component_with_reflect::<Health>()
-            .rollback_component_with_reflect::<DamageAccumulator>()
+            .rollback_component_with_clone::<fixed_math::FixedTransform3D>()
+            .rollback_component_with_clone::<Health>()
+            .rollback_component_with_clone::<DamageAccumulator>()
             .rollback_component_with_clone::<WeaponInventory>()
             .rollback_component_with_clone::<WeaponModesState>()
             .rollback_component_with_clone::<WeaponState>()
@@ -107,13 +112,11 @@ impl Plugin for BaseZombieGamePlugin {
             .rollback_component_with_clone::<Collider>()
             .rollback_component_with_clone::<Wall>()
             .rollback_component_with_clone::<CollisionLayer>()
-            .rollback_component_with_clone::<Transform>()
-            .rollback_component_with_reflect::<DashState>()
-            .rollback_component_with_reflect::<SprintState>()
-            .rollback_component_with_reflect::<Velocity>()
+            .rollback_component_with_clone::<DashState>()
+            .rollback_component_with_clone::<SprintState>()
+            .rollback_component_with_clone::<Velocity>()
             .rollback_component_with_clone::<Death>()
             .rollback_component_with_reflect::<Player>()
-            .rollback_component_with_reflect::<EnemyPath>()
             .rollback_component_with_reflect::<Enemy>();
 
         app.add_systems(Startup, (add_global_asset));
@@ -149,16 +152,17 @@ impl Plugin for BaseZombieGamePlugin {
                 set_sprite_flip.after(bullet_rollback_collision_system),
                 update_animation_state.after(set_sprite_flip),
                 // SPAWING
-                enemy_spawn_from_spawners_system.after(update_animation_state),
+                //enemy_spawn_from_spawners_system.after(update_animation_state),
                 // LOGIC OF ENEMY
-                update_enemy_targets.after(enemy_spawn_from_spawners_system),
-                check_direct_paths.after(update_enemy_targets),
-                calculate_paths.after(check_direct_paths),
-                move_enemies.after(calculate_paths),
+                //update_enemy_targets.after(enemy_spawn_from_spawners_system),
+                //check_direct_paths.after(update_enemy_targets),
+                //calculate_paths.after(check_direct_paths),
+                //move_enemies.after(calculate_paths),
                 
-                increase_frame_system.after(move_enemies)
+                increase_frame_system.after(update_animation_state)
             ));
         app.add_systems(Update, (
+            sync_bevy_transforms_from_fixed,
             weapon_inventory_system,
             weapons_config_update_system,
 

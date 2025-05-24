@@ -1,14 +1,14 @@
 (
     movement: (
-        acceleration: 400.0,
-        max_speed: 400.0,
-        friction: 100.0,
+        acceleration: "400.0",
+        max_speed: "400.0",
+        friction: "100.0",
 
-        sprint_multiplier: 2.0,                // Double speed
-        sprint_acceleration_per_frame: 0.1,    // Reach full sprint in 10 frames
-        sprint_deceleration_per_frame: 0.2, 
+        sprint_multiplier: "2.0",                // Double speed
+        sprint_acceleration_per_frame: "0.1",    // Reach full sprint in 10 frames
+        sprint_deceleration_per_frame: "0.2", 
 
-        dash_distance: 250.0,         // A substantial dash distance (tune based on your world scale)
+        dash_distance: "250.0",         // A substantial dash distance (tune based on your world scale)
         dash_duration_frames: 15,      // Very quick dash (1/10th second)
         dash_cooldown_frames: 180,     // Half-second cooldown
     ),
@@ -17,17 +17,17 @@
 
     collider: (
         shape: Rectangle(
-            width: 60.,
-            height: 120.,
+            width: "60.",
+            height: "120.",
         ),
-        offset: (0.0,-20.0)
+        offset: ( x: "0.0", y: "-20.0", z: "0.0")
     ),
 
     base_health: (
-        max: 10.0
+        max: "10.0"
     ),
 
-    scale: 6.0,
+    scale: "6.0",
 
     starting_skin: "1",
 

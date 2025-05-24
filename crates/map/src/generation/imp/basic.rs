@@ -8,7 +8,6 @@ use crate::generation::{
     IMapGeneration, Room, LEVEL_PROPERTIES_SPAWN_NAME,
 };
 
-use rand::Rng;
 use serde_json::Value;
 use utils::map;
 
@@ -93,7 +92,7 @@ impl BasicMapGeneration {
                     .get(
                         self.data
                             .rng
-                            .gen_range(0..=(self.map.rooms_possible.len() - 1)),
+                            .next_u32_range(0, self.map.rooms_possible.len() as u32) as usize,
                     )
                     .copied();
 
@@ -105,7 +104,7 @@ impl BasicMapGeneration {
                         .connections
                         .iter()
                         .filter(|i| i.to.is_none())
-                        .skip(self.data.rng.gen_range(0..=free_connection_len - 1))
+                        .skip(self.data.rng.next_u32_range(0, free_connection_len as u32) as usize)
                         .last()
                         .unwrap();
 
@@ -125,9 +124,7 @@ impl BasicMapGeneration {
                         .compatiable_levels
                         .iter()
                         .skip(
-                            self.data
-                                .rng
-                                .gen_range(0..=connection_def.compatiable_levels.len() - 1),
+                            self.data.rng.next_u32_range(0, connection_def.compatiable_levels.len() as u32) as usize
                         )
                         .last()
                         .unwrap();
@@ -205,7 +202,7 @@ impl IMapGeneration for BasicMapGeneration {
 
         let spawning_room_def = spawning_levels
             .iter()
-            .skip(self.data.rng.gen_range(0..=spawning_levels.len() - 1))
+            .skip(self.data.rng.next_u32_range_inclusive(0, (spawning_levels.len() -1) as u32) as usize)
             .last();
 
         if spawning_room_def.is_none() {
@@ -214,16 +211,8 @@ impl IMapGeneration for BasicMapGeneration {
 
         let spawning_room_def = (*spawning_room_def.unwrap()).clone();
 
-        let x: i32 = self.data.rng.gen_range(
-            self.context
-                .config
-                .get_range_x(spawning_room_def.level_size_p.0),
-        );
-        let y: i32 = self.data.rng.gen_range(
-            self.context
-                .config
-                .get_range_y(spawning_room_def.level_size_p.1),
-        );
+        let x: i32 = self.data.rng.next_i32_range_inclusive(-self.context.config.max_width, self.context.config.max_width - spawning_room_def.level_size_p.0);
+        let y: i32 = self.data.rng.next_i32_range_inclusive(-self.context.config.max_heigth, self.context.config.max_heigth - spawning_room_def.level_size_p.1);
 
         let spawning_room_def = Room::create(
             spawning_room_def.clone(),

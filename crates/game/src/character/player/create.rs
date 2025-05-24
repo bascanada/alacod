@@ -2,7 +2,7 @@
 use animation::{AnimationBundle, SpriteSheetConfig};
 use bevy::{math::VectorSpace, prelude::*, utils:: HashMap};
 use leafwing_input_manager::{prelude::ActionState, InputManagerBundle};
-use utils::bmap;
+use utils::{bmap, fixed_math};
 use bevy_kira_audio::prelude::*;
 
 use crate::{character::{config::CharacterConfig, create::create_character, dash::DashState, movement::{SprintState, Velocity}}, collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings}, global_asset::GlobalAsset, weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig}};
@@ -36,7 +36,7 @@ pub fn create_player(
     let entity = create_character(
         commands, global_assets, character_asset, asset_server, texture_atlas_layouts, sprint_sheet_assets,
         "player".into(), Some(if handle == 0 { "1" } else { "2" }.into()),
-         (LinearRgba::GREEN).into(),Vec3::new(-50.0 * handle as f32, 0.0, 0.0),
+         (LinearRgba::GREEN).into(), fixed_math::FixedVec3::new(fixed_math::new(-50.0 * handle as f32), fixed_math::new(0.0), fixed_math::new(0.0)),
         CollisionLayer(collision_settings.player_layer),
     );
     if local {

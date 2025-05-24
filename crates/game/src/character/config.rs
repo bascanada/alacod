@@ -1,5 +1,6 @@
 use bevy::{prelude::*, reflect::TypePath, utils::HashMap};
 use serde::Deserialize;
+use utils::fixed_math;
 
 use crate::{character::movement::MovementConfig, collider::{Collider, ColliderConfig}};
 
@@ -21,7 +22,7 @@ pub struct CharacterConfig {
 
     pub collider: ColliderConfig,
 
-    pub scale: f32,
+    pub scale: fixed_math::Fixed,
 
     pub starting_skin: String,
     pub skins: HashMap<String, CharacterSkin>

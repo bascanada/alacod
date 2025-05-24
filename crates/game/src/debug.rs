@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use utils::fixed_math;
 
 use crate::collider::{Collider, ColliderShape, CollisionLayer};
 
@@ -84,13 +85,13 @@ pub fn debug_draw_colliders_system(
         match collider.shape {
             ColliderShape::Circle { radius } => {
                 gizmos.circle_2d(
-                    transform.translation.truncate() + collider.offset,
-                    radius,
+                    (transform.translation + fixed_math::fixed_to_vec3(collider.offset)).truncate(),
+                    fixed_math::to_f32(radius),
                     color,
                 );
             },
             ColliderShape::Rectangle { width, height } => {
-                gizmos.rect_2d(transform.translation.truncate() + collider.offset, Vec2::new(width, height), color);
+                gizmos.rect_2d((transform.translation + fixed_math::fixed_to_vec3(collider.offset)).truncate(), Vec2::new( fixed_math::to_f32(width), fixed_math::to_f32(height)), color);
             }
         }
         

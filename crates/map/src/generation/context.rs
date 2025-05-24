@@ -1,3 +1,5 @@
+use utils::rng::RollbackRng;
+
 use super::{config::MapGenerationConfig, entity::location::EntityLocations};
 
 use std::{fmt::Display, rc::Rc, usize};
@@ -243,17 +245,15 @@ pub struct MapGenerationContext {
     pub config: MapGenerationConfig,
 }
 
-use rand::SeedableRng;
-
 pub struct MapGenerationData {
     // TODO change for trait to be able to replace for unit test
-    pub rng: rand::rngs::StdRng,
+    pub rng: RollbackRng,
 }
 
 impl MapGenerationData {
     pub fn from_context(context: &MapGenerationContext) -> Self {
         Self {
-            rng: rand::rngs::StdRng::seed_from_u64(context.config.seed as u64),
+            rng: RollbackRng::new(context.config.seed as u32),
         }
     }
 }

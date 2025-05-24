@@ -1,24 +1,25 @@
 use bevy::prelude::*;
 use bevy_ggrs::AddRollbackCommandExtension;
 use serde::{Deserialize, Serialize};
-use utils::math::round_vec2;
+use utils::fixed_math;
+
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ColliderShape {
-    Circle { radius: f32 },
-    Rectangle { width: f32, height: f32 },
+    Circle { radius: fixed_math::Fixed },
+    Rectangle { width: fixed_math::Fixed, height: fixed_math::Fixed },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ColliderConfig {
     pub shape: ColliderShape,
-    pub offset: (f32, f32), // Offset from entity transform
+    pub offset: fixed_math::FixedVec3
 }
 
 impl Into<Collider> for &ColliderConfig {
     fn into(self) -> Collider {
-        Collider { shape: self.shape.clone(), offset: Vec2::new(self.offset.0, self.offset.1)}
+        Collider { shape: self.shape.clone(), offset: self.offset.clone()}
     } 
 }
 
@@ -27,7 +28,7 @@ impl Into<Collider> for &ColliderConfig {
 #[derive(Component, Clone, Debug, Serialize, Deserialize)]
 pub struct Collider {
     pub shape: ColliderShape,
-    pub offset: Vec2, // Offset from entity transform
+    pub offset: fixed_math::FixedVec3, // Offset from entity transform
 }
 
 
@@ -82,79 +83,83 @@ impl Default for CollisionSettings {
 
 
 pub fn is_colliding(
-    transform_a: &Transform,
+    pos_a: &fixed_math::FixedVec3,
     collider_a: &Collider,
-    transform_b: &Transform,
+    pos_b: &fixed_math::FixedVec3,
     collider_b: &Collider,
 ) -> bool {
-    let pos_a = round_vec2(transform_a.translation.truncate() + collider_a.offset);
-    let pos_b = round_vec2(transform_b.translation.truncate() + collider_b.offset);
+    let final_pos_a = *pos_a + collider_a.offset;
+    let final_pos_b = *pos_b + collider_b.offset;
 
-    match (&collider_a.shape, &collider_b.shape) {
+   match (&collider_a.shape, &collider_b.shape) {
         // Circle to Circle
         (ColliderShape::Circle { radius: radius_a }, ColliderShape::Circle { radius: radius_b }) => {
-            let distance = pos_a.distance(pos_b);
-            distance < radius_a + radius_b
+            let distance_sq = (final_pos_a - final_pos_b).length_squared();
+            let combined_radius = *radius_a + *radius_b;
+            distance_sq < combined_radius.saturating_mul(combined_radius)
         },
         
         // Rectangle to Rectangle
         (ColliderShape::Rectangle { width: width_a, height: height_a }, 
          ColliderShape::Rectangle { width: width_b, height: height_b }) => {
-            // AABB collision check
-            let half_size_a = Vec2::new(width_a / 2.0, height_a / 2.0);
-            let half_size_b = Vec2::new(width_b / 2.0, height_b / 2.0);
+            let half_width_a = width_a.saturating_div(fixed_math::Fixed::from_num(2));
+            let half_height_a = height_a.saturating_div(fixed_math::Fixed::from_num(2));
+            let half_width_b = width_b.saturating_div(fixed_math::Fixed::from_num(2));
+            let half_height_b = height_b.saturating_div(fixed_math::Fixed::from_num(2));
             
-            let min_a = pos_a - half_size_a;
-            let max_a = pos_a + half_size_a;
-            let min_b = pos_b - half_size_b;
-            let max_b = pos_b + half_size_b;
+            let min_a_x = final_pos_a.x - half_width_a;
+            let max_a_x = final_pos_a.x + half_width_a;
+            let min_a_y = final_pos_a.y - half_height_a;
+            let max_a_y = final_pos_a.y + half_height_a;
+            
+            let min_b_x = final_pos_b.x - half_width_b;
+            let max_b_x = final_pos_b.x + half_width_b;
+            let min_b_y = final_pos_b.y - half_height_b;
+            let max_b_y = final_pos_b.y + half_height_b;
             
             // Check for overlap
-            min_a.x <= max_b.x && 
-            max_a.x >= min_b.x && 
-            min_a.y <= max_b.y && 
-            max_a.y >= min_b.y
+            min_a_x <= max_b_x && 
+            max_a_x >= min_b_x && 
+            min_a_y <= max_b_y && 
+            max_a_y >= min_b_y
         },
         
         // Circle to Rectangle
         (ColliderShape::Circle { radius }, 
          ColliderShape::Rectangle { width, height }) => {
-            circle_rect_collision(pos_a, *radius, pos_b, *width, *height)
+            circle_rect_collision_fixed(final_pos_a, *radius, final_pos_b, *width, *height)
         },
         
         // Rectangle to Circle (swap arguments)
         (ColliderShape::Rectangle { width, height }, 
          ColliderShape::Circle { radius }) => {
-            circle_rect_collision(pos_b, *radius, pos_a, *width, *height)
+            circle_rect_collision_fixed(final_pos_b, *radius, final_pos_a, *width, *height)
         },
     }
-}
+} 
 
 // Helper function for circle-to-rectangle collision
-pub fn circle_rect_collision(
-    circle_pos: Vec2,
-    circle_radius: f32,
-    rect_pos: Vec2,
-    rect_width: f32,
-    rect_height: f32,
+fn circle_rect_collision_fixed(
+    circle_pos: fixed_math::FixedVec3,
+    circle_radius: fixed_math::Fixed,
+    rect_pos: fixed_math::FixedVec3,
+    rect_width: fixed_math::Fixed,
+    rect_height: fixed_math::Fixed,
 ) -> bool {
-    // Calculate half-size of rectangle
-    let half_width = rect_width / 2.0;
-    let half_height = rect_height / 2.0;
+    let half_width = rect_width.saturating_div(fixed_math::Fixed::from_num(2));
+    let half_height = rect_height.saturating_div(fixed_math::Fixed::from_num(2));
     
     // Find the closest point on the rectangle to the circle center
     let closest_x = circle_pos.x.max(rect_pos.x - half_width).min(rect_pos.x + half_width);
     let closest_y = circle_pos.y.max(rect_pos.y - half_height).min(rect_pos.y + half_height);
     
     // Calculate distance from circle center to closest point
-    let distance = Vec2::new(circle_pos.x - closest_x, circle_pos.y - closest_y).length();
+    let diff = fixed_math::FixedVec2::new(circle_pos.x - closest_x, circle_pos.y - closest_y);
+    let distance_sq = diff.length_squared();
     
     // Circle and rectangle collide if this distance is less than the circle radius
-    distance < circle_radius
+    distance_sq < circle_radius.saturating_mul(circle_radius)
 }
-
-
-
 
 
 // test function for wall
@@ -166,9 +171,13 @@ pub fn spawn_test_wall(
     collision_settings: &Res<CollisionSettings>,
     color: Color,
 ) {
+    let translation = fixed_math::FixedVec3::new(fixed_math::new(position.x), fixed_math::new(position.y), fixed_math::new(position.z));
+    let transform = fixed_math::FixedTransform3D::new(translation, fixed_math::FixedMat3::IDENTITY, fixed_math::FixedVec3::ONE);
+
     commands.spawn((
         Wall,
-        Transform::from_translation(position),
+        transform.to_bevy_transform(),
+        transform,
         Sprite {
             color,
             custom_size: Some(size),
@@ -176,10 +185,10 @@ pub fn spawn_test_wall(
         },
         Collider {
             shape: ColliderShape::Rectangle { 
-                width: size.x, 
-                height: size.y 
+                width: fixed_math::Fixed::from_num(size.x), 
+                height: fixed_math::Fixed::from_num(size.y)
             },
-            offset: Vec2::ZERO,
+            offset: fixed_math::FixedVec3::ZERO,
         },
         CollisionLayer(collision_settings.wall_layer),
     )).add_rollback();
