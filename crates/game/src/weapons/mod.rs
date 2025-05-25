@@ -2,23 +2,22 @@ pub mod ui;
 
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
 use bevy::{math::VectorSpace, prelude::*, utils::{HashMap, HashSet}};
+use bevy_fixed::{fixed_math, rng::RollbackRng};
 use bevy_ggrs::{AddRollbackCommandExtension, PlayerInputs, Rollback};
 use ggrs::PlayerHandle;
 use serde::{Deserialize, Serialize};
-use utils::{bmap, math::{round, round_vec3}, rng::RollbackRng};
+use utils::bmap;
 
-use crate::{character::{dash::DashState, health::{self, DamageAccumulator, Health}, movement::SprintState, player::{input::{CursorPosition, INPUT_DASH, INPUT_RELOAD, INPUT_SPRINT, INPUT_SWITCH_WEAPON_MODE}, jjrs::PeerConfig, Player}}, collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall}, frame::FrameCount, global_asset::GlobalAsset};
+use crate::{character::{dash::DashState, health::{self, DamageAccumulator, Health}, movement::SprintState, player::{input::{CursorPosition, INPUT_DASH, INPUT_RELOAD, INPUT_SPRINT, INPUT_SWITCH_WEAPON_MODE}, jjrs::PeerConfig, Player}}, collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall}, frame::FrameCount, global_asset::GlobalAsset, GAME_SPEED};
 
-// ROOLBACL
 
-// COMPONENTS
-
+// COMPONENTSo
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum FiringMode {
     Automatic{},  // Hold trigger to continuously fire
     Manual{},     // One shot per trigger pull
     Burst{pellets_per_shot: u32, cooldown_frames: u32},      // Fire a fixed number of shots per trigger pull
-    Shotgun{pellet_count: u32, spread_angle: f32},
+    Shotgun{pellet_count: u32, spread_angle: fixed_math::Fixed},
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -35,18 +34,18 @@ pub enum MagBulletConfig {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum BulletType {
     Standard {
-        damage: f32,
-        speed: f32,
+        damage: fixed_math::Fixed,
+        speed: fixed_math::Fixed,
     },
     Explosive {
-        damage: f32,
-        speed: f32,
-        blast_radius: f32,
-        explosive_damage_multiplier: f32,
+        damage: fixed_math::Fixed,
+        speed: fixed_math::Fixed,
+        blast_radius: fixed_math::Fixed,
+        explosive_damage_multiplier: fixed_math::Fixed,
     },
     Piercing {
-        damage: f32,
-        speed: f32,
+        damage: fixed_math::Fixed,
+        speed: fixed_math::Fixed,
         penetration: u8,
     },
 }
@@ -59,14 +58,14 @@ pub struct PiercingTag;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FiringModeConfig {
-    pub firing_rate: f32,
+    pub firing_rate: fixed_math::Fixed,
     pub firing_mode: FiringMode,
-    pub spread: f32,
-    pub recoil: f32,
+    pub spread: fixed_math::Fixed,
+    pub recoil: fixed_math::Fixed,
     pub bullet_type: BulletType,
-    pub range: f32,
+    pub range: fixed_math::Fixed,
 
-    pub reload_time_seconds: f32,
+    pub reload_time_seconds: fixed_math::Fixed,
     pub mag: MagBulletConfig,
 }
 
@@ -84,10 +83,10 @@ pub struct WeaponSpriteConfig {
     pub name: String,
     pub index: usize,
 
-    pub weapon_offset: Vec2,
+    pub weapon_offset: fixed_math::FixedVec2,
 
-    pub bullet_offset_left: Vec2,
-    pub bullet_offset_right: Vec2,
+    pub bullet_offset_left: fixed_math::FixedVec2,
+    pub bullet_offset_right: fixed_math::FixedVec2,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -112,15 +111,15 @@ impl From<WeaponAsset> for Weapon {
 #[derive(Component, Clone, Serialize, Deserialize)]
 pub struct HitMarker {
     pub target: Entity,
-    pub damage: f32,
+    pub damage: fixed_math::Fixed,
 }
 
 
 #[derive(Component)]
 pub struct VisualEffectRequest {
     pub effect_type: EffectType,
-    pub position: Vec2,
-    pub scale: f32,
+    pub position: fixed_math::FixedVec2,
+    pub scale: fixed_math::Fixed,
 }
 
 #[derive(Clone)]
@@ -132,8 +131,8 @@ pub enum EffectType {
 
 #[derive(Component, Clone, Serialize, Deserialize)]
 pub struct ExplosionMarker {
-    pub radius: f32,
-    pub damage: f32,
+    pub radius: fixed_math::Fixed,
+    pub damage: fixed_math::Fixed,
     pub player_handle: PlayerHandle,
     pub processed: bool, // Flag to ensure one-time processing
 }
@@ -147,11 +146,11 @@ pub struct ActiveWeapon;
 /// Component for bullets
 #[derive(Component, Clone)]
 pub struct Bullet {
-    pub velocity: Vec2,
+    pub velocity: fixed_math::FixedVec2,
     pub bullet_type: BulletType,
-    pub damage: f32,
-    pub range: f32,
-    pub distance_traveled: f32,
+    pub damage: fixed_math::Fixed,
+    pub range: fixed_math::Fixed,
+    pub distance_traveled: fixed_math::Fixed,
     pub player_handle: PlayerHandle,
     pub created_at: u32,
 }
@@ -216,8 +215,8 @@ pub struct WeaponState {
 #[derive(Component, Clone)]
 pub struct BulletRollbackState {
     spawn_frame: u32,
-    initial_position: Vec2,
-    direction: Vec2,
+    initial_position: fixed_math::FixedVec2,
+    direction: fixed_math::FixedVec2,
 }
 
 #[derive(Event)]
@@ -274,17 +273,17 @@ impl WeaponInventory {
     pub fn start_reload(
         &mut self,
         current_game_frame: u32,
-        reload_time_seconds: f32,
+        reload_time_seconds: fixed_math::Fixed,
     ) {
         self.reloading_ending_frame = {
-            if reload_time_seconds <= 0.0 {
+            if reload_time_seconds <= fixed_math::new(0.0) {
                 None
             } else {
-                let frames_to_reload = (reload_time_seconds * 60.0).ceil() as u32;
+                let frames_to_reload = (reload_time_seconds * bevy_fixed::fixed_math::new(60.)).ceil() ;
                 if frames_to_reload == 0 { // Ensure at least one frame for very short reload times
                     Some(current_game_frame + 1)
                 } else {
-                    Some(current_game_frame + frames_to_reload)
+                    Some(current_game_frame + frames_to_reload.to_num::<u32>())
                 }
             }
         };
@@ -338,12 +337,16 @@ pub fn spawn_weapon_for_player(
 
     let weapon: Weapon = weapon.into();
 
+    let transform = Transform::from_translation(fixed_math::fixed_to_vec2(weapon.sprite_config.weapon_offset).extend(0.)).with_rotation(Quat::IDENTITY);
+    let ggrs_transform = fixed_math::FixedTransform3D::from_bevy_transform(&transform);
+
     let entity = commands.spawn((
-        Transform::from_translation(Vec3::new(weapon.sprite_config.weapon_offset.x, weapon.sprite_config.weapon_offset.y, 0.0)).with_rotation(Quat::IDENTITY),
+        transform,
+        ggrs_transform,
         weapon_state,
         weapon_modes_state,
         weapon.clone(),
-        animation_bundle
+        animation_bundle,
     )).add_rollback().id();
 
 
@@ -372,11 +375,12 @@ pub fn spawn_weapon_for_player(
 fn spawn_bullet_rollback(
     commands: &mut Commands,
     weapon: &Weapon,
-    weapon_transform: &GlobalTransform,
+    player_transform: &fixed_math::FixedTransform3D,
+    weapon_transform: &fixed_math::FixedTransform3D,
     facing_direction: &FacingDirection,
-    direction: Vec2,
+    direction: fixed_math::FixedVec2,
     bullet_type: BulletType,
-    range: f32,
+    range: fixed_math::Fixed,
     player_handle: PlayerHandle,
     current_frame: u32,
     collision_settings: &Res<CollisionSettings>,
@@ -384,13 +388,13 @@ fn spawn_bullet_rollback(
 ) -> Entity {
     let (velocity, damage, range, radius) = match &bullet_type {
         BulletType::Standard { speed, damage: damage_bullet } => {
-            (direction * (speed / 60.0 ), *damage_bullet, range, 5.0)
+            (direction * (*speed / *GAME_SPEED ), *damage_bullet, range, fixed_math::new(5.0))
         },
         BulletType::Explosive { speed, damage: damage_bullet, blast_radius, explosive_damage_multiplier } => {
-            (direction * (speed / 60.0), *damage_bullet, range, 8.0)
+            (direction * (*speed / *GAME_SPEED ), *damage_bullet, range, fixed_math::new(8.0))
         },
         BulletType::Piercing { speed, damage: damage_bullet, penetration } => {
-            (direction * (speed / 60.0), *damage_bullet, range, 5.0)
+            (direction * (*speed / *GAME_SPEED ), *damage_bullet, range, fixed_math::new(5.0))
         }
     };
 
@@ -400,17 +404,44 @@ fn spawn_bullet_rollback(
         BulletType::Piercing { .. } => Color::BLACK,
     };
 
-    let firing_position_v2 = if matches!(facing_direction, FacingDirection::Right) {
+     let local_muzzle_offset_v2 = if matches!(facing_direction, FacingDirection::Right) {
         weapon.sprite_config.bullet_offset_right
     } else {
         weapon.sprite_config.bullet_offset_left
     };
-    let firing_position = round_vec3(weapon_transform.transform_point(firing_position_v2.extend(0.)));
-    let (_, weapon_world_rotation, _) = weapon_transform.affine().to_scale_rotation_translation();
 
-    let transform = Transform::from_translation(firing_position)
-            .with_rotation(weapon_world_rotation);
-    
+    // 1. Muzzle offset in weapon's local 3D space
+    let local_muzzle_offset_v3 = fixed_math::FixedVec3 {
+        x: local_muzzle_offset_v2.x,
+        y: local_muzzle_offset_v2.y,
+        z: fixed_math::Fixed::ZERO,
+    };
+
+    // 2. Transform muzzle offset by weapon's local rotation (relative to player)
+    //    and add weapon's local translation (relative to player)
+    //    to get muzzle position in player's local coordinate system.
+    let weapon_local_rotation_mat3: fixed_math::FixedMat3 = weapon_transform.rotation.clone();
+    let weapon_local_translation_v3: fixed_math::FixedVec3 = weapon_transform.translation;
+
+    let muzzle_pos_in_player_space = weapon_local_rotation_mat3.mul_vec3(local_muzzle_offset_v3) + weapon_local_translation_v3;
+
+    // 3. Transform muzzle position from player's local space to world space.
+    let player_world_rotation_mat3: fixed_math::FixedMat3 = player_transform.rotation.clone();
+    let player_world_translation_v3: fixed_math::FixedVec3 = player_transform.translation;
+
+    let world_firing_position = player_world_rotation_mat3.mul_vec3(muzzle_pos_in_player_space) + player_world_translation_v3;
+
+    // 4. Calculate projectile's world rotation.
+    // This is player's world rotation combined with weapon's local rotation.
+    let projectile_world_rotation = player_world_rotation_mat3.mul_mat3(&weapon_local_rotation_mat3); // Ensure mul_mat3 is the correct operation
+
+    // 5. Create the projectile's transform.
+    let new_projectile_fixed_transform = fixed_math::FixedTransform3D::new(
+        world_firing_position,
+        projectile_world_rotation,
+        fixed_math::FixedVec3::ONE,
+    );
+
 
     let mut entity_commands = commands.spawn((
         Sprite::from_color(color, Vec2::new(10.0, 10.0)),
@@ -419,21 +450,22 @@ fn spawn_bullet_rollback(
             bullet_type,
             damage,
             range,
-            distance_traveled: 0.,
+            distance_traveled: fixed_math::Fixed::ZERO,
             player_handle,
             created_at: current_frame
         },
         BulletRollbackState {
             spawn_frame: current_frame,
-            initial_position: firing_position_v2,
+            initial_position: new_projectile_fixed_transform.translation.truncate(),
             direction,
         },
         Collider {
-            offset: Vec2::ZERO,
+            offset: fixed_math::FixedVec3::ZERO,
             shape: ColliderShape::Circle { radius },
         },
         CollisionLayer(parent_layer.0),
-        transform,
+        new_projectile_fixed_transform.to_bevy_transform(),
+        new_projectile_fixed_transform,
     ));
 
     match bullet_type {
@@ -447,56 +479,22 @@ fn spawn_bullet_rollback(
 }
 
 
-
 // SYSTEMS
 
 // Rollback system to correctly transform the weapon based on the position
 pub fn system_weapon_position(
     query: Query<(&Children, &CursorPosition, &FacingDirection), With<Rollback>>,
-    mut query_weapon: Query<(&Children, &mut Transform), With<ActiveWeapon>>,
-    mut query_sprite: Query<(&mut Sprite)>,
+    mut query_weapon: Query<&mut fixed_math::FixedTransform3D, With<ActiveWeapon>>,
 
 ) {
     for (childs, cursor_position, direction) in query.iter() {
         for child in childs.iter() {
-            if let Ok((childs, mut transform)) = query_weapon.get_mut(*child) {
-                for child in childs.iter() {
-                    if let Ok((mut sprite)) = query_sprite.get_mut(*child) {
-
-                        let vec = Vec2::new(cursor_position.x as f32, cursor_position.y as f32); // Ensure cursor_position fields are clean if f32
-                        let angle_radians = vec.y.atan2(vec.x);
-                        // Optional: You can round angle_radians here if it's used for other deterministic logic like deriving FacingDirection
-                        // let clean_angle_for_logic = round_f32(angle_radians);
-
-                        let unrounded_quat = Quat::from_rotation_z(angle_radians); // Or use clean_angle_for_logic
-
-                        // Round each component of the quaternion
-                        let rounded_quat = Quat::from_xyzw(
-                            round(unrounded_quat.x),
-                            round(unrounded_quat.y),
-                            round(unrounded_quat.z),
-                            round(unrounded_quat.w),
-                        );
-
-                        // IMPORTANT: A quaternion representing a rotation must be a unit quaternion (length 1).
-                        // Rounding its components can make it slightly non-unit. So, normalize it.
-                        // However, .normalize() itself uses f32 math (sqrt).
-                        // If the rounded_quat components are "clean" (e.g., only have 3 decimal places),
-                        // the result of .normalize() is *more likely* to be deterministic, but it's a complex spot.
-                        // For perfect determinism, you'd ideally want a "deterministic normalize" or ensure
-                        // the rounding factor is chosen such that normalization is stable.
-                        transform.rotation = rounded_quat.normalize(); 
-
-                        match direction {
-                            FacingDirection::Left => {
-                                sprite.flip_y = true;
-                            }
-                            FacingDirection::Right => {
-                                sprite.flip_y = false;
-                            }
-                        };
-                    }
-                }
+            if let Ok(mut transform) = query_weapon.get_mut(*child) {
+                let cursor_game_world_pos = fixed_math::FixedVec3::new(fixed_math::new(cursor_position.x as f32), fixed_math::new(cursor_position.y as f32), fixed_math::new(0.0));
+                let direction_to_target_fixed = (cursor_game_world_pos - transform.translation).normalize();
+                let angle_radians_fixed = fixed_math::atan2_fixed(direction_to_target_fixed.y, direction_to_target_fixed.x);
+                        
+                transform.rotation = fixed_math::FixedMat3::from_rotation_z(angle_radians_fixed);
             }
         }
     }
@@ -509,15 +507,15 @@ pub fn weapon_rollback_system(
     inputs: Res<PlayerInputs<PeerConfig>>,
     frame: Res<FrameCount>,
 
-    mut inventory_query: Query<(Entity, &mut WeaponInventory, &SprintState, &DashState, &CollisionLayer, &Player)>,
-    mut weapon_query: Query<(&mut Weapon, &mut WeaponState, &mut WeaponModesState, &GlobalTransform, &Parent)>,
+    mut inventory_query: Query<(Entity, &mut WeaponInventory, &SprintState, &DashState, &CollisionLayer, &fixed_math::FixedTransform3D, &Player)>,
+    mut weapon_query: Query<(&mut Weapon, &mut WeaponState, &mut WeaponModesState, &fixed_math::FixedTransform3D, &Parent)>,
 
-    player_query: Query<(&GlobalTransform, &FacingDirection, &Player)>,
+    player_query: Query<(&fixed_math::FixedTransform3D, &FacingDirection, &Player)>,
 
     collision_settings: Res<CollisionSettings>,
 ) {
     // Process weapon firing for all players
-    for (entity,  mut inventory, sprint_state, dash_state , collision_layer, player) in inventory_query.iter_mut() {
+    for (entity,  mut inventory, sprint_state, dash_state , collision_layer, transform, player) in inventory_query.iter_mut() {
         let (input, _input_status) = inputs[player.handle];
 
         // Do nothing if no weapons
@@ -587,7 +585,7 @@ pub fn weapon_rollback_system(
             // TODO: fix only support two mode, take the first that is not the current
             if input.fire {
                 // Calculate fire rate in frames (60 FPS assumed) , need to be configure via ressource instead
-                let frame_per_shot = ((60. / weapon_config.firing_rate)) as u32;
+                let frame_per_shot = ((bevy_fixed::fixed_math::new(60.) / weapon_config.firing_rate)).to_num::<u32>();
                 let current_frame = frame.frame;
                 let frames_since_last_shot = current_frame - weapon_state.last_fire_frame;
 
@@ -642,22 +640,33 @@ pub fn weapon_rollback_system(
 
                 if can_fire {
                     if let Ok((_, facing_direction, _)) = player_query.get(**parent) {
-                        let aim_dir = Vec2::new(
-                            input.pan_x as f32 / 127.0,
-                            input.pan_y as f32 / 127.0
-                        ).normalize();
-                                match weapon_config.firing_mode {
+                        let mut aim_dir = fixed_math::FixedVec2::new(
+                            fixed_math::Fixed::from_num(input.pan_x),
+                            fixed_math::Fixed::from_num(input.pan_y),
+                        );
+                        aim_dir.x = aim_dir.x / fixed_math::new(127.0);
+                        aim_dir.y = aim_dir.y / fixed_math::new(127.0);
+                        aim_dir = aim_dir.normalize();
+
+                               match weapon_config.firing_mode {
                                     FiringMode::Shotgun { pellet_count, spread_angle } => {
                                         // Fire multiple pellets in a spread pattern
                                         for _ in 0..pellet_count {
                                             // Calculate a random angle within the spread range
-                                            let pellet_angle = (round(rng.next_f32()) - 0.5) * spread_angle;
-                                            let spread_rotation = Mat2::from_angle(pellet_angle);
-                                            let direction = spread_rotation * aim_dir;
+                                            let random_fixed_val = rng.next_fixed();
+                                            let offset_from_center = random_fixed_val.saturating_sub(fixed_math::FIXED_HALF);
+                                            let pellet_angle_fixed = offset_from_center.saturating_mul(spread_angle);
+
+                                            // Create the fixed-point 2D rotation matrix
+                                            let fixed_spread_rotation = fixed_math::FixedMat2::from_angle(pellet_angle_fixed);
+
+                                            // Apply the rotation to the fixed-point aim direction
+                                            let direction = fixed_spread_rotation.mul_vec2(aim_dir);
 
                                             spawn_bullet_rollback(
                                                 &mut commands,
                                                 &weapon,
+                                                transform,
                                                 weapon_transform,
                                                 facing_direction,
                                                 direction,
@@ -673,14 +682,17 @@ pub fn weapon_rollback_system(
                                         inventory.start_reload(frame.frame, weapon_config.reload_time_seconds);
                                     },
                                     _ => {
-                                        // Standard firing for Automatic, Manual, and Burst
-                                        let spread_angle = (rng.next_f32_symmetric() - 0.5) * weapon_config.spread;
-                                        let spread_rotation = Mat2::from_angle(spread_angle);
-                                        let direction = spread_rotation * aim_dir;
+                                        let random_fixed_val = rng.next_fixed();
+                                        let offset_from_center = random_fixed_val.saturating_sub(fixed_math::FIXED_HALF);
+                                        let pellet_angle_fixed = offset_from_center.saturating_mul(fixed_math::FIXED_ONE);
+
+                                        let fixed_spread_rotation = fixed_math::FixedMat2::from_angle(pellet_angle_fixed);
+                                        let direction = fixed_spread_rotation.mul_vec2(aim_dir);
 
                                         spawn_bullet_rollback(
                                             &mut commands,
                                             &weapon,
+                                            transform,
                                             weapon_transform,
                                             facing_direction,
                                             direction,
@@ -718,7 +730,7 @@ pub fn weapon_rollback_system(
 pub fn bullet_rollback_system(
     mut commands: Commands,
     frame: Res<FrameCount>,
-    mut bullet_query: Query<(Entity, &mut Transform, &mut Bullet, &BulletRollbackState)>,
+    mut bullet_query: Query<(Entity, &mut fixed_math::FixedTransform3D, &mut Bullet, &BulletRollbackState)>,
 ) {
     for (entity, mut transform, mut bullet, bullet_state) in bullet_query.iter_mut() {
         // Move bullet based on velocity (fixed timestep)
@@ -727,23 +739,11 @@ pub fn bullet_rollback_system(
         // Apply movement
         transform.translation.x += delta.x;
         transform.translation.y += delta.y;
-        // If using Vec3 for translation, also: transform.translation.z += delta.z;
 
-        // --- CRITICAL: Round the translation after modification ---
-        transform.translation = round_vec3(transform.translation); // Or round_vec2 if it's Vec2 and then assign back to .truncate() if needed
 
-        // Track distance traveled (fixed timestep version)
-        // delta.length() involves sqrt, which is an f32 operation.
-        // To be safe, round the result before adding, or round the total after.
-        // Rounding the total after is usually sufficient if delta is from clean sources.
         bullet.distance_traveled += delta.length();
-        // --- CRITICAL: Round distance_traveled after modification ---
-        bullet.distance_traveled = round(bullet.distance_traveled);
 
-        // Destroy bullet if it exceeds its range
-        // Ensure bullet.range is also a deterministically "clean" f32 value
-        // (e.g. set initially with a rounded value or from an integer).
-        if bullet.distance_traveled >= round(bullet.range) { // Compare rounded values or ensure range is clean
+        if bullet.distance_traveled >= bullet.range {
             commands.entity(entity).despawn();
         }
     }
@@ -775,86 +775,81 @@ fn apply_bullet_dommage(
 pub fn bullet_rollback_collision_system(
     mut commands: Commands,
     settings: Res<CollisionSettings>,
-    bullet_query: Query<(Entity, &Transform, &Bullet, &Collider, &CollisionLayer), With<Rollback>>,
-    // Query for colliders, get mutable access later only when needed for a specific entity
-    mut collider_query: Query<(Entity, &Transform, &Collider, &CollisionLayer, Option<&Wall>, Option<&Health>, Option<&mut DamageAccumulator>), (Without<Bullet>, With<Rollback>)>,
+    bullet_query: Query<(Entity, &fixed_math::FixedTransform3D, &Bullet, &Collider, &CollisionLayer), With<Rollback>>,
+    // Query for colliders. We'll need mutable access to DamageAccumulator later.
+    mut collider_query: Query<(Entity, &fixed_math::FixedTransform3D, &Collider, &CollisionLayer, Option<&Wall>, Option<&Health>, Option<&mut DamageAccumulator>), (Without<Bullet>, With<Rollback>)>,
 ) {
-    let mut bullets_to_despawn_set = HashSet::new(); // Use HashSet for efficient duplicate avoidance and checks
+    let mut bullets_to_despawn_set = HashSet::new();
 
     for (bullet_entity, bullet_transform, bullet, bullet_collider, bullet_layer) in bullet_query.iter() {
-        // Skip already processed bullets that are marked for despawn
         if bullets_to_despawn_set.contains(&bullet_entity) {
             continue;
         }
 
-        let mut actual_collisions = Vec::new();
+        let mut actual_collided_target_entities: Vec<Entity> = Vec::new();
 
-        // Phase 1: Identify all entities this bullet is colliding with
-        for (target_entity, target_transform, target_collider, target_layer, _opt_wall, _opt_health, _opt_accumulator) in collider_query.iter() { // Note: iter() not iter_mut() for the broad phase
+        // Phase 1: Identify ALL entities this bullet is colliding with (immutable pass first)
+        for (target_entity, target_transform, target_collider, target_layer, _opt_wall, _opt_health, /* no mut here */ _) in collider_query.iter() {
             if !settings.layer_matrix[bullet_layer.0 as usize][target_layer.0 as usize] {
                 continue;
             }
-
-            if is_colliding(bullet_transform, bullet_collider, target_transform, target_collider) {
-                actual_collisions.push(target_entity); // Store only the entity ID for now
+            if is_colliding(&bullet_transform.translation, bullet_collider, &target_transform.translation, target_collider) {
+                actual_collided_target_entities.push(target_entity);
             }
         }
 
-        // Phase 2: Sort colliding entities by their Entity ID for deterministic processing
-        actual_collisions.sort_by_key(|e| e.index());
+        if actual_collided_target_entities.is_empty() {
+            continue; // No collision for this bullet
+        }
 
-        // Phase 3: Process sorted collisions
-        for &collided_target_entity in actual_collisions.iter() {
-            // Now, get mutable access to the components of the specific target entity
-            if let Ok((_, target_transform, _target_collider, _target_layer, opt_wall, opt_health, opt_accumulator_mut)) = collider_query.get_mut(collided_target_entity) {
-                
-                if opt_health.is_some() {
-                    // Apply damage (using the refactored logic from your apply_bullet_dommage function)
-                    if let Some(mut accumulator) = opt_accumulator_mut {
-                        // Update existing accumulator
-                        accumulator.total_damage += bullet.damage;
-                        accumulator.hit_count += 1;
-                        accumulator.last_hit_by = Some(health::HitBy::Player(bullet.player_handle));
-                    } else {
-                        // Insert new accumulator if it doesn't exist
-                        commands.entity(collided_target_entity).insert(DamageAccumulator {
-                            hit_count: 1,
-                            total_damage: bullet.damage,
-                            last_hit_by: Some(health::HitBy::Player(bullet.player_handle)),
-                        });
+        // Sort the collided entities to pick the "first" one deterministically
+        actual_collided_target_entities.sort_unstable_by_key(|e| e.to_bits());
+
+        // The bullet will interact with the first entity in this sorted list.
+        let deterministic_target_entity = actual_collided_target_entities[0];
+
+        // Now get mutable components for this specific, deterministically chosen target
+        if let Ok((_target_entity_refetch, _target_transform, _target_collider, _target_layer, opt_wall, opt_health, opt_accumulator_mut)) = collider_query.get_mut(deterministic_target_entity) {
+            if opt_health.is_some() {
+                if let Some(mut accumulator) = opt_accumulator_mut {
+                    accumulator.total_damage = accumulator.total_damage.saturating_add(bullet.damage);
+                    accumulator.hit_count += 1;
+                    accumulator.last_hit_by = Some(health::HitBy::Player(bullet.player_handle));
+                } else {
+                    commands.entity(deterministic_target_entity).insert(DamageAccumulator {
+                        hit_count: 1,
+                        total_damage: bullet.damage, // Ensure bullet.damage is Fixed
+                        last_hit_by: Some(health::HitBy::Player(bullet.player_handle)),
+                    });
+                }
+            }
+
+            let mut should_bullet_despawn_now = false;
+            match bullet.bullet_type {
+                BulletType::Standard { .. } => { should_bullet_despawn_now = true; },
+                BulletType::Explosive { .. } => { should_bullet_despawn_now = true; },
+                BulletType::Piercing { .. } => {
+                    if opt_wall.is_some() { // Piercing bullets despawn on walls
+                        should_bullet_despawn_now = true;
                     }
-                }
+                    // If piercing bullets should continue through enemies, this logic is fine.
+                    // They would only despawn if they hit a wall (or run out of pierce, etc.)
+                },
+            }
 
-                let mut should_bullet_despawn_now = false;
-                match bullet.bullet_type {
-                    BulletType::Standard { .. } => {
-                        should_bullet_despawn_now = true;
-                    },
-                    BulletType::Explosive { blast_radius, .. } => {
-                        should_bullet_despawn_now = true;
-                    },
-                    BulletType::Piercing { .. } => {
-                        if opt_wall.is_some() {
-                            should_bullet_despawn_now = true;
-                        }
-                    },
-                }
-
-                if should_bullet_despawn_now {
-                    bullets_to_despawn_set.insert(bullet_entity);
-                    break; // Bullet is destroyed, stop processing more targets for this bullet
-                }
+            if should_bullet_despawn_now {
+                bullets_to_despawn_set.insert(bullet_entity);
+                // Since the original code had a `break` here, we effectively stop processing
+                // more targets for this bullet after this first deterministic interaction.
             }
         }
     }
 
-    // Convert HashSet to Vec and sort by entity ID for deterministic despawning
+    // Deterministic despawning of bullets (already good)
     let mut bullets_to_despawn_vec: Vec<Entity> = bullets_to_despawn_set.into_iter().collect();
-    bullets_to_despawn_vec.sort_by_key(|entity| entity.index());
-    
-    // Despawn bullets
+    bullets_to_despawn_vec.sort_by_key(|entity| entity.index()); // Or .to_bits()
     for entity in bullets_to_despawn_vec {
-        commands.entity(entity).despawn(); // Despawn if the entity still exists
+        commands.entity(entity).despawn();
     }
 }
 
@@ -891,6 +886,36 @@ pub fn weapon_inventory_system(
         }
     }
 }
+
+
+
+pub fn update_weapon_sprite_direction(
+    mut query_sprite: Query<(&mut Sprite)>,
+    query_players: Query<(&Children, &FacingDirection)>,
+    query_weapons: Query<(&Children), With<ActiveWeapon>>
+) {
+
+    for (childs,  direction) in query_players.iter() {
+        for child in childs.iter() {
+            if let Ok(childs) = query_weapons.get(*child) {
+                for child in childs.iter() {
+                    if let Ok((mut sprite)) = query_sprite.get_mut(*child) {
+                        match direction {
+                            FacingDirection::Left => {
+                                sprite.flip_y = true;
+                            }
+                            FacingDirection::Right => {
+                                sprite.flip_y = false;
+                            }
+                        };
+                    }
+                }
+            }
+        }
+    }
+
+}
+
 
 pub fn weapons_config_update_system(
     _asset_server: Res<AssetServer>,

@@ -13,8 +13,7 @@ use utils::{
     web::WebPlugin,
 };
 
-use rand::Rng;
-
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::env;
 
 fn main() {
@@ -105,7 +104,12 @@ fn keyinput(
         for level_entity in &level_query {
             commands.entity(level_entity).despawn_recursive()
         }
-        config.seed = rand::thread_rng().gen();
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        config.seed = since_the_epoch.as_secs() as i32;
         reload_map(&asset_server, config.as_ref());
         for mut level_set in level_set.iter_mut() {
             level_set.iids.clear();

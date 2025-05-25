@@ -1,14 +1,14 @@
-use bevy::{asset::AssetMetaCheck, prelude::*};
+use bevy::prelude::*;
 use bevy_ggrs::{prelude::*, GgrsSchedule};
-use bevy_kira_audio::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use utils::rng::RollbackRng;
+use bevy_fixed::{fixed_math::{self, sync_bevy_transforms_from_fixed}, rng::RollbackRng};
 use std::hash::Hash;
 use bevy_common_assets::ron::RonAssetPlugin;
 
 use animation::{set_sprite_flip, D2AnimationPlugin};
 use bevy_ggrs::GgrsPlugin;
+
 
 use crate::{
     audio::ZAudioPlugin,
@@ -16,25 +16,12 @@ use crate::{
     character::{
         config::CharacterConfig,
         dash::DashState,
-        enemy::{
-            ai::pathing::{
-                calculate_paths,
-                check_direct_paths,
-                move_enemies,
-                update_enemy_targets,
-                EnemyPath,
-                PathfindingConfig
-            },
-            spawning::{
-                enemy_spawn_from_spawners_system, EnemySpawnerState
-            },
-            Enemy
-        },
+        enemy::{ai::pathing::{calculate_paths, check_direct_paths, move_enemies, update_enemy_targets, EnemyPath, PathfindingConfig}, spawning::{enemy_spawn_from_spawners_system, EnemySpawnerState}, Enemy},
         health::{
             rollback_apply_accumulated_damage,
             rollback_apply_death,
             ui::update_health_bars,
-            DamageAccumulator, Death, Health}, movement::{SprintState, Velocity}, player::{control::PlayerAction, input::{apply_friction, apply_inputs, move_characters, read_local_inputs, update_animation_state, PointerWorldPosition}, jjrs::PeerConfig, Player}}, collider::{Collider, CollisionLayer, CollisionSettings, Wall}, debug::SpriteDebugOverlayPlugin, frame::{increase_frame_system, FrameCount}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players, GggrsSessionConfiguration}, weapons::{bullet_rollback_collision_system, bullet_rollback_system, system_weapon_position, ui::WeaponDebugUIPlugin, weapon_inventory_system, weapon_rollback_system, weapons_config_update_system, Bullet, BulletRollbackState, WeaponInventory, WeaponModesState, WeaponState, WeaponsConfig}};
+            DamageAccumulator, Death, Health}, movement::{SprintState, Velocity}, player::{control::PlayerAction, input::{apply_friction, apply_inputs, move_characters, read_local_inputs, update_animation_state, PointerWorldPosition}, jjrs::PeerConfig, Player}}, collider::{Collider, CollisionLayer, CollisionSettings, Wall}, debug::SpriteDebugOverlayPlugin, frame::{increase_frame_system, FrameCount}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players, GggrsSessionConfiguration}, weapons::{bullet_rollback_collision_system, bullet_rollback_system, system_weapon_position, ui::WeaponDebugUIPlugin, update_weapon_sprite_direction, weapon_inventory_system, weapon_rollback_system, weapons_config_update_system, Bullet, BulletRollbackState, WeaponInventory, WeaponModesState, WeaponState, WeaponsConfig}};
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash, States)]
 pub enum AppState {
@@ -92,13 +79,15 @@ impl Plugin for BaseZombieGamePlugin {
         app.set_rollback_schedule_fps(60);
         app.add_plugins(GgrsPlugin::<PeerConfig>::default())
             .rollback_resource_with_copy::<RollbackRng>()
-            .rollback_resource_with_reflect::<PathfindingConfig>()
+            .rollback_resource_with_clone::<PathfindingConfig>()
+            .rollback_component_with_clone::<EnemySpawnerComponent>()
+            .rollback_component_with_clone::<EnemySpawnerState>()
+            .rollback_component_with_clone::<EnemyPath>()
             .rollback_resource_with_copy::<PointerWorldPosition>()
             .rollback_resource_with_copy::<FrameCount>()
-            .rollback_component_with_clone::<EnemySpawnerComponent>()
-            .rollback_component_with_reflect::<EnemySpawnerState>()
-            .rollback_component_with_reflect::<Health>()
-            .rollback_component_with_reflect::<DamageAccumulator>()
+            .rollback_component_with_clone::<fixed_math::FixedTransform3D>()
+            .rollback_component_with_clone::<Health>()
+            .rollback_component_with_clone::<DamageAccumulator>()
             .rollback_component_with_clone::<WeaponInventory>()
             .rollback_component_with_clone::<WeaponModesState>()
             .rollback_component_with_clone::<WeaponState>()
@@ -107,13 +96,11 @@ impl Plugin for BaseZombieGamePlugin {
             .rollback_component_with_clone::<Collider>()
             .rollback_component_with_clone::<Wall>()
             .rollback_component_with_clone::<CollisionLayer>()
-            .rollback_component_with_clone::<Transform>()
-            .rollback_component_with_reflect::<DashState>()
-            .rollback_component_with_reflect::<SprintState>()
-            .rollback_component_with_reflect::<Velocity>()
+            .rollback_component_with_clone::<DashState>()
+            .rollback_component_with_clone::<SprintState>()
+            .rollback_component_with_clone::<Velocity>()
             .rollback_component_with_clone::<Death>()
             .rollback_component_with_reflect::<Player>()
-            .rollback_component_with_reflect::<EnemyPath>()
             .rollback_component_with_reflect::<Enemy>();
 
         app.add_systems(Startup, (add_global_asset));
@@ -146,8 +133,7 @@ impl Plugin for BaseZombieGamePlugin {
                 rollback_apply_accumulated_damage.after(bullet_rollback_collision_system),
                 rollback_apply_death.after(rollback_apply_accumulated_damage),
                 // ANIMATION CRATE
-                set_sprite_flip.after(bullet_rollback_collision_system),
-                update_animation_state.after(set_sprite_flip),
+                update_animation_state.after(rollback_apply_death),
                 // SPAWING
                 enemy_spawn_from_spawners_system.after(update_animation_state),
                 // LOGIC OF ENEMY
@@ -159,9 +145,11 @@ impl Plugin for BaseZombieGamePlugin {
                 increase_frame_system.after(move_enemies)
             ));
         app.add_systems(Update, (
+            sync_bevy_transforms_from_fixed,
+            update_weapon_sprite_direction,
             weapon_inventory_system,
             weapons_config_update_system,
-
+            set_sprite_flip,
             update_health_bars,
         ));
     }

@@ -315,8 +315,8 @@ fn character_visuals_update_system(
 // SYSTEM THAT RUN ON THE BEVY SCHEDULE FOR SYNCH
 
 pub fn set_sprite_flip(
-    query: Query<(&Children, &FacingDirection), With<Rollback>>,
-    mut sprite_query: Query<(&mut Sprite)>,
+    query: Query<(&Children, &FacingDirection)>,
+    mut sprite_query: Query<&mut Sprite>,
 ) {
     for (childrens, direction) in query.iter() {
         for child in childrens.iter() {
