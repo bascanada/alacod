@@ -1,5 +1,4 @@
 use animation::FacingDirection;
-// crates/game/src/enemy/path.rs
 use bevy::prelude::*;
 use utils::fixed_math;
 use utils::rng::RollbackRng;
@@ -11,7 +10,6 @@ use crate::character::player::input::FIXED_TIMESTEP;
 use crate::character::player::Player;
 use crate::collider::{Collider, is_colliding, Wall};
 use crate::frame::FrameCount;
-
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct EnemyPath {
@@ -209,139 +207,166 @@ pub fn check_direct_paths(
 
 // System to calculate paths around obstacles when needed
 pub fn calculate_paths(
-    mut enemy_query: Query<(&fixed_math::FixedTransform3D, &mut EnemyPath), With<Enemy>>,
+    mut enemy_query: Query<(Entity, &fixed_math::FixedTransform3D, &mut EnemyPath), With<Enemy>>,
     wall_query: Query<(&fixed_math::FixedTransform3D, &Collider), With<Wall>>,
     mut rng: ResMut<RollbackRng>,
     config: Res<PathfindingConfig>,
 ) {
-    for (enemy_fixed_transform, mut path) in enemy_query.iter_mut() {
-        if path.path_status != PathStatus::CalculatingPath {
-            continue;
+    // --- Step 1: Collect entities and categorize them ---
+    let mut entities_needing_path_calculation_data: Vec<(Entity, fixed_math::FixedVec2, fixed_math::FixedVec2)> = Vec::new();
+    let mut entities_to_set_direct: Vec<Entity> = Vec::new();
+
+    // Initial immutable iteration to categorize
+    for (entity, enemy_fixed_transform, path_component) in enemy_query.iter() {
+        if path_component.path_status == PathStatus::CalculatingPath {
+            let enemy_pos_v2 = enemy_fixed_transform.translation.truncate();
+            let target_v2 = path_component.target_position;
+
+            // Check if already at target (or very close) using squared length for efficiency
+            if (target_v2 - enemy_pos_v2).length_squared() > fixed_math::FixedWide::ZERO {
+                entities_needing_path_calculation_data.push((entity, enemy_pos_v2, target_v2));
+            } else {
+                // This entity is in CalculatingPath but already at its target.
+                entities_to_set_direct.push(entity);
+            }
         }
+    }
 
-        let enemy_pos_v2 = enemy_fixed_transform.translation.truncate();
-        let target_v2 = path.target_position;
-
-        let mut waypoints = VecDeque::new();
-        let direct_dir_v2 = (target_v2 - enemy_pos_v2).normalize_or_zero();
-
-        // If already at target or no direction, maybe consider it direct or idle
-        if direct_dir_v2 == fixed_math::FixedVec2::ZERO {
-            path.waypoints.clear();
-            path.path_status = PathStatus::DirectPath; // Or Idle
-            continue;
+    // --- Step 2: Update status for entities already at their target ---
+    // These entities are no longer part of the main path calculation logic using RNG for this frame.
+    for entity_id in entities_to_set_direct {
+        if let Ok((_, _, mut path_mut)) = enemy_query.get_mut(entity_id) {
+            path_mut.waypoints.clear();
+            path_mut.path_status = PathStatus::DirectPath;
         }
+    }
 
-        // Try several angles to find a clear path
-        // Convert f32 angle offsets to Fixed
-        let base_angle_offsets: [fixed_math::Fixed; 7] = [
-            fixed_math::FIXED_ZERO, fixed_math::new(0.5), -fixed_math::new(0.5),
-            fixed_math::FIXED_ONE, -fixed_math::FIXED_ONE,
-            fixed_math::new(1.5), -fixed_math::new(1.5)
-        ]; // These are in radians
+    // --- Step 3: Sort entities that genuinely need path calculation for deterministic RNG use ---
+    entities_needing_path_calculation_data.sort_unstable_by_key(|(e, _, _)| e.to_bits());
 
-        let mut best_angle_fixed = fixed_math::FIXED_ZERO;
-        let mut best_clearance_score = -fixed_math::Fixed::MAX; // Initialize with very small number
+    // --- Step 4: Iterate sorted entities and perform path calculation logic (including RNG) ---
+    for (entity_id, enemy_pos_v2, target_v2) in entities_needing_path_calculation_data {
+        // Get mutable access to the path component for the current entity
+        if let Ok((_fetched_entity, _fetched_transform, mut path)) = enemy_query.get_mut(entity_id) {
+            // The entity should still be in PathStatus::CalculatingPath because we filtered
+            // and processed the "already at target" cases separately. A defensive check can be added if necessary.
+            // if path.path_status != PathStatus::CalculatingPath { continue; }
 
-        let initial_angle_fixed = fixed_math::atan2_fixed(direct_dir_v2.y, direct_dir_v2.x);
+            let mut waypoints = VecDeque::new();
+            // Note: enemy_pos_v2 and target_v2 are passed from the collected data
+            let direct_dir_v2 = (target_v2 - enemy_pos_v2).normalize_or_zero();
 
-        for angle_offset_fixed in base_angle_offsets.iter() {
-            let current_angle_fixed = initial_angle_fixed + *angle_offset_fixed;
-            let test_dir_v2 = fixed_math::FixedVec2::new(
-                fixed_math::cos_fixed(current_angle_fixed),
-                fixed_math::sin_fixed(current_angle_fixed)
-            );
+            // If, after all, direct_dir_v2 is zero (e.g. due to precision after collection),
+            // handle it here to avoid issues in path logic.
+            if direct_dir_v2 == fixed_math::FixedVec2::ZERO {
+                path.waypoints.clear();
+                path.path_status = PathStatus::DirectPath;
+                continue;
+            }
 
-            let step_check_distance = config.node_size; // Use node_size or a similar config
-            let max_check_steps = 10; // How many steps to check for clearance
+            let base_angle_offsets: [fixed_math::Fixed; 7] = [
+                fixed_math::FIXED_ZERO, fixed_math::new(0.5), -fixed_math::new(0.5),
+                fixed_math::FIXED_ONE, -fixed_math::FIXED_ONE,
+                fixed_math::new(1.5), -fixed_math::new(1.5)
+            ];
 
-            let test_collider = Collider {
-                shape: crate::collider::ColliderShape::Circle { radius: fixed_math::new(15.0) }, // Example
-                offset: fixed_math::FixedVec3::ZERO,
-            };
-            
-            let mut max_clear_distance = fixed_math::FIXED_ZERO;
+            let mut best_angle_fixed = fixed_math::FIXED_ZERO;
+            // Initialize with a value that any valid score can beat.
+            // Using Fixed::MIN if scores can be negative, or a very small fixed number otherwise.
+            let mut best_clearance_score = fixed_math::Fixed::MIN; // Or Fixed::MIN if NEG_INFINITY not defined
 
-            for i in 1..=max_check_steps {
-                let test_dist_along_dir = fixed_math::Fixed::from_num(i) * step_check_distance;
-                let test_pos_v2 = enemy_pos_v2 + test_dir_v2 * test_dist_along_dir;
-                
-                let test_fixed_transform = fixed_math::FixedTransform3D {
-                    translation: test_pos_v2.extend(),
-                    rotation: fixed_math::FixedMat3::IDENTITY,
-                    scale: fixed_math::FixedVec3::ONE,
+            let initial_angle_fixed = fixed_math::atan2_fixed(direct_dir_v2.y, direct_dir_v2.x);
+
+            for angle_offset_fixed in base_angle_offsets.iter() {
+                let current_angle_fixed = initial_angle_fixed + *angle_offset_fixed;
+                let test_dir_v2 = fixed_math::FixedVec2::new(
+                    fixed_math::cos_fixed(current_angle_fixed),
+                    fixed_math::sin_fixed(current_angle_fixed)
+                );
+
+                let step_check_distance = config.node_size;
+                let max_check_steps = 10; 
+
+                let test_collider = Collider {
+                    shape: crate::collider::ColliderShape::Circle { radius: fixed_math::new(15.0) },
+                    offset: fixed_math::FixedVec3::ZERO, // Assuming Collider.offset is FixedVec2
                 };
+                
+                let mut max_clear_distance = fixed_math::FIXED_ZERO;
+                for i in 1..=max_check_steps {
+                    let test_dist_along_dir = fixed_math::Fixed::from_num(i) * step_check_distance;
+                    let test_pos_v2 = enemy_pos_v2 + test_dir_v2 * test_dist_along_dir;
+                    
+                    let test_fixed_transform = fixed_math::FixedTransform3D {
+                        translation: test_pos_v2.extend(),
+                        rotation: fixed_math::FixedMat3::IDENTITY,
+                        scale: fixed_math::FixedVec3::ONE,
+                    };
 
-                let mut collides = false;
-                for (wall_fixed_transform, wall_collider) in wall_query.iter() {
-                    if is_colliding(&test_fixed_transform.translation, &test_collider, &wall_fixed_transform.translation, wall_collider) {
-                        collides = true;
+                    let mut collides = false;
+                    for (wall_fixed_transform, wall_collider) in wall_query.iter() {
+                        if is_colliding(&test_fixed_transform.translation, &test_collider, &wall_fixed_transform.translation, wall_collider) {
+                            collides = true;
+                            break;
+                        }
+                    }
+
+                    if collides {
+                        max_clear_distance = test_dist_along_dir - step_check_distance;
                         break;
+                    } else {
+                        max_clear_distance = test_dist_along_dir;
                     }
                 }
+                max_clear_distance = max_clear_distance.max(fixed_math::FIXED_ZERO);
 
-                if collides {
-                    max_clear_distance = test_dist_along_dir - step_check_distance; // One step back
-                    break;
-                } else {
-                    max_clear_distance = test_dist_along_dir;
+                let alignment_factor = fixed_math::FIXED_ONE + test_dir_v2.dot(&direct_dir_v2);
+                let current_score = max_clear_distance * alignment_factor;
+                
+                if current_score > best_clearance_score {
+                    best_clearance_score = current_score;
+                    best_angle_fixed = current_angle_fixed;
                 }
             }
-            max_clear_distance = max_clear_distance.max(fixed_math::FIXED_ZERO);
+
+            if best_clearance_score > fixed_math::Fixed::MIN { // Check against initial value
+                let waypoint_distance = config.node_size * fixed_math::new(2.0);
+                // Calculate remaining distance to target to avoid overshooting massively with waypoint
+                let distance_to_target = enemy_pos_v2.distance(&target_v2);
+                let waypoint_dist_clamped = waypoint_distance.min(distance_to_target * fixed_math::FIXED_HALF);
 
 
-            // Score this direction: combination of how far it goes and how much it aligns with target
-            // A simple score: clearance_distance * (1 + dot(test_dir, direct_dir))
-            // Dot product will be higher if test_dir aligns with direct_dir
-            let alignment_factor = fixed_math::FIXED_ONE + test_dir_v2.dot(&direct_dir_v2); // Ranges approx [0, 2]
-            let current_score = max_clear_distance * alignment_factor;
-            
-            if current_score > best_clearance_score {
-                best_clearance_score = current_score;
-                best_angle_fixed = current_angle_fixed;
+                // *** RNG consumed in deterministic order ***
+                let jitter_angle_offset = rng.next_fixed_symmetric() * fixed_math::new(0.1); 
+                let final_waypoint_angle = best_angle_fixed + jitter_angle_offset;
+                let final_waypoint_dir = fixed_math::FixedVec2::new(
+                    fixed_math::cos_fixed(final_waypoint_angle),
+                    fixed_math::sin_fixed(final_waypoint_angle)
+                );
+
+                // Ensure waypoint_dist_clamped is positive before creating waypoint
+                if waypoint_dist_clamped > fixed_math::FIXED_ZERO {
+                    let waypoint_v2 = enemy_pos_v2 + final_waypoint_dir * waypoint_dist_clamped;
+                    waypoints.push_back(waypoint_v2);
+                }
             }
-        }
 
-        if best_clearance_score > fixed_math::FIXED_ZERO { // Found a potentially viable direction
-            let best_dir_v2 = fixed_math::FixedVec2::new(
-                fixed_math::cos_fixed(best_angle_fixed),
-                fixed_math::sin_fixed(best_angle_fixed)
-            );
+            if waypoints.len() < config.max_path_length {
+                 if waypoints.is_empty() || waypoints.back() != Some(&target_v2) {
+                    waypoints.push_back(target_v2);
+                 }
+            }
             
-            // Determine a reasonable distance for the waypoint along this best direction
-            // Could be a fraction of max_clear_distance found for that angle, or a fixed step.
-            let waypoint_distance = config.node_size * fixed_math::new(2.0); // e.g., move 2 node sizes
-            let waypoint_dist_clamped = waypoint_distance.min(enemy_pos_v2.distance(&target_v2) * fixed_math::FIXED_HALF);
-
-
-            // Add a slight random variation using RollbackRng::next_fixed_symmetric() for [-1, 1)
-            // This gives a value in [-0.1, 0.1) radians approx.
-            let jitter_angle_offset = rng.next_fixed_symmetric() * fixed_math::new(0.1); 
-            let final_waypoint_angle = best_angle_fixed + jitter_angle_offset;
-            let final_waypoint_dir = fixed_math::FixedVec2::new(
-                fixed_math::cos_fixed(final_waypoint_angle),
-                fixed_math::sin_fixed(final_waypoint_angle)
-            );
-
-            let waypoint_v2 = enemy_pos_v2 + final_waypoint_dir * waypoint_dist_clamped;
-            waypoints.push_back(waypoint_v2);
-        }
-
-        // If waypoints were added, or even if not, decide if the final target should be added.
-        // This simplified logic might just add one waypoint and then the target.
-        // A more robust A* would build a longer path.
-        if waypoints.len() < config.max_path_length {
-             if waypoints.is_empty() || waypoints.back() != Some(&target_v2) { // Avoid duplicate target
-                waypoints.push_back(target_v2);
-             }
-        }
-        
-        if !waypoints.is_empty() {
-            path.waypoints = waypoints;
-            path.path_status = PathStatus::FollowingPath;
-        } else {
-            // Could not find a path or already at target, maybe try direct or mark as blocked
-            path.path_status = PathStatus::Blocked; // Or retry direct
+            if !waypoints.is_empty() {
+                path.waypoints = waypoints;
+                path.path_status = PathStatus::FollowingPath;
+            } else {
+                // If no waypoints generated (e.g. couldn't find a clear path, or already very close)
+                // Revert to direct path, or mark as blocked if direct path isn't viable.
+                // For simplicity here, let's assume if no waypoints, it becomes blocked,
+                // allowing check_direct_paths to potentially resolve it next frame or it remains blocked.
+                path.path_status = PathStatus::Blocked; 
+            }
         }
     }
 }
@@ -498,13 +523,5 @@ pub fn move_enemies(
                 *facing_direction = FacingDirection::Left;
             }
         }
-    }
-}
-
-fn update_facing_direction(facing_direction: &mut FacingDirection, velocity: &Velocity) {
-    if velocity.x > 0.1 {
-        *facing_direction = FacingDirection::Right;
-    } else if velocity.x < -0.1 {
-        *facing_direction = FacingDirection::Left;
     }
 }

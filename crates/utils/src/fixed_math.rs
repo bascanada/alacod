@@ -43,6 +43,7 @@ pub const FIXED_HALF: Fixed = Fixed::from_bits(1 << 15);
 pub const FIXED_PI: Fixed = Fixed::from_bits(205887); // π in 16.16 fixed point
 pub const FIXED_TAU: Fixed = Fixed::from_bits(411775); // 2π in 16.16 fixed point
 pub const FIXED_32_MAX: Fixed = FixedI32::<U16>::MAX;
+pub const FIXED_32_MIN: Fixed = FixedI32::<U16>::MIN;
 
 
 impl FixedVec2 {
