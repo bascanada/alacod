@@ -66,31 +66,89 @@ impl FixedVec2 {
         Vec2::new(self.x.to_num::<f32>(), self.y.to_num::<f32>())
     }
     
+    pub fn extend(&self) -> FixedVec3 {
+        FixedVec3 {
+            x: self.x,
+            y: self.y,
+            z: FIXED_ZERO,
+        }
+    }
+
     pub fn dot(&self, other: &Self) -> Fixed {
         self.x.saturating_mul(other.x).saturating_add(self.y.saturating_mul(other.y))
     }
     
-    pub fn length_squared(&self) -> Fixed {
-        self.dot(self)
+
+    /// Calculates the squared length of the vector using FixedWide for intermediate precision.
+    pub fn length_squared_as_wide(&self) -> FixedWide {
+        // Convert components from Fixed (I32F16) to FixedWide (I64F32) before squaring
+        // Assuming FixedWide has a way to be created from Fixed.
+        // If not, use .to_num::<f32>() and FixedWide::from_num(), but direct conversion is better.
+        // Let's assume you add a helper or use from_num for now:
+        let x_fw = FixedWide::from_num(self.x.to_num::<f32>());
+        let y_fw = FixedWide::from_num(self.y.to_num::<f32>());
+
+        // Perform multiplication in the wider FixedWide type
+        let x_sq_fw = x_fw.saturating_mul(x_fw); // FixedWide * FixedWide -> FixedWide
+        let y_sq_fw = y_fw.saturating_mul(y_fw); // FixedWide * FixedWide -> FixedWide
+
+        x_sq_fw.saturating_add(y_sq_fw)
     }
-    
-    pub fn length(&self) -> Fixed {
-        // Use fixed-sqrt crate for deterministic square root
-        self.length_squared().sqrt()
+
+    /// Calculates the length of the vector.
+    pub fn length(&self) -> Fixed { // Returns your standard Fixed type (I32F16)
+        let len_sq_fw = self.length_squared_as_wide(); // This is FixedWide (I64F32)
+
+        // Ensure the squared length is not negative (shouldn't happen with squares)
+        if len_sq_fw < FixedWide::ZERO {
+            return FIXED_ZERO;
+        }
+
+        // Perform sqrt on the FixedWide type.
+        // This assumes FixedSqrt trait is implemented for FixedWide, returning FixedWide.
+        let len_fw = len_sq_fw.sqrt(); // FixedWide.sqrt() -> FixedWide
+
+        // Convert the result (which is FixedWide) back to your standard Fixed type.
+        // This might clamp if the actual length is too large for Fixed (I32F16),
+        // but for your example distance of ~1831, it should fit.
+        // (FixedI32<U16> max is ~32767, so 1831 fits)
+        // Again, using .to_num::<f32>() for conversion:
+        Fixed::from_num(len_fw.to_num::<f32>())
     }
-    
+
+    pub fn length_squared(&self) -> FixedWide {
+        // Convert components from Fixed (I32F16) to FixedWide (I64F32) before squaring.
+        // It's best if FixedWide can be directly constructed from Fixed.
+        // Example: let x_fw = fixed_math::FixedWide::from(self.x);
+        // If not, using .to_num::<f32>() is a common intermediate step:
+        let x_fw = FixedWide::from_num(self.x.to_num::<f32>());
+        let y_fw = FixedWide::from_num(self.y.to_num::<f32>());
+
+        // Perform multiplication in the wider FixedWide type
+        let x_sq_fw = x_fw.saturating_mul(x_fw); // FixedWide * FixedWide -> FixedWide
+        let y_sq_fw = y_fw.saturating_mul(y_fw); // FixedWide * FixedWide -> FixedWide
+
+        x_sq_fw.saturating_add(y_sq_fw)
+    }
+
+    // distance() method remains the same as it calls the updated length():
     pub fn distance(&self, other: &Self) -> Fixed {
         (*self - *other).length()
     }
 
-    pub fn distance_squared(&self, other: &Self) -> Fixed {
+    /// Calculates the squared distance to another vector.
+    /// Returns a FixedWide for precision, consistent with length_squared().
+    pub fn distance_squared(&self, other: &Self) -> FixedWide { // << Return FixedWide
+        // This will now use the corrected length_squared() that returns FixedWide
         (*self - *other).length_squared()
     }
 
-    pub fn extend(&self) -> FixedVec3 {
-        FixedVec3 { x: self.x, y: self.y, z: FIXED_ZERO }
+    // Optional: If you frequently need squared distance and want to avoid sqrt,
+    // you might provide distance_squared_as_wide:
+    pub fn distance_squared_as_wide(&self, other: &Self) -> FixedWide {
+        (*self - *other).length_squared_as_wide()
     }
-    
+
     pub fn normalize(&self) -> Self {
         let len = self.length();
         if len > Fixed::from_bits(0) {
@@ -203,6 +261,7 @@ impl FixedVec3 {
             z: Fixed::from_num(z),
         }
     }
+
     
     pub fn to_vec3(&self) -> Vec3 {
         Vec3::new(
@@ -221,22 +280,66 @@ impl FixedVec3 {
             .saturating_add(self.y.saturating_mul(other.y))
             .saturating_add(self.z.saturating_mul(other.z))
     }
-    
-    pub fn length_squared(&self) -> Fixed {
-        self.dot(self)
-    }
-    
-    pub fn length(&self) -> Fixed {
-        // Use fixed-sqrt crate for deterministic square root
-        self.length_squared().sqrt()
-    }
-    
-    pub fn distance(&self, other: &Self) -> Fixed {
-        (*self - *other).length() // Relies on Sub impl
+
+
+    /// Calculates the squared length of the 3D vector.
+    /// Returns a FixedWide (e.g., FixedI64<U32>) to maintain precision for larger vectors,
+    /// as Fixed (e.g., FixedI32<U16>) might not be able to represent the true squared length.
+    pub fn length_squared(&self) -> FixedWide { // << Returns FixedWide
+        // Convert components from Fixed (I32F16) to FixedWide (I64F32) before squaring.
+        // Assuming FixedWide::from_num(fixed_value.to_num::<f32>()) is your conversion path.
+        // If you have direct Fixed -> FixedWide conversion, use that (e.g., FixedWide::from(self.x)).
+        let x_fw = FixedWide::from_num(self.x.to_num::<f32>());
+        let y_fw = FixedWide::from_num(self.y.to_num::<f32>());
+        let z_fw = FixedWide::from_num(self.z.to_num::<f32>());
+
+        // Perform multiplication in the wider FixedWide type
+        let x_sq_fw = x_fw.saturating_mul(x_fw); // FixedWide * FixedWide -> FixedWide
+        let y_sq_fw = y_fw.saturating_mul(y_fw); // FixedWide * FixedWide -> FixedWide
+        let z_sq_fw = z_fw.saturating_mul(z_fw); // FixedWide * FixedWide -> FixedWide
+
+        // Sum the squared components (all FixedWide)
+        x_sq_fw.saturating_add(y_sq_fw).saturating_add(z_sq_fw)
     }
 
-    pub fn distance_squared(&self, other: &Self) -> Fixed {
-        (*self - *other).length_squared() // Relies on Sub impl
+    /// Calculates the length (magnitude) of the 3D vector.
+    /// Returns the standard Fixed type (e.g., FixedI32<U16>).
+    pub fn length(&self) -> Fixed { // << Final return type is Fixed (I32F16)
+        // Step 1: self.length_squared() now returns FixedWide.
+        let len_sq_fw: FixedWide = self.length_squared();
+
+        // Step 2: Ensure the squared length is not negative.
+        if len_sq_fw < FixedWide::ZERO {
+            return FIXED_ZERO; // Or appropriate error/default
+        }
+
+        // Step 3: Perform sqrt on the FixedWide value.
+        // This assumes your FixedWide type implements the FixedSqrt trait (or has a .sqrt() method)
+        // and that this sqrt() method returns FixedWide.
+        let len_fw: FixedWide = len_sq_fw.sqrt();
+
+        // Step 4: Convert the FixedWide length back to the standard Fixed type.
+        // This conversion might clamp if the true length exceeds Fixed::MAX (~32767),
+        // but this is less likely for length than for length_squared.
+        Fixed::from_num(len_fw.to_num::<f32>())
+        // If you have a more direct/robust FixedWide -> Fixed conversion, use it.
+    }
+
+    // You should also provide distance and distance_squared for FixedVec3 if they don't exist
+    // or update them if they do.
+
+    /// Calculates the distance to another 3D vector.
+    /// Returns the standard Fixed type.
+    pub fn distance(&self, other: &Self) -> Fixed {
+        // This will use the corrected length() method for FixedVec3
+        (*self - *other).length() // Relies on Sub for FixedVec3 being implemented
+    }
+
+    /// Calculates the squared distance to another 3D vector.
+    /// Returns a FixedWide for precision, consistent with length_squared().
+    pub fn distance_squared(&self, other: &Self) -> FixedWide { // << Return FixedWide
+        // This calls the length_squared() method that correctly returns FixedWide
+        (*self - *other).length_squared() // Relies on Sub for FixedVec3
     }
 
     pub fn mul_element_wise(&self, other: Self) -> Self {

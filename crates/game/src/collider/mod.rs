@@ -88,77 +88,95 @@ pub fn is_colliding(
     pos_b: &fixed_math::FixedVec3,
     collider_b: &Collider,
 ) -> bool {
+    // Assuming collider_a.offset is FixedVec2. If it's FixedVec3, just add directly.
     let final_pos_a = *pos_a + collider_a.offset;
     let final_pos_b = *pos_b + collider_b.offset;
 
-   match (&collider_a.shape, &collider_b.shape) {
+    match (&collider_a.shape, &collider_b.shape) {
         // Circle to Circle
         (ColliderShape::Circle { radius: radius_a }, ColliderShape::Circle { radius: radius_b }) => {
-            let distance_sq = (final_pos_a - final_pos_b).length_squared();
-            let combined_radius = *radius_a + *radius_b;
-            distance_sq < combined_radius.saturating_mul(combined_radius)
+            // (final_pos_a - final_pos_b) is FixedVec3. Its length_squared() returns FixedWide.
+            let distance_sq_fw: fixed_math::FixedWide = (final_pos_a - final_pos_b).length_squared();
+
+            // Radii are Fixed. Sum them as Fixed, then convert to FixedWide for squaring.
+            let combined_radius_fixed = *radius_a + *radius_b;
+            let combined_radius_fw = fixed_math::FixedWide::from_num(combined_radius_fixed.to_num::<f32>());
+            let combined_radius_sq_fw = combined_radius_fw.saturating_mul(combined_radius_fw);
+
+            distance_sq_fw < combined_radius_sq_fw // Compare FixedWide < FixedWide
         },
-        
-        // Rectangle to Rectangle
-        (ColliderShape::Rectangle { width: width_a, height: height_a }, 
+
+        // Rectangle to Rectangle (AABB)
+        (ColliderShape::Rectangle { width: width_a, height: height_a },
          ColliderShape::Rectangle { width: width_b, height: height_b }) => {
-            let half_width_a = width_a.saturating_div(fixed_math::Fixed::from_num(2));
-            let half_height_a = height_a.saturating_div(fixed_math::Fixed::from_num(2));
-            let half_width_b = width_b.saturating_div(fixed_math::Fixed::from_num(2));
-            let half_height_b = height_b.saturating_div(fixed_math::Fixed::from_num(2));
-            
+            // This logic uses Fixed directly and should be fine as it's AABB.
+            let two_fx = fixed_math::new(2.0); // Or fixed_math::Fixed::from_num(2)
+            let half_width_a = width_a.saturating_div(two_fx);
+            let half_height_a = height_a.saturating_div(two_fx);
+            let half_width_b = width_b.saturating_div(two_fx);
+            let half_height_b = height_b.saturating_div(two_fx);
+
             let min_a_x = final_pos_a.x - half_width_a;
             let max_a_x = final_pos_a.x + half_width_a;
-            let min_a_y = final_pos_a.y - half_height_a;
+            let min_a_y = final_pos_a.y - half_height_a; // Assuming 2D collision logic for AABB using Y
             let max_a_y = final_pos_a.y + half_height_a;
-            
+
             let min_b_x = final_pos_b.x - half_width_b;
             let max_b_x = final_pos_b.x + half_width_b;
             let min_b_y = final_pos_b.y - half_height_b;
             let max_b_y = final_pos_b.y + half_height_b;
-            
-            // Check for overlap
-            min_a_x <= max_b_x && 
-            max_a_x >= min_b_x && 
-            min_a_y <= max_b_y && 
-            max_a_y >= min_b_y
+
+            // Check for overlap (standard AABB)
+            min_a_x < max_b_x && // Use < for non-inclusive boundary, <= for inclusive
+            max_a_x > min_b_x &&
+            min_a_y < max_b_y &&
+            max_a_y > min_b_y
         },
-        
+
         // Circle to Rectangle
-        (ColliderShape::Circle { radius }, 
+        (ColliderShape::Circle { radius },
          ColliderShape::Rectangle { width, height }) => {
+            // Pass FixedVec3 for positions
             circle_rect_collision_fixed(final_pos_a, *radius, final_pos_b, *width, *height)
         },
-        
+
         // Rectangle to Circle (swap arguments)
-        (ColliderShape::Rectangle { width, height }, 
+        (ColliderShape::Rectangle { width, height },
          ColliderShape::Circle { radius }) => {
+            // Pass FixedVec3 for positions
             circle_rect_collision_fixed(final_pos_b, *radius, final_pos_a, *width, *height)
         },
     }
-} 
+}
 
 // Helper function for circle-to-rectangle collision
 fn circle_rect_collision_fixed(
-    circle_pos: fixed_math::FixedVec3,
-    circle_radius: fixed_math::Fixed,
-    rect_pos: fixed_math::FixedVec3,
-    rect_width: fixed_math::Fixed,
-    rect_height: fixed_math::Fixed,
+    circle_pos_v3: fixed_math::FixedVec3, // Now explicitly FixedVec3
+    circle_radius_fixed: fixed_math::Fixed,
+    rect_pos_v3: fixed_math::FixedVec3,   // Now explicitly FixedVec3
+    rect_width_fixed: fixed_math::Fixed,
+    rect_height_fixed: fixed_math::Fixed,
 ) -> bool {
-    let half_width = rect_width.saturating_div(fixed_math::Fixed::from_num(2));
-    let half_height = rect_height.saturating_div(fixed_math::Fixed::from_num(2));
+    let two_fx = fixed_math::new(2.0);
+    let half_width_fixed = rect_width_fixed.saturating_div(two_fx);
+    let half_height_fixed = rect_height_fixed.saturating_div(two_fx);
+
+    // Find the closest point on the rectangle to the circle center (using X and Y components)
+    let closest_x_fixed = circle_pos_v3.x.max(rect_pos_v3.x - half_width_fixed).min(rect_pos_v3.x + half_width_fixed);
+    let closest_y_fixed = circle_pos_v3.y.max(rect_pos_v3.y - half_height_fixed).min(rect_pos_v3.y + half_height_fixed);
+
+    // Calculate distance from circle center's XY projection to closest XY point on rect
+    let diff_v2 = fixed_math::FixedVec2::new(circle_pos_v3.x - closest_x_fixed, circle_pos_v3.y - closest_y_fixed);
     
-    // Find the closest point on the rectangle to the circle center
-    let closest_x = circle_pos.x.max(rect_pos.x - half_width).min(rect_pos.x + half_width);
-    let closest_y = circle_pos.y.max(rect_pos.y - half_height).min(rect_pos.y + half_height);
-    
-    // Calculate distance from circle center to closest point
-    let diff = fixed_math::FixedVec2::new(circle_pos.x - closest_x, circle_pos.y - closest_y);
-    let distance_sq = diff.length_squared();
-    
-    // Circle and rectangle collide if this distance is less than the circle radius
-    distance_sq < circle_radius.saturating_mul(circle_radius)
+    // diff_v2.length_squared() returns FixedWide
+    let distance_sq_fw: fixed_math::FixedWide = diff_v2.length_squared();
+
+    // Convert circle_radius (Fixed) to FixedWide for squaring and comparison
+    let circle_radius_fw = fixed_math::FixedWide::from_num(circle_radius_fixed.to_num::<f32>());
+    let radius_sq_fw = circle_radius_fw.saturating_mul(circle_radius_fw);
+
+    // Compare FixedWide < FixedWide
+    distance_sq_fw < radius_sq_fw
 }
 
 

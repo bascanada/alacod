@@ -54,13 +54,13 @@ pub fn rollback_apply_accumulated_damage(
 ) {
     for (entity, accumulator, mut health) in query.iter_mut() {
 
-        if accumulator.total_damage > 0. {
+        if accumulator.total_damage > fixed_math::FIXED_ZERO {
 
-            health.current -= accumulator.total_damage;
+            health.current = health.current.saturating_sub(accumulator.total_damage);
 
             commands.entity(entity).remove::<DamageAccumulator>();
 
-            if health.current <= 0. {
+            if health.current <= fixed_math::FIXED_ZERO {
                 commands.entity(entity).insert(Death{ last_hit_by: accumulator.last_hit_by.clone( )});
             }
         }
@@ -70,10 +70,19 @@ pub fn rollback_apply_accumulated_damage(
 
 pub fn rollback_apply_death(
     mut commands: Commands,
-    mut query: Query<(Entity, &Death), With<Rollback>>,
+    query: Query<(Entity, &Death), With<Rollback>>,
 ) {
-    for (entity, death) in query.iter_mut() {
-        info!("Entity {} killed by {:?}", entity, death.last_hit_by);
+    let mut entities_to_despawn: Vec<(Entity, Death)> = query
+        .iter()
+        .map(|(entity, death_component)| (entity, death_component.clone())) // Clone Death if needed for logging
+        .collect();
+
+    // Sort by a stable identifier, like Entity's bits.
+    // This step is optional but adds robustness against non-deterministic iteration order if it were to affect anything.
+    entities_to_despawn.sort_unstable_by_key(|(e, _)| e.to_bits());
+
+    for (entity, death_info) in entities_to_despawn {
+        info!("Entity {:?} killed by {:?}", entity, death_info.last_hit_by); // Use cloned death_info
         commands.entity(entity).try_despawn_recursive();
     }
 }

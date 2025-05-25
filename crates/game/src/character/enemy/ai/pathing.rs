@@ -386,22 +386,37 @@ pub fn move_enemies(
 
         let direction_to_target_v2 = (current_target_v2 - enemy_pos_v2).normalize_or_zero();
 
+
         // Calculate distance to nearest player (for attack range check)
-        let mut distance_to_nearest_player_sq = fixed_math::Fixed::MAX; // Compare squared distances
+        // Initialize with FixedWide::MAX because distance_squared now returns FixedWide
+        let mut min_dist_sq_to_player_fw = fixed_math::FixedWide::MAX; 
+
         for player_fixed_transform in player_query.iter() {
             let player_pos_v2 = player_fixed_transform.translation.truncate();
-            let distance_sq = enemy_pos_v2.distance_squared(&player_pos_v2);
-            if distance_sq < distance_to_nearest_player_sq {
-                distance_to_nearest_player_sq = distance_sq;
+            // enemy_pos_v2.distance_squared(&player_pos_v2) returns FixedWide
+            let current_dist_sq_fw = enemy_pos_v2.distance_squared(&player_pos_v2);
+            
+            // Compare FixedWide with FixedWide
+            if current_dist_sq_fw < min_dist_sq_to_player_fw {
+                min_dist_sq_to_player_fw = current_dist_sq_fw;
             }
         }
-        // Get the actual distance if needed (sqrt is expensive, avoid if only comparing)
-        let distance_to_nearest_player = if distance_to_nearest_player_sq < fixed_math::Fixed::MAX {
-            distance_to_nearest_player_sq.sqrt()
-        } else {
-            fixed_math::Fixed::MAX // Should not happen if players exist
-        };
 
+        // Now min_dist_sq_to_player_fw holds the minimum squared distance as FixedWide.
+        // Calculate the actual distance (as Fixed) if a player was found.
+        let distance_to_nearest_player: fixed_math::Fixed;
+        if min_dist_sq_to_player_fw < fixed_math::FixedWide::MAX { // Check against FixedWide::MAX
+            // .sqrt() on FixedWide returns FixedWide (assuming FixedSqrt is implemented for FixedWide)
+            let dist_fw = min_dist_sq_to_player_fw.sqrt(); 
+            
+            // Convert the FixedWide result of sqrt back to Fixed for use in subsequent game logic
+            // This relies on your Fixed::from_num and FixedWide::to_num methods.
+            distance_to_nearest_player = fixed_math::Fixed::from_num(dist_fw.to_num::<f32>());
+        } else {
+            // No players found, or distance was effectively infinite.
+            // Set to a very large Fixed value that your game logic can handle.
+            distance_to_nearest_player = fixed_math::Fixed::MAX; 
+        }
 
         // Calculate separation force (avoid other enemies)
         let mut separation_v2 = fixed_math::FixedVec2::ZERO;

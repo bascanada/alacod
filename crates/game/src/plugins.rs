@@ -133,23 +133,23 @@ impl Plugin for BaseZombieGamePlugin {
                 rollback_apply_accumulated_damage.after(bullet_rollback_collision_system),
                 rollback_apply_death.after(rollback_apply_accumulated_damage),
                 // ANIMATION CRATE
-                set_sprite_flip.after(bullet_rollback_collision_system),
-                update_animation_state.after(set_sprite_flip),
+                update_animation_state.after(rollback_apply_accumulated_damage),
                 // SPAWING
                 enemy_spawn_from_spawners_system.after(update_animation_state),
                 // LOGIC OF ENEMY
-                update_enemy_targets.after(enemy_spawn_from_spawners_system),
-                check_direct_paths.after(update_enemy_targets),
-                calculate_paths.after(check_direct_paths),
-                move_enemies.after(calculate_paths),
+                //update_enemy_targets.after(update_animation_state),
+                //check_direct_paths.after(update_enemy_targets),
+                //calculate_paths.after(check_direct_paths),
+                //move_enemies.after(calculate_paths),
                 
-                increase_frame_system.after(move_enemies)
+                increase_frame_system.after(enemy_spawn_from_spawners_system)
             ));
         app.add_systems(Update, (
             sync_bevy_transforms_from_fixed,
             update_weapon_sprite_direction,
             weapon_inventory_system,
             weapons_config_update_system,
+            set_sprite_flip,
             update_health_bars,
         ));
     }

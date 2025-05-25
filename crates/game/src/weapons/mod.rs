@@ -793,12 +793,10 @@ pub fn bullet_rollback_collision_system(
 
             // Check for collision using our new helper function
             if is_colliding(&bullet_transform.translation, bullet_collider, &target_transform.translation, target_collider) { 
-
                 if opt_health.is_some() {
-                    // Apply damage (using the refactored logic from your apply_bullet_dommage function)
                     if let Some(mut accumulator) = opt_accumulator_mut {
                         // Update existing accumulator
-                        accumulator.total_damage += bullet.damage;
+                        accumulator.total_damage = accumulator.total_damage.saturating_add(bullet.damage);
                         accumulator.hit_count += 1;
                         accumulator.last_hit_by = Some(health::HitBy::Player(bullet.player_handle));
                     } else {
