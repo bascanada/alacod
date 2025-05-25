@@ -416,8 +416,6 @@ fn spawn_bullet_rollback(
         z: fixed_math::Fixed::ZERO,
     };
 
-    println!("muzzle offset {:?}", local_muzzle_offset_v3);
-
     // 2. Transform muzzle offset by weapon's local rotation (relative to player)
     //    and add weapon's local translation (relative to player)
     //    to get muzzle position in player's local coordinate system.

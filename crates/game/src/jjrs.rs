@@ -6,9 +6,9 @@ use bevy_ggrs::{ggrs::PlayerType, prelude::*};
 use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
 use ggrs::UdpNonBlockingSocket;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use utils::rng::RollbackRng;
+use utils::{fixed_math, rng::RollbackRng};
 
-use crate::{character::{config::CharacterConfig, player::{create::create_player, jjrs::PeerConfig}}, collider::{spawn_test_wall, CollisionSettings}, global_asset::GlobalAsset, plugins::AppState, weapons::{WeaponAsset, WeaponsConfig}};
+use crate::{character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::{create::create_player, jjrs::PeerConfig}}, collider::{spawn_test_wall, CollisionSettings}, global_asset::GlobalAsset, plugins::AppState, weapons::{WeaponAsset, WeaponsConfig}};
 
 pub struct GggrsConnectionConfiguration {
     pub max_player: usize,
@@ -235,9 +235,13 @@ fn spawn_test_enemy_spawner(
     commands: &mut Commands,
     position: Vec3,
 ) {
+    
+    let transform = fixed_math::FixedTransform3D::from_bevy_transform(&Transform::from_translation(position));
+
     commands.spawn((
-        Transform::from_translation(position),
-        //EnemySpawnerState::default(),
+        transform.to_bevy_transform(),
+        transform,
+        EnemySpawnerState::default(),
         EnemySpawnerComponent::default()
     )).add_rollback();
 }

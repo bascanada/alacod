@@ -1,7 +1,7 @@
-use bevy::{asset::AssetMetaCheck, prelude::*};
+use bevy::prelude::*;
 use bevy_ggrs::{prelude::*, GgrsSchedule};
-use bevy_kira_audio::prelude::*;
 use leafwing_input_manager::plugin::InputManagerPlugin;
+use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 use utils::{fixed_math::{self, sync_bevy_transforms_from_fixed}, rng::RollbackRng};
 use std::hash::Hash;
 use bevy_common_assets::ron::RonAssetPlugin;
@@ -16,7 +16,7 @@ use crate::{
     character::{
         config::CharacterConfig,
         dash::DashState,
-        enemy::Enemy,
+        enemy::{ai::pathing::{calculate_paths, check_direct_paths, move_enemies, update_enemy_targets, EnemyPath, PathfindingConfig}, spawning::{enemy_spawn_from_spawners_system, EnemySpawnerState}, Enemy},
         health::{
             rollback_apply_accumulated_damage,
             rollback_apply_death,
@@ -74,17 +74,15 @@ impl Plugin for BaseZombieGamePlugin {
 
         app.init_state::<AppState>();
 
-        //app.init_resource::<PathfindingConfig>();
-        //app.init_resource::<EnemySpawnSystemHolder>();
-        //app.init_resource::<EnemySpawnState>();
+        app.init_resource::<PathfindingConfig>();
 
         app.set_rollback_schedule_fps(60);
         app.add_plugins(GgrsPlugin::<PeerConfig>::default())
             .rollback_resource_with_copy::<RollbackRng>()
-            //.rollback_resource_with_reflect::<PathfindingConfig>()
-            //.rollback_resource_with_reflect::<EnemySpawnState>()
-            //.rollback_component_with_clone::<EnemySpawnerComponent>()
-            //.rollback_component_with_reflect::<EnemyPath>()
+            .rollback_resource_with_clone::<PathfindingConfig>()
+            .rollback_component_with_clone::<EnemySpawnerComponent>()
+            .rollback_component_with_clone::<EnemySpawnerState>()
+            .rollback_component_with_clone::<EnemyPath>()
             .rollback_resource_with_copy::<PointerWorldPosition>()
             .rollback_resource_with_copy::<FrameCount>()
             .rollback_component_with_clone::<fixed_math::FixedTransform3D>()
@@ -138,14 +136,14 @@ impl Plugin for BaseZombieGamePlugin {
                 set_sprite_flip.after(bullet_rollback_collision_system),
                 update_animation_state.after(set_sprite_flip),
                 // SPAWING
-                //enemy_spawn_from_spawners_system.after(update_animation_state),
+                enemy_spawn_from_spawners_system.after(update_animation_state),
                 // LOGIC OF ENEMY
-                //update_enemy_targets.after(enemy_spawn_from_spawners_system),
-                //check_direct_paths.after(update_enemy_targets),
-                //calculate_paths.after(check_direct_paths),
-                //move_enemies.after(calculate_paths),
+                update_enemy_targets.after(enemy_spawn_from_spawners_system),
+                check_direct_paths.after(update_enemy_targets),
+                calculate_paths.after(check_direct_paths),
+                move_enemies.after(calculate_paths),
                 
-                increase_frame_system.after(update_animation_state)
+                increase_frame_system.after(move_enemies)
             ));
         app.add_systems(Update, (
             sync_bevy_transforms_from_fixed,

@@ -1,7 +1,6 @@
 use fixed::{types::extra::{U16, U32}, FixedI32, FixedI64};
 use fixed_trigonometry::*;
 use fixed_trigonometry::atan::atan2;
-use fixed_sqrt::FixedSqrt;
 use bevy::{math::Affine3A, prelude::*};
 use serde::{Serialize, Deserialize};
 
@@ -43,6 +42,8 @@ pub const FIXED_ONE: Fixed = Fixed::from_bits(1 << 16);
 pub const FIXED_HALF: Fixed = Fixed::from_bits(1 << 15);
 pub const FIXED_PI: Fixed = Fixed::from_bits(205887); // π in 16.16 fixed point
 pub const FIXED_TAU: Fixed = Fixed::from_bits(411775); // 2π in 16.16 fixed point
+pub const FIXED_32_MAX: Fixed = FixedI32::<U16>::MAX;
+
 
 impl FixedVec2 {
     pub const ZERO: Self = Self {
@@ -80,6 +81,10 @@ impl FixedVec2 {
     
     pub fn distance(&self, other: &Self) -> Fixed {
         (*self - *other).length()
+    }
+
+    pub fn distance_squared(&self, other: &Self) -> Fixed {
+        (*self - *other).length_squared()
     }
 
     pub fn extend(&self) -> FixedVec3 {
