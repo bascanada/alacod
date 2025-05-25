@@ -1,0 +1,14 @@
+[package]
+name = "bevy_fixed"
+description = "fixed math and rng library for bevy rollback games"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.15"
+
+serde = { version = "1.0", features = ["derive"] }
+
+fixed = { version = "1.29", features = [ "serde-str" ] }
+fixed-sqrt = "0.2"
+fixed_trigonometry = "0.4.4"

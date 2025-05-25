@@ -1,7 +1,7 @@
 use animation::FacingDirection;
 use bevy::prelude::*;
-use utils::fixed_math;
-use utils::rng::RollbackRng;
+use bevy_fixed::fixed_math;
+use bevy_fixed::rng::RollbackRng;
 use std::collections::VecDeque;
 use crate::character::config::{CharacterConfig, CharacterConfigHandles};
 use crate::character::enemy::Enemy;

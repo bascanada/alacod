@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use utils::fixed_math;
+use bevy_fixed::fixed_math;
 
 use crate::collider::{Collider, ColliderShape, CollisionLayer};
 

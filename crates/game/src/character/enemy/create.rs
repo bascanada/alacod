@@ -1,6 +1,6 @@
 use animation::SpriteSheetConfig;
 use bevy::prelude::*;
-use utils::fixed_math;
+use bevy_fixed::fixed_math;
 
 use crate::{character::{config::{CharacterConfig, CharacterConfigHandles}, create::create_character, movement::Velocity, player::input::CursorPosition}, collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings}, global_asset::GlobalAsset, weapons::{WeaponInventory, WeaponsConfig}};
 

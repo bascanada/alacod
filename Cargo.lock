@@ -1143,6 +1143,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_fixed"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+ "fixed",
+ "fixed-sqrt",
+ "fixed_trigonometry",
+ "serde",
+]
+
+[[package]]
 name = "bevy_ggrs"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3362,6 +3373,7 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bevy_common_assets",
+ "bevy_fixed",
  "bevy_ggrs",
  "bevy_kira_audio",
  "bevy_matchbox",
@@ -4425,6 +4437,7 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bevy_ecs_ldtk",
+ "bevy_fixed",
  "once_cell",
  "pathfinding",
  "serde",
@@ -7237,9 +7250,6 @@ dependencies = [
  "bevy",
  "bevy_ggrs",
  "console_error_panic_hook",
- "fixed",
- "fixed-sqrt",
- "fixed_trigonometry",
  "serde",
  "web-sys",
 ]

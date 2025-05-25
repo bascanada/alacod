@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_ggrs::AddRollbackCommandExtension;
 use serde::{Deserialize, Serialize};
-use utils::fixed_math;
+use bevy_fixed::fixed_math;
 
 
 

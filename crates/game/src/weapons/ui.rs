@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use utils::math::calculate_time_remaining_seconds;
+use bevy_fixed::math::calculate_time_remaining_seconds;
 
 use crate::{character::player::LocalPlayer, frame::FrameCount, plugins::AppState};
 

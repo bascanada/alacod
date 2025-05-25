@@ -8,6 +8,7 @@ edition = "2021"
 bevy = "0.15"
 bevy_ecs_ldtk = { version = "0.11", default-features = true }
 
+bevy_fixed = { path = "../bevy_fixed"}
 utils = { path = "../utils"}
 
 thiserror = "2.0.12"

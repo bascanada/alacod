@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_ggrs::{prelude::*, GgrsSchedule};
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use utils::{fixed_math::{self, sync_bevy_transforms_from_fixed}, rng::RollbackRng};
+use bevy_fixed::{fixed_math::{self, sync_bevy_transforms_from_fixed}, rng::RollbackRng};
 use std::hash::Hash;
 use bevy_common_assets::ron::RonAssetPlugin;
 

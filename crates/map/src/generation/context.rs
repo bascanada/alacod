@@ -1,4 +1,4 @@
-use utils::rng::RollbackRng;
+use bevy_fixed::rng::RollbackRng;
 
 use super::{config::MapGenerationConfig, entity::location::EntityLocations};
 

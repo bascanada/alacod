@@ -2,12 +2,12 @@
 use animation::{AnimationBundle, SpriteSheetConfig};
 use bevy::{math::VectorSpace, prelude::*, utils:: HashMap};
 use leafwing_input_manager::{prelude::ActionState, InputManagerBundle};
-use utils::{bmap, fixed_math};
+use utils::bmap;
 use bevy_kira_audio::prelude::*;
 
 use crate::{character::{config::CharacterConfig, create::create_character, dash::DashState, movement::{SprintState, Velocity}}, collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings}, global_asset::GlobalAsset, weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig}};
 
-use bevy_ggrs::AddRollbackCommandExtension;
+use bevy_fixed::fixed_math;
 use super::{control::{get_input_map, PlayerAction}, input::CursorPosition, LocalPlayer, Player};
 
 const PLAYER_COLORS: &'static [LinearRgba] = &[

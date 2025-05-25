@@ -2,7 +2,7 @@ use animation::AnimationState;
 use bevy::{prelude::*};
 use bevy_ggrs::Rollback;
 use serde::Deserialize;
-use utils::fixed_math;
+use bevy_fixed::fixed_math;
 
 use crate::collider::{is_colliding, Collider, CollisionLayer, CollisionSettings, Wall};
 

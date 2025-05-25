@@ -13,5 +13,5 @@ pub mod debug;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    pub static ref GAME_SPEED: utils::fixed_math::Fixed = utils::fixed_math::new(60.);
+    pub static ref GAME_SPEED: bevy_fixed::fixed_math::Fixed = bevy_fixed::fixed_math::new(60.);
 }

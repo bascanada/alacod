@@ -1,7 +1,7 @@
 use animation::SpriteSheetConfig;
 use bevy::{prelude::*};
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use utils::{fixed_math, rng::RollbackRng};
+use bevy_fixed::{fixed_math, rng::RollbackRng};
 
 use crate::{character::{config::CharacterConfig, player::Player}, collider::{Collider, CollisionSettings, Wall}, frame::FrameCount, global_asset::GlobalAsset, weapons::WeaponsConfig};
 

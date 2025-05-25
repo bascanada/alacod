@@ -5,7 +5,7 @@ use bevy_ggrs::Rollback;
 use ggrs::PlayerHandle;
 use pathfinding::matrix::directions::N;
 use serde::{Deserialize, Serialize};
-use utils::fixed_math;
+use bevy_fixed::fixed_math;
 
 
 #[derive(Component, Reflect, Debug, Clone, Serialize, Deserialize)]

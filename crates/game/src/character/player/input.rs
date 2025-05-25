@@ -7,7 +7,7 @@ use leafwing_input_manager::prelude::*;
 use bevy_ggrs::prelude::*;
 use bevy_ggrs::LocalInputs;
 use serde::{Serialize, Deserialize};
-use utils::fixed_math; 
+use bevy_fixed::fixed_math; 
 
 use crate::character::config::{CharacterConfig, CharacterConfigHandles};
 use crate::character::dash::DashState;

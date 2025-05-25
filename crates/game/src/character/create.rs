@@ -2,7 +2,7 @@
 use animation::{create_child_sprite, AnimationBundle, SpriteSheetConfig};
 use bevy::{prelude::*};
 use bevy_kira_audio::prelude::*;
-use utils::fixed_math;
+use bevy_fixed::fixed_math;
 
 use crate::{character::{config::CharacterConfigHandles, movement::Velocity}, collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings}, global_asset::GlobalAsset, weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig}};
 

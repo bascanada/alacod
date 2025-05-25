@@ -1,6 +1,6 @@
 use bevy::{prelude::*, reflect::TypePath, utils::HashMap};
 use serde::Deserialize;
-use utils::fixed_math;
+use bevy_fixed::fixed_math;
 
 use crate::{character::movement::MovementConfig, collider::{Collider, ColliderConfig}};
 

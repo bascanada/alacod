@@ -2,10 +2,11 @@ pub mod ui;
 
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
 use bevy::{math::VectorSpace, prelude::*, utils::{HashMap, HashSet}};
+use bevy_fixed::{fixed_math, rng::RollbackRng};
 use bevy_ggrs::{AddRollbackCommandExtension, PlayerInputs, Rollback};
 use ggrs::PlayerHandle;
 use serde::{Deserialize, Serialize};
-use utils::{bmap, rng::RollbackRng, fixed_math};
+use utils::bmap;
 
 use crate::{character::{dash::DashState, health::{self, DamageAccumulator, Health}, movement::SprintState, player::{input::{CursorPosition, INPUT_DASH, INPUT_RELOAD, INPUT_SPRINT, INPUT_SWITCH_WEAPON_MODE}, jjrs::PeerConfig, Player}}, collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall}, frame::FrameCount, global_asset::GlobalAsset, GAME_SPEED};
 
@@ -278,7 +279,7 @@ impl WeaponInventory {
             if reload_time_seconds <= fixed_math::new(0.0) {
                 None
             } else {
-                let frames_to_reload = (reload_time_seconds * utils::fixed_math::new(60.)).ceil() ;
+                let frames_to_reload = (reload_time_seconds * bevy_fixed::fixed_math::new(60.)).ceil() ;
                 if frames_to_reload == 0 { // Ensure at least one frame for very short reload times
                     Some(current_game_frame + 1)
                 } else {
@@ -584,7 +585,7 @@ pub fn weapon_rollback_system(
             // TODO: fix only support two mode, take the first that is not the current
             if input.fire {
                 // Calculate fire rate in frames (60 FPS assumed) , need to be configure via ressource instead
-                let frame_per_shot = ((utils::fixed_math::new(60.) / weapon_config.firing_rate)).to_num::<u32>();
+                let frame_per_shot = ((bevy_fixed::fixed_math::new(60.) / weapon_config.firing_rate)).to_num::<u32>();
                 let current_frame = frame.frame;
                 let frames_since_last_shot = current_frame - weapon_state.last_fire_frame;
 
