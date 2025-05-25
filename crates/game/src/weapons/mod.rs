@@ -775,70 +775,80 @@ pub fn bullet_rollback_collision_system(
     mut commands: Commands,
     settings: Res<CollisionSettings>,
     bullet_query: Query<(Entity, &fixed_math::FixedTransform3D, &Bullet, &Collider, &CollisionLayer), With<Rollback>>,
+    // Query for colliders. We'll need mutable access to DamageAccumulator later.
     mut collider_query: Query<(Entity, &fixed_math::FixedTransform3D, &Collider, &CollisionLayer, Option<&Wall>, Option<&Health>, Option<&mut DamageAccumulator>), (Without<Bullet>, With<Rollback>)>,
 ) {
-    let mut bullets_to_despawn_set = HashSet::new(); // Use HashSet for efficient duplicate avoidance and checks
+    let mut bullets_to_despawn_set = HashSet::new();
 
     for (bullet_entity, bullet_transform, bullet, bullet_collider, bullet_layer) in bullet_query.iter() {
-        // Skip already processed bullets that are marked for despawn
         if bullets_to_despawn_set.contains(&bullet_entity) {
             continue;
         }
 
-        // Phase 1: Identify all entities this bullet is colliding with
-        for (target_entity, target_transform, target_collider, target_layer, opt_wall, opt_health, opt_accumulator_mut) in collider_query.iter_mut() { // Note: iter() not iter_mut() for the broad phase
+        let mut actual_collided_target_entities: Vec<Entity> = Vec::new();
+
+        // Phase 1: Identify ALL entities this bullet is colliding with (immutable pass first)
+        for (target_entity, target_transform, target_collider, target_layer, _opt_wall, _opt_health, /* no mut here */ _) in collider_query.iter() {
             if !settings.layer_matrix[bullet_layer.0 as usize][target_layer.0 as usize] {
                 continue;
             }
+            if is_colliding(&bullet_transform.translation, bullet_collider, &target_transform.translation, target_collider) {
+                actual_collided_target_entities.push(target_entity);
+            }
+        }
 
-            // Check for collision using our new helper function
-            if is_colliding(&bullet_transform.translation, bullet_collider, &target_transform.translation, target_collider) { 
-                if opt_health.is_some() {
-                    if let Some(mut accumulator) = opt_accumulator_mut {
-                        // Update existing accumulator
-                        accumulator.total_damage = accumulator.total_damage.saturating_add(bullet.damage);
-                        accumulator.hit_count += 1;
-                        accumulator.last_hit_by = Some(health::HitBy::Player(bullet.player_handle));
-                    } else {
-                        // Insert new accumulator if it doesn't exist
-                        commands.entity(target_entity).insert(DamageAccumulator {
-                            hit_count: 1,
-                            total_damage: bullet.damage,
-                            last_hit_by: Some(health::HitBy::Player(bullet.player_handle)),
-                        });
+        if actual_collided_target_entities.is_empty() {
+            continue; // No collision for this bullet
+        }
+
+        // Sort the collided entities to pick the "first" one deterministically
+        actual_collided_target_entities.sort_unstable_by_key(|e| e.to_bits());
+
+        // The bullet will interact with the first entity in this sorted list.
+        let deterministic_target_entity = actual_collided_target_entities[0];
+
+        // Now get mutable components for this specific, deterministically chosen target
+        if let Ok((_target_entity_refetch, _target_transform, _target_collider, _target_layer, opt_wall, opt_health, opt_accumulator_mut)) = collider_query.get_mut(deterministic_target_entity) {
+            if opt_health.is_some() {
+                if let Some(mut accumulator) = opt_accumulator_mut {
+                    accumulator.total_damage = accumulator.total_damage.saturating_add(bullet.damage);
+                    accumulator.hit_count += 1;
+                    accumulator.last_hit_by = Some(health::HitBy::Player(bullet.player_handle));
+                } else {
+                    commands.entity(deterministic_target_entity).insert(DamageAccumulator {
+                        hit_count: 1,
+                        total_damage: bullet.damage, // Ensure bullet.damage is Fixed
+                        last_hit_by: Some(health::HitBy::Player(bullet.player_handle)),
+                    });
+                }
+            }
+
+            let mut should_bullet_despawn_now = false;
+            match bullet.bullet_type {
+                BulletType::Standard { .. } => { should_bullet_despawn_now = true; },
+                BulletType::Explosive { .. } => { should_bullet_despawn_now = true; },
+                BulletType::Piercing { .. } => {
+                    if opt_wall.is_some() { // Piercing bullets despawn on walls
+                        should_bullet_despawn_now = true;
                     }
-                }
+                    // If piercing bullets should continue through enemies, this logic is fine.
+                    // They would only despawn if they hit a wall (or run out of pierce, etc.)
+                },
+            }
 
-                let mut should_bullet_despawn_now = false;
-                match bullet.bullet_type {
-                    BulletType::Standard { .. } => {
-                        should_bullet_despawn_now = true;
-                    },
-                    BulletType::Explosive { blast_radius, .. } => {
-                        should_bullet_despawn_now = true;
-                    },
-                    BulletType::Piercing { .. } => {
-                        if opt_wall.is_some() {
-                            should_bullet_despawn_now = true;
-                        }
-                    },
-                }
-
-                if should_bullet_despawn_now {
-                    bullets_to_despawn_set.insert(bullet_entity);
-                    break; // Bullet is destroyed, stop processing more targets for this bullet
-                }
+            if should_bullet_despawn_now {
+                bullets_to_despawn_set.insert(bullet_entity);
+                // Since the original code had a `break` here, we effectively stop processing
+                // more targets for this bullet after this first deterministic interaction.
             }
         }
     }
 
-    // Convert HashSet to Vec and sort by entity ID for deterministic despawning
+    // Deterministic despawning of bullets (already good)
     let mut bullets_to_despawn_vec: Vec<Entity> = bullets_to_despawn_set.into_iter().collect();
-    bullets_to_despawn_vec.sort_by_key(|entity| entity.index());
-    
-    // Despawn bullets
+    bullets_to_despawn_vec.sort_by_key(|entity| entity.index()); // Or .to_bits()
     for entity in bullets_to_despawn_vec {
-        commands.entity(entity).despawn(); // Despawn if the entity still exists
+        commands.entity(entity).despawn();
     }
 }
 
