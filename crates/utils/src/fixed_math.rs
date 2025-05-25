@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use fixed::{types::extra::{U16, U32}, FixedI32, FixedI64};
 use fixed_trigonometry::*;
 use fixed_trigonometry::atan::atan2;
@@ -21,20 +23,34 @@ pub fn to_f32(f: Fixed) -> f32 {
 
 
 // Fixed-point 2D vector
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct FixedVec2 {
     pub x: Fixed,
     pub y: Fixed,
 }
 
 // Fixed-point 3D vector
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct FixedVec3 {
     pub x: Fixed,
     pub y: Fixed,
     pub z: Fixed,
 }
 
+impl Hash for FixedVec3 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.y.to_bits().hash(state);
+        self.z.to_bits().hash(state);
+    }
+}
+
+impl Hash for FixedVec2 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.y.to_bits().hash(state);
+    }
+}
 
 // Conversion constants
 pub const FIXED_ZERO: Fixed= Fixed::from_bits(0);
