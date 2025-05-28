@@ -31,6 +31,14 @@ jobs:
             target/
             target_wasm/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Login docker
+        run: docker login https://ghcr.io -u wquintal -p $GITHUB_ACCESS_TOKEN
+        env:
+          GITHUB_ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} 
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
       - name: Dependency
         run: sudo apt-get install g++ make pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libwayland-dev libxkbcommon-dev && rustup component add rustfmt
       - name: Dependencies
@@ -40,4 +48,8 @@ jobs:
       - name: Style Check
         run: make format
       - name: Build web
-        run: make build_website TARGET=web PROFILE=dev
+        run:  make build_docker_website TARGET=web PROFILE=prod
+      - name: Publish docker website
+        run: make push_docker_website
+      - name: Update deployment
+        run: doctl apps create-deployment 12321cca-c9b1-4e19-9961-3d5ebc8ff12a
