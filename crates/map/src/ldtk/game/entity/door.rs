@@ -7,6 +7,7 @@ use crate::ldtk::map_const;
 
 impl DoorComponent {
     pub fn from_field(entity_instance: &EntityInstance) -> DoorComponent {
+        println!("FROM FIELD {:?}", entity_instance);
         DoorComponent {
             config: DoorConfig {
                 electrify: *entity_instance
@@ -26,4 +27,6 @@ pub struct DoorBundle {
     door: DoorComponent,
     #[sprite_sheet]
     sprite_sheet: Sprite,
+
+    visibility: Visibility,
 }

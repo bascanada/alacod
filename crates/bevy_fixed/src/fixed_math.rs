@@ -37,6 +37,20 @@ pub struct FixedVec3 {
     pub z: Fixed,
 }
 
+impl std::fmt::Display for FixedVec2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "( {} {} )", self.x, self.y)
+    }
+    
+}
+
+impl std::fmt::Display for FixedVec3 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "( {} {} {} )", self.x, self.y, self.z)
+    }
+    
+}
+
 impl Hash for FixedVec3 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.x.to_bits().hash(state);
@@ -51,6 +65,7 @@ impl Hash for FixedVec2 {
         self.y.to_bits().hash(state);
     }
 }
+
 
 // Conversion constants
 pub const FIXED_ZERO: Fixed= Fixed::from_bits(0);

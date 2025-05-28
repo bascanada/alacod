@@ -1,16 +1,18 @@
 pub mod ui;
 
-use bevy::{prelude::*, scene::ron::de};
+use bevy::{log::Level, prelude::*, scene::ron::de, utils::tracing::span};
 use bevy_ggrs::Rollback;
 use ggrs::PlayerHandle;
 use pathfinding::matrix::directions::N;
 use serde::{Deserialize, Serialize};
 use bevy_fixed::fixed_math;
+use utils::{frame::FrameCount, net_id::GgrsNetId};
+use std::fmt;
 
 
 #[derive(Component, Reflect, Debug, Clone, Serialize, Deserialize)]
 pub enum HitBy {
-    Entity(Entity),
+    Entity(GgrsNetId),
     Player(PlayerHandle),
 }
 
@@ -31,14 +33,53 @@ pub struct Health {
 
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Death {
-    pub last_hit_by: Option<HitBy>,
+    pub last_hit_by: Option<Vec<HitBy>>,
 }
 
 #[derive(Component, Clone, Serialize, Deserialize, Default)]
 pub struct DamageAccumulator {
     pub total_damage: fixed_math::Fixed,
     pub hit_count: u32,
-    pub last_hit_by: Option<HitBy>,
+    pub last_hit_by: Option<Vec<HitBy>>,
+}
+
+
+
+
+impl fmt::Display for HitBy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HitBy::Entity(net_id) => write!(f, "NetId({})", net_id.0),
+            HitBy::Player(player_handle) => write!(f, "Player({})", player_handle),
+        }
+    }
+}
+
+impl fmt::Display for Health {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "HP: {}/{}", self.current, self.max)?;
+        if let Some(frame) = self.invulnerable_until_frame {
+            write!(f, " (Invulnerable until frame {})", frame)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Death {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.last_hit_by {
+            Some(hits) if !hits.is_empty() => {
+                for (i, hit_by) in hits.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", hit_by)?;
+                }
+                Ok(())
+            }
+            Some(_) | None => write!(f, "Died (cause unknown or no direct hit)"),
+        }
+    }
 }
 
 impl From<HealthConfig> for Health {
@@ -49,14 +90,21 @@ impl From<HealthConfig> for Health {
 
 
 pub fn rollback_apply_accumulated_damage(
+    frame: Res<FrameCount>,
     mut commands: Commands,
-    mut query: Query<(Entity, &DamageAccumulator, &mut Health), With<Rollback>>,
+    mut query: Query<(Entity, &DamageAccumulator, &GgrsNetId, &mut Health), With<Rollback>>,
 ) {
-    for (entity, accumulator, mut health) in query.iter_mut() {
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "apply_damage");
+    let _enter = system_span.enter();
+
+
+    for (entity, accumulator, g_id, mut health) in query.iter_mut() {
 
         if accumulator.total_damage > fixed_math::FIXED_ZERO {
 
             health.current = health.current.saturating_sub(accumulator.total_damage);
+
+            info!("{} receive {} dmg health is {}", g_id, accumulator.total_damage, health.current);
 
             commands.entity(entity).remove::<DamageAccumulator>();
 
@@ -69,20 +117,24 @@ pub fn rollback_apply_accumulated_damage(
 
 
 pub fn rollback_apply_death(
+    frame: Res<FrameCount>,
     mut commands: Commands,
-    query: Query<(Entity, &Death), With<Rollback>>,
+    query: Query<(Entity, &GgrsNetId, &Death), With<Rollback>>,
 ) {
-    let mut entities_to_despawn: Vec<(Entity, Death)> = query
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "apply_death");
+    let _enter = system_span.enter();
+
+    let mut entities_to_despawn: Vec<(Entity, GgrsNetId, Death)> = query
         .iter()
-        .map(|(entity, death_component)| (entity, death_component.clone())) // Clone Death if needed for logging
+        .map(|(entity, id, death_component)| (entity, id.clone(), death_component.clone())) // Clone Death if needed for logging
         .collect();
 
     // Sort by a stable identifier, like Entity's bits.
     // This step is optional but adds robustness against non-deterministic iteration order if it were to affect anything.
-    entities_to_despawn.sort_unstable_by_key(|(e, _)| e.to_bits());
+    entities_to_despawn.sort_unstable_by_key(|(e, _, _)| e.to_bits());
 
-    for (entity, death_info) in entities_to_despawn {
-        info!("Entity {:?} killed by {:?}", entity, death_info.last_hit_by); // Use cloned death_info
+    for (entity, id, death_info) in entities_to_despawn {
+        info!("{} entity {} killed by {}", frame.as_ref(), id, death_info); // Use cloned death_info
         commands.entity(entity).try_despawn_recursive();
     }
 }

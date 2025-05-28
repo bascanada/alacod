@@ -2,11 +2,10 @@ use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use bevy_ecs_ldtk::prelude::*;
 
 use map::{
-    generation::config::MapGenerationConfig,
-    ldtk::{
+    game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig, ldtk::{
         loader::{get_asset_loader_generation, reload_map, setup_generated_map},
         plugins::{LdtkRoguePlugin, MyWorldInspectorPlugin},
-    },
+    }
 };
 use utils::{
     camera::tod::{move_camera, setup_camera},
@@ -50,9 +49,27 @@ fn main() {
         .add_plugins(LdtkRoguePlugin)
         .insert_resource(map_generation_config)
         .register_asset_loader(level_loader)
-        .add_systems(Update, (load_levels_if_not_present, move_camera, keyinput))
+        .add_systems(Update, (load_levels_if_not_present, move_camera, keyinput, toggle_door_visibility))
         .add_plugins(WebPlugin {})
         .run();
+}
+
+fn toggle_door_visibility(
+    input: Res<ButtonInput<KeyCode>>, // Use ButtonInput<KeyCode> for newer Bevy versions
+    mut door_query: Query<&mut Visibility, With<DoorComponent>>,
+) {
+    // Check if the desired key is pressed (e.g., H key)
+    if input.just_pressed(KeyCode::KeyH) {
+        // Toggle visibility for all doors
+        for mut visibility in door_query.iter_mut() {
+            // Toggle between Visible and Hidden
+            *visibility = match *visibility {
+                Visibility::Visible => Visibility::Hidden,
+                Visibility::Hidden => Visibility::Visible,
+                Visibility::Inherited => Visibility::Hidden, // Handle inherited case
+            };
+        }
+    }
 }
 
 // should be a step before the game part

@@ -275,8 +275,8 @@ fn character_visuals_update_system(
                     if handle.id() == *id {
                         if let Some(new_config) = spritesheet_configs.get(handle) {
                             info!(
-                                "Spritesheet config modified for entity {:?}, updating visuals.",
-                                entity
+                                "Spritesheet config modified {}",
+                                new_config.name,
                             );
                             let new_layout = TextureAtlasLayout::from_grid(
                                 UVec2::new(new_config.tile_size.0, new_config.tile_size.1),

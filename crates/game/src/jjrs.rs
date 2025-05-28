@@ -7,6 +7,7 @@ use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
 use ggrs::UdpNonBlockingSocket;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 use bevy_fixed::{fixed_math, rng::RollbackRng};
+use utils::net_id::GgrsNetIdFactory;
 
 use crate::{character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::{create::create_player, jjrs::PeerConfig}}, collider::{spawn_test_wall, CollisionSettings}, global_asset::GlobalAsset, plugins::AppState, weapons::{WeaponAsset, WeaponsConfig}};
 
@@ -20,6 +21,7 @@ pub struct GggrsConnectionConfiguration {
 
 #[derive(Resource)]
 pub struct GggrsSessionConfiguration {
+    pub cid: String,
     pub matchbox: bool,
     pub matchbox_url: String,
     pub lobby: String,
@@ -42,8 +44,13 @@ pub fn setup_ggrs_local(
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     sprint_sheet_assets: Res<Assets<SpriteSheetConfig>>,
     session_config: Res<GggrsSessionConfiguration>,
+
+    ggrs_config: Res<GggrsSessionConfiguration>,
+
+    mut id_provider: ResMut<GgrsNetIdFactory>
 ) {
 
+    info!("start local connection with CID={}", ggrs_config.cid);
 
     let mut sess_build = SessionBuilder::<PeerConfig>::new()
         .with_num_players(session_config.connection.max_player)
@@ -60,7 +67,7 @@ pub fn setup_ggrs_local(
             let remote_addr: SocketAddr = addr.parse().unwrap();
             //sess_build = sess_build.add_player(PlayerType::Remote(remote_addr), i).expect("Failed to add player");
         }
-        create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, local, i);
+        create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, local, i, &mut id_provider);
     }
 
     spawn_test_map(&mut commands, &collision_settings);
@@ -96,6 +103,7 @@ pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessi
     let url = format!("{}/{}?next={}", ggrs_config.matchbox_url, ggrs_config.lobby, ggrs_config.connection.max_player);
     commands.insert_resource(MatchboxSocket::new_unreliable(url));
 
+    info!("start p2p connection with CID={}", ggrs_config.cid);
 }
 
 pub fn wait_for_players(
@@ -110,7 +118,8 @@ pub fn wait_for_players(
     sprint_sheet_assets: Res<Assets<SpriteSheetConfig>>,
     session_config: Res<GggrsSessionConfiguration>,
 
-    mut commands: Commands, global_assets: Res<GlobalAsset>, weapons_asset: Res<Assets<WeaponsConfig>>, mut socket: ResMut<MatchboxSocket>, ggrs_config: Res<GggrsSessionConfiguration>
+    mut commands: Commands, global_assets: Res<GlobalAsset>, weapons_asset: Res<Assets<WeaponsConfig>>, mut socket: ResMut<MatchboxSocket>, ggrs_config: Res<GggrsSessionConfiguration>,
+    mut id_provider: ResMut<GgrsNetIdFactory>
 ) {
     // regularly call update_peers to update the list of connected peers
     let Ok(peer_changes) = socket.try_update_peers() else {
@@ -150,7 +159,7 @@ pub fn wait_for_players(
 
         let is_local = matches!(player, PlayerType::Local);
 
-        create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, is_local, i);
+        create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, is_local, i, &mut id_provider);
     }
 
     spawn_test_map(&mut commands, &collision_settings);
@@ -173,6 +182,7 @@ pub fn wait_for_players(
 pub fn log_ggrs_events(
     mut session: ResMut<bevy_ggrs::Session<PeerConfig>>,
 ) {
+
         if let Session::P2P(session) = session.as_mut() {
             for event in session.events() {
                 info!("GGRS Event: {:?}", event);
@@ -195,6 +205,7 @@ pub fn log_ggrs_events(
                 }
             }
         }
+
 }
 
 

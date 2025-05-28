@@ -2,7 +2,7 @@
 use animation::{AnimationBundle, SpriteSheetConfig};
 use bevy::{math::VectorSpace, prelude::*, utils:: HashMap};
 use leafwing_input_manager::{prelude::ActionState, InputManagerBundle};
-use utils::bmap;
+use utils::{bmap, net_id::GgrsNetIdFactory};
 use bevy_kira_audio::prelude::*;
 
 use crate::{character::{config::CharacterConfig, create::create_character, dash::DashState, movement::{SprintState, Velocity}}, collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings}, global_asset::GlobalAsset, weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig}};
@@ -30,6 +30,8 @@ pub fn create_player(
 
     local: bool,
     handle: usize,
+
+    id_factory: &mut ResMut<GgrsNetIdFactory>
 ) {
 
 
@@ -37,7 +39,7 @@ pub fn create_player(
         commands, global_assets, character_asset, asset_server, texture_atlas_layouts, sprint_sheet_assets,
         "player".into(), Some(if handle == 0 { "1" } else { "2" }.into()),
          (LinearRgba::GREEN).into(), fixed_math::FixedVec3::new(fixed_math::new(-50.0 * handle as f32), fixed_math::new(0.0), fixed_math::new(0.0)),
-        CollisionLayer(collision_settings.player_layer),
+        CollisionLayer(collision_settings.player_layer), id_factory
     );
     if local {
         commands.entity(entity)
@@ -56,7 +58,7 @@ pub fn create_player(
         let mut keys: Vec<&String> = weapons_config.0.keys().collect();
         keys.sort();
         for (i, k) in keys.iter().enumerate() {
-            spawn_weapon_for_player(commands, global_assets, asset_server, texture_atlas_layouts, sprint_sheet_assets, i == 0, entity, weapons_config.0.get(*k).unwrap().clone(), &mut inventory);
+            spawn_weapon_for_player(commands, global_assets, asset_server, texture_atlas_layouts, sprint_sheet_assets, i == 0, entity, weapons_config.0.get(*k).unwrap().clone(), &mut inventory, id_factory);
         }
     }
     

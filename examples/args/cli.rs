@@ -17,4 +17,6 @@ pub struct Opt {
     pub players: Option<Vec<String>>,
     #[clap(short, long, num_args = 1..)]
     pub spectators: Option<Vec<SocketAddr>>,
+    #[clap(long)]
+    pub cid: Option<String>,
 }

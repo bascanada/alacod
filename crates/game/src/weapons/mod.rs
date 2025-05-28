@@ -1,14 +1,16 @@
 pub mod ui;
 
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
-use bevy::{math::VectorSpace, prelude::*, utils::{HashMap, HashSet}};
+use bevy::{log::Level, math::VectorSpace, prelude::*, utils::{tracing::span, HashMap, HashSet}};
 use bevy_fixed::{fixed_math, rng::RollbackRng};
 use bevy_ggrs::{AddRollbackCommandExtension, PlayerInputs, Rollback};
-use ggrs::PlayerHandle;
+use ggrs::{Frame, PlayerHandle};
 use serde::{Deserialize, Serialize};
-use utils::bmap;
+use utils::{bmap, net_id::{GgrsNetId, GgrsNetIdFactory}};
 
-use crate::{character::{dash::DashState, health::{self, DamageAccumulator, Health}, movement::SprintState, player::{input::{CursorPosition, INPUT_DASH, INPUT_RELOAD, INPUT_SPRINT, INPUT_SWITCH_WEAPON_MODE}, jjrs::PeerConfig, Player}}, collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall}, frame::FrameCount, global_asset::GlobalAsset, GAME_SPEED};
+use crate::{character::{dash::DashState, health::{self, DamageAccumulator, Health, HitBy}, movement::SprintState, player::{input::{CursorPosition, INPUT_DASH, INPUT_RELOAD, INPUT_SPRINT, INPUT_SWITCH_WEAPON_MODE}, jjrs::PeerConfig, Player}}, collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall}, global_asset::GlobalAsset, GAME_SPEED};
+use utils::frame::FrameCount;
+use std::fmt;
 
 
 // COMPONENTSo
@@ -48,6 +50,16 @@ pub enum BulletType {
         speed: fixed_math::Fixed,
         penetration: u8,
     },
+}
+
+impl fmt::Display for BulletType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BulletType::Standard { .. } => write!(f, "Standard"),
+            BulletType::Explosive { .. } => write!(f, "Explosive"),
+            BulletType::Piercing { .. } => write!(f, "Piercing"),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -308,6 +320,8 @@ pub fn spawn_weapon_for_player(
     player_entity: Entity,
     weapon: WeaponAsset,
     inventory: &mut WeaponInventory,
+
+    id_factory: &mut ResMut<GgrsNetIdFactory>,
 ) -> Entity {
 
     let map_layers = global_assets.spritesheets.get(&weapon.sprite_config.name).unwrap().clone();
@@ -347,6 +361,7 @@ pub fn spawn_weapon_for_player(
         weapon_modes_state,
         weapon.clone(),
         animation_bundle,
+        id_factory.next(weapon.config.name.clone()),
     )).add_rollback().id();
 
 
@@ -385,6 +400,7 @@ fn spawn_bullet_rollback(
     current_frame: u32,
     collision_settings: &Res<CollisionSettings>,
     parent_layer: &CollisionLayer,
+    id_factory: &mut ResMut<GgrsNetIdFactory> 
 ) -> Entity {
     let (velocity, damage, range, radius) = match &bullet_type {
         BulletType::Standard { speed, damage: damage_bullet } => {
@@ -442,6 +458,9 @@ fn spawn_bullet_rollback(
         fixed_math::FixedVec3::ONE,
     );
 
+    let g_id = id_factory.next(format!("{}", bullet_type));
+    
+    info!("{} spawn at {} by {}", g_id, new_projectile_fixed_transform.translation, player_handle);
 
     let mut entity_commands = commands.spawn((
         Sprite::from_color(color, Vec2::new(10.0, 10.0)),
@@ -466,6 +485,7 @@ fn spawn_bullet_rollback(
         CollisionLayer(parent_layer.0),
         new_projectile_fixed_transform.to_bevy_transform(),
         new_projectile_fixed_transform,
+        g_id,
     ));
 
     match bullet_type {
@@ -513,7 +533,12 @@ pub fn weapon_rollback_system(
     player_query: Query<(&fixed_math::FixedTransform3D, &FacingDirection, &Player)>,
 
     collision_settings: Res<CollisionSettings>,
+
+    mut id_factory: ResMut<GgrsNetIdFactory>
 ) {
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "weapon");
+    let _enter = system_span.enter(); // Enter the span
+
     // Process weapon firing for all players
     for (entity,  mut inventory, sprint_state, dash_state , collision_layer, transform, player) in inventory_query.iter_mut() {
         let (input, _input_status) = inputs[player.handle];
@@ -524,6 +549,7 @@ pub fn weapon_rollback_system(
         }
 
         if sprint_state.is_sprinting || dash_state.is_dashing || input.buttons & INPUT_SPRINT != 0 || input.buttons & INPUT_DASH != 0 {
+
             continue;
         }
 
@@ -676,6 +702,7 @@ pub fn weapon_rollback_system(
                                                 frame.frame,
                                                 &collision_settings,
                                                 collision_layer,
+                                                &mut id_factory
                                             );
                                         }
                                         weapon_mode_state.mag_ammo -= 1; // Shotgun uses one ammo for all pellets
@@ -702,6 +729,7 @@ pub fn weapon_rollback_system(
                                             frame.frame,
                                             &collision_settings,
                                             collision_layer,
+                                            &mut id_factory
                                         );
                                         weapon_mode_state.mag_ammo -= 1;
 
@@ -730,9 +758,12 @@ pub fn weapon_rollback_system(
 pub fn bullet_rollback_system(
     mut commands: Commands,
     frame: Res<FrameCount>,
-    mut bullet_query: Query<(Entity, &mut fixed_math::FixedTransform3D, &mut Bullet, &BulletRollbackState)>,
+    mut bullet_query: Query<(Entity, &GgrsNetId, &mut fixed_math::FixedTransform3D, &mut Bullet, &BulletRollbackState)>,
 ) {
-    for (entity, mut transform, mut bullet, bullet_state) in bullet_query.iter_mut() {
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "bullet_movement");
+    let _enter = system_span.enter();
+
+    for (entity, g_id, mut transform, mut bullet, bullet_state) in bullet_query.iter_mut() {
         // Move bullet based on velocity (fixed timestep)
         let delta = bullet.velocity; // Assume bullet.velocity is already deterministic for this frame
 
@@ -744,57 +775,42 @@ pub fn bullet_rollback_system(
         bullet.distance_traveled += delta.length();
 
         if bullet.distance_traveled >= bullet.range {
+            info!("{} despawn after travelleing {}", g_id, bullet.distance_traveled);
             commands.entity(entity).despawn();
         }
     }
 }
-
-
-fn apply_bullet_dommage(
-    commands: &mut Commands,
-    target_entity: Entity,
-    bullet: &Bullet,
-    
-    mut opt_dmg_accumulator: Option<Mut<'_, DamageAccumulator, >>
-) {
-    if let Some(accumulator) = opt_dmg_accumulator.as_mut() {
-        // Update existing accumulator
-        accumulator.total_damage += bullet.damage;
-        accumulator.hit_count += 1;
-        accumulator.last_hit_by = Some(health::HitBy::Player(bullet.player_handle))
-    } else {
-        commands.entity(target_entity).insert(DamageAccumulator{
-            hit_count: 1,
-            total_damage: bullet.damage,
-            last_hit_by: Some(health::HitBy::Player(bullet.player_handle)),
-        });
-    }
-}
-
-
 pub fn bullet_rollback_collision_system(
+    frame: Res<FrameCount>,
     mut commands: Commands,
     settings: Res<CollisionSettings>,
-    bullet_query: Query<(Entity, &fixed_math::FixedTransform3D, &Bullet, &Collider, &CollisionLayer), With<Rollback>>,
+    bullet_query: Query<(Entity, &fixed_math::FixedTransform3D, &Bullet, &Collider, &CollisionLayer, &GgrsNetId), With<Rollback>>,
     // Query for colliders. We'll need mutable access to DamageAccumulator later.
-    mut collider_query: Query<(Entity, &fixed_math::FixedTransform3D, &Collider, &CollisionLayer, Option<&Wall>, Option<&Health>, Option<&mut DamageAccumulator>), (Without<Bullet>, With<Rollback>)>,
+    mut collider_query: Query<(Entity, &fixed_math::FixedTransform3D, &Collider, &CollisionLayer, &GgrsNetId, Option<&Wall>, Option<&Health>, Option<&mut DamageAccumulator>), (Without<Bullet>, With<Rollback>)>,
 ) {
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "bullet_collissions");
+    let _enter = system_span.enter();
+
     let mut bullets_to_despawn_set = HashSet::new();
 
-    for (bullet_entity, bullet_transform, bullet, bullet_collider, bullet_layer) in bullet_query.iter() {
+    let mut deterministic_bullet: Vec<_> = bullet_query.iter().collect();
+    deterministic_bullet.sort_unstable_by_key(|(_, _, _, _, _,  id)| id.0);
+
+
+    for (bullet_entity, bullet_transform, bullet, bullet_collider, bullet_layer, ggrs_net_id) in deterministic_bullet {
         if bullets_to_despawn_set.contains(&bullet_entity) {
             continue;
         }
 
-        let mut actual_collided_target_entities: Vec<Entity> = Vec::new();
+        let mut actual_collided_target_entities: Vec<(Entity, GgrsNetId)> = Vec::new();
 
         // Phase 1: Identify ALL entities this bullet is colliding with (immutable pass first)
-        for (target_entity, target_transform, target_collider, target_layer, _opt_wall, _opt_health, /* no mut here */ _) in collider_query.iter() {
+        for (target_entity, target_transform, target_collider, target_layer, collider_net_id, _opt_wall, _opt_health, /* no mut here */ _) in collider_query.iter() {
             if !settings.layer_matrix[bullet_layer.0 as usize][target_layer.0 as usize] {
                 continue;
             }
             if is_colliding(&bullet_transform.translation, bullet_collider, &target_transform.translation, target_collider) {
-                actual_collided_target_entities.push(target_entity);
+                actual_collided_target_entities.push((target_entity, collider_net_id.clone()));
             }
         }
 
@@ -803,23 +819,29 @@ pub fn bullet_rollback_collision_system(
         }
 
         // Sort the collided entities to pick the "first" one deterministically
-        actual_collided_target_entities.sort_unstable_by_key(|e| e.to_bits());
+        actual_collided_target_entities.sort_unstable_by_key(|(e, g_id) | g_id.0);
+
 
         // The bullet will interact with the first entity in this sorted list.
-        let deterministic_target_entity = actual_collided_target_entities[0];
+        let (deterministic_target_entity, deterministic_target_g_id) = actual_collided_target_entities[0].clone();
 
+        info!("bullet {} collissions with {:?}", ggrs_net_id, deterministic_target_g_id);
         // Now get mutable components for this specific, deterministically chosen target
-        if let Ok((_target_entity_refetch, _target_transform, _target_collider, _target_layer, opt_wall, opt_health, opt_accumulator_mut)) = collider_query.get_mut(deterministic_target_entity) {
+        if let Ok((_target_entity_refetch, _target_transform, _target_collider, _target_layer, _, opt_wall, opt_health, opt_accumulator_mut)) = collider_query.get_mut(deterministic_target_entity) {
             if opt_health.is_some() {
+                let last_hit_by = Some(vec![
+                    HitBy::Player(bullet.player_handle),
+                    HitBy::Entity(ggrs_net_id.clone()),
+                ]);
                 if let Some(mut accumulator) = opt_accumulator_mut {
                     accumulator.total_damage = accumulator.total_damage.saturating_add(bullet.damage);
                     accumulator.hit_count += 1;
-                    accumulator.last_hit_by = Some(health::HitBy::Player(bullet.player_handle));
+                    accumulator.last_hit_by = last_hit_by;
                 } else {
                     commands.entity(deterministic_target_entity).insert(DamageAccumulator {
                         hit_count: 1,
-                        total_damage: bullet.damage, // Ensure bullet.damage is Fixed
-                        last_hit_by: Some(health::HitBy::Player(bullet.player_handle)),
+                        total_damage: bullet.damage,
+                        last_hit_by: last_hit_by,
                     });
                 }
             }

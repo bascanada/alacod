@@ -9,7 +9,7 @@ use crate::character::movement::Velocity;
 use crate::character::player::input::FIXED_TIMESTEP;
 use crate::character::player::Player;
 use crate::collider::{Collider, is_colliding, Wall};
-use crate::frame::FrameCount;
+use utils::frame::FrameCount;
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct EnemyPath {

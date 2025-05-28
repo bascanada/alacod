@@ -3,7 +3,8 @@ use bevy::{prelude::*};
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 use bevy_fixed::{fixed_math, rng::RollbackRng};
 
-use crate::{character::{config::CharacterConfig, player::Player}, collider::{Collider, CollisionSettings, Wall}, frame::FrameCount, global_asset::GlobalAsset, weapons::WeaponsConfig};
+use crate::{character::{config::CharacterConfig, player::Player}, collider::{Collider, CollisionSettings, Wall}, global_asset::GlobalAsset, weapons::WeaponsConfig};
+use utils::{frame::FrameCount, net_id::GgrsNetIdFactory};
 
 use super::{create::spawn_enemy, Enemy};
 
@@ -42,6 +43,8 @@ pub fn enemy_spawn_from_spawners_system(
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     sprint_sheet_assets: Res<Assets<SpriteSheetConfig>>,
+
+    mut id_factory: ResMut<GgrsNetIdFactory>,
 ) {
     let player_positions: Vec<fixed_math::FixedVec2> = player_query
         .iter()
@@ -138,6 +141,7 @@ pub fn enemy_spawn_from_spawners_system(
                 &sprint_sheet_assets,
                 &global_assets,
                 &collision_settings,
+                &mut id_factory,
             );
 
             state.cooldown_remaining = config.max_cooldown;
