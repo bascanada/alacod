@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy_fixed::math::calculate_time_remaining_seconds;
+use utils::frame::FrameCount;
 
-use crate::{character::player::LocalPlayer, frame::FrameCount, plugins::AppState};
+use crate::{character::player::LocalPlayer, plugins::AppState};
 
 use super::{WeaponInventory, WeaponModeState, WeaponModesState, WeaponState};
 

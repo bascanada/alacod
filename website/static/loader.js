@@ -16,7 +16,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     import(name).then((module) => {
       console.log(module);
-      module.default();
+      try {
+        module.default().then(
+          () => console.log("loaded"),
+          (e) => console.error("error loading wasm ", e)
+        )
+      } catch (e) {
+        console.error("Error wasm ", e)
+      }
       auto_focus();
     });
 

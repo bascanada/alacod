@@ -3,6 +3,7 @@ use animation::{create_child_sprite, AnimationBundle, SpriteSheetConfig};
 use bevy::{prelude::*};
 use bevy_kira_audio::prelude::*;
 use bevy_fixed::fixed_math;
+use utils::net_id::GgrsNetIdFactory;
 
 use crate::{character::{config::CharacterConfigHandles, movement::Velocity}, collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings}, global_asset::GlobalAsset, weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig}};
 
@@ -25,6 +26,7 @@ pub fn create_character(
     translation: fixed_math::FixedVec3,
 
     collision_layer: CollisionLayer,
+    id_factory: &mut ResMut<GgrsNetIdFactory>,
 ) -> Entity {
     let handle = global_assets.character_configs.get(&config_name).unwrap();
     let config = character_asset.get(handle).unwrap();
@@ -64,6 +66,7 @@ pub fn create_character(
             config: player_config_handle.clone(),
         },
         animation_bundle,
+        id_factory.next(config_name)
     ));
 
     let entity = entity.with_children(|parent| {

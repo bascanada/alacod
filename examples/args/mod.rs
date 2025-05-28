@@ -1,5 +1,7 @@
 use std::net::SocketAddr;
 
+use utils::cid::generate_timestamp_correlation_id;
+
 
 
 #[cfg(target_arch = "wasm32")]
@@ -8,7 +10,7 @@ mod web;
 mod cli;
 
 
-pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String) {
+pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String, String) {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -22,6 +24,7 @@ pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String) 
             args.spectators.unwrap_or(vec![]),
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
+            args.cid.unwrap_or(generate_timestamp_correlation_id())
         );
     }
     #[cfg(target_arch = "wasm32")]
@@ -35,6 +38,7 @@ pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String) 
             vec![],
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
+            generate_timestamp_correlation_id(),
         );
     }
 

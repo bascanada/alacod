@@ -495,7 +495,6 @@ impl Rect {
 // Example of how to set up the camera in your game
 pub fn setup_camera(mut commands: Commands, settings: Res<CameraSettings>) {
     // Spawn the camera itself
-    println!("CREATING CAMERA");
     commands.spawn((
         Camera2dBundle::default(),
         SpatialAudioReceiver,

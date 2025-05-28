@@ -1,13 +1,9 @@
 use bevy::prelude::*;
+use utils::frame::FrameCount;
 
 use crate::plugins::GameInfo;
 
 // You can also register resources.
-#[derive(Resource, Default, Reflect, Hash, Clone, Copy)]
-#[reflect(Hash)]
-pub struct FrameCount {
-    pub frame: u32,
-}
 
 pub fn increase_frame_system(mut frame_count: ResMut<FrameCount>) {
     frame_count.frame += 1;

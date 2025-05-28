@@ -44,7 +44,6 @@ fn draw_sprite_debug_rects_system(
             image.size_f32()
         } else {
             // Image asset not yet loaded or handle is invalid, skip this sprite
-            println!("CAND");
             continue;
         };
 

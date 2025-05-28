@@ -14,7 +14,7 @@ use crate::character::dash::DashState;
 use crate::character::movement::{MovementConfig, SprintState, Velocity};
 use crate::character::player::{control::PlayerAction, Player};
 use crate::collider::{is_colliding, Collider, CollisionLayer, CollisionSettings, Wall};
-use crate::frame::FrameCount;
+use utils::frame::FrameCount;
 use crate::weapons::{ActiveWeapon, WeaponInventory};
 
 use super::jjrs::PeerConfig;
