@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_ggrs::AddRollbackCommandExtension;
 use serde::{Deserialize, Serialize};
 use bevy_fixed::fixed_math;
+use utils::net_id::GgrsNetId;
 
 
 
@@ -188,6 +189,7 @@ pub fn spawn_test_wall(
     size: Vec2,
     collision_settings: &Res<CollisionSettings>,
     color: Color,
+    g_id: GgrsNetId,
 ) {
     let translation = fixed_math::FixedVec3::new(fixed_math::new(position.x), fixed_math::new(position.y), fixed_math::new(position.z));
     let transform = fixed_math::FixedTransform3D::new(translation, fixed_math::FixedMat3::IDENTITY, fixed_math::FixedVec3::ONE);
@@ -209,5 +211,6 @@ pub fn spawn_test_wall(
             offset: fixed_math::FixedVec3::ZERO,
         },
         CollisionLayer(collision_settings.wall_layer),
+        g_id,
     )).add_rollback();
 }

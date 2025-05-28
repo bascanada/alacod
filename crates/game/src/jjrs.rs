@@ -70,7 +70,7 @@ pub fn setup_ggrs_local(
         create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, local, i, &mut id_provider);
     }
 
-    spawn_test_map(&mut commands, &collision_settings);
+    spawn_test_map(&mut commands, &mut id_provider, &collision_settings);
 
    // Start a synctest session
     let sess = if session_config.connection.socket == false {
@@ -162,7 +162,7 @@ pub fn wait_for_players(
         create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, is_local, i, &mut id_provider);
     }
 
-    spawn_test_map(&mut commands, &collision_settings);
+    spawn_test_map(&mut commands, &mut id_provider, &collision_settings);
 
     // move the channel out of the socket (required because GGRS takes ownership of it)
     let channel = socket.take_channel(0).unwrap();
@@ -211,6 +211,7 @@ pub fn log_ggrs_events(
 
 fn spawn_test_map(
     commands: &mut Commands,
+    id_provider: &mut ResMut<GgrsNetIdFactory>,
     collision_settings: &Res<CollisionSettings>,
 ) {
     spawn_test_wall(
@@ -219,6 +220,7 @@ fn spawn_test_map(
         Vec2::new(125.0, 500.0),
         &collision_settings,
         Color::rgb(0.6, 0.3, 0.3), // Reddish color
+        id_provider.next("wall".into())
     );
     spawn_test_wall(
         commands,
@@ -226,6 +228,7 @@ fn spawn_test_map(
         Vec2::new(125.0, 500.0),
         &collision_settings,
         Color::rgb(0.6, 0.3, 0.3), // Reddish color
+        id_provider.next("wall".into())
     );
 
     let spawn_positions = [

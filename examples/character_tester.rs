@@ -4,7 +4,7 @@ use args::get_args;
 use bevy::{asset::AssetMetaCheck, log::LogPlugin, prelude::*, utils::{hashbrown::HashMap, tracing::instrument::WithSubscriber}, window::WindowResolution};
 use game::{character::{ movement::Velocity, player::{ control::{get_input_map, PlayerAction}, LocalPlayer, Player}}, collider::{spawn_test_wall, CollisionSettings}, frame::FrameDebugUIPlugin, global_asset::GlobalAsset, jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration}, plugins::{AppState, BaseZombieGamePlugin}, weapons::WeaponsConfig};
 
-use utils::{logs::setup_logging, web::WebPlugin};
+use utils::{self, web::WebPlugin};
 
 fn main() {
 
@@ -12,7 +12,7 @@ fn main() {
     let (local_port,mut nbr_player, players, _, matchbox, lobby, cid) = get_args();
 
     #[cfg(not(target_arch = "wasm32"))]
-    let _logging_guard = setup_logging(Some(cid.clone())).unwrap();
+    let _logging_guard = utils::logs::setup_logging(Some(cid.clone())).unwrap();
 
 
     if nbr_player == 0 { nbr_player = players.len() }

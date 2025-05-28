@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+//pub mod logs;
+
 pub struct WebPlugin {}
 
 impl Plugin for WebPlugin {
@@ -8,6 +10,7 @@ impl Plugin for WebPlugin {
         #[cfg(target_arch = "wasm32")]
         {
             console_error_panic_hook::set_once();
+            //app.add_plugins(logs::WasmWebLogPlugin{});
             app.add_systems(Update, update_window_size);
         }
     }

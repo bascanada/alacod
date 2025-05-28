@@ -38,7 +38,7 @@ pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String, 
             vec![],
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
-            Some(generate_timestamp_correlation_id()),
+            generate_timestamp_correlation_id(),
         );
     }
 
