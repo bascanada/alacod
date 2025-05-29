@@ -41,10 +41,6 @@ path = "examples/map_preview.rs"
 name = "map_generation"
 path = "examples/map_generation.rs"
 
-[[example]]
-name = "map_explorer"
-path = "examples/map_explorer.rs"
-
 [patch.crates-io]
 bevy_ecs_ldtk = { git = "https://github.com/bascanada/bevy_ecs_ldtk", branch = "transform_ldtk_project" }
 

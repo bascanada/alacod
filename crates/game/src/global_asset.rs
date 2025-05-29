@@ -3,7 +3,9 @@ use bevy::{prelude::*, utils::HashMap};
 use utils::bmap;
 
 use crate::{
-    camera::CameraSettingsAsset, character::config::CharacterConfig, core::{AppState, OnlineState},
+    camera::CameraSettingsAsset,
+    character::config::CharacterConfig,
+    core::{AppState, OnlineState},
     weapons::WeaponsConfig,
 };
 

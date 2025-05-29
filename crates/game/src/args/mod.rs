@@ -3,7 +3,10 @@ use std::net::SocketAddr;
 use bevy::prelude::*;
 use utils::{cid::generate_random_correlation_id, logs::NativeLogPlugin};
 
-use crate::{core::OnlineState, jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration}};
+use crate::{
+    core::OnlineState,
+    jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration},
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
@@ -50,21 +53,22 @@ pub fn get_args() -> (
     }
 }
 
-
 pub struct BaseArgsPlugin;
 
-
 impl Plugin for BaseArgsPlugin {
-   fn build(&self, app: &mut App) {
+    fn build(&self, app: &mut App) {
         let (local_port, mut nbr_player, players, _, matchbox, lobby, cid) = get_args();
 
         if nbr_player == 0 {
             nbr_player = players.len()
         }
 
-        app
-            .add_plugins(NativeLogPlugin(cid.clone()))
-            .insert_resource( if !matchbox.is_empty() { OnlineState::Online } else { OnlineState::Offline })
+        app.add_plugins(NativeLogPlugin(cid.clone()))
+            .insert_resource(if !matchbox.is_empty() {
+                OnlineState::Online
+            } else {
+                OnlineState::Offline
+            })
             .insert_resource(GggrsSessionConfiguration {
                 cid,
                 matchbox: !matchbox.is_empty(),
@@ -79,7 +83,5 @@ impl Plugin for BaseArgsPlugin {
                 },
                 players,
             });
-   } 
-    
-
+    }
 }

@@ -1,7 +1,10 @@
 use std::default;
 
 use animation::D2AnimationPlugin;
-use bevy::{app::PluginGroupBuilder, asset::AssetMetaCheck, log::LogPlugin, prelude::*, window::WindowResolution};
+use bevy::{
+    app::PluginGroupBuilder, asset::AssetMetaCheck, log::LogPlugin, prelude::*,
+    window::WindowResolution,
+};
 use bevy_fixed::{
     fixed_math::{self, sync_bevy_transforms_from_fixed},
     rng::RollbackRng,
@@ -9,7 +12,10 @@ use bevy_fixed::{
 use bevy_ggrs::{GgrsApp, GgrsPlugin, GgrsSchedule};
 use serde::{Deserialize, Serialize};
 use utils::{
-    frame::FrameCount, logs::NativeLogPlugin, net_id::{GgrsNetId, GgrsNetIdFactory}, web::WebPlugin
+    frame::FrameCount,
+    logs::NativeLogPlugin,
+    net_id::{GgrsNetId, GgrsNetIdFactory},
+    web::WebPlugin,
 };
 
 use crate::{
@@ -64,7 +70,6 @@ pub struct CoreSetupPlugin(pub CoreSetupConfig);
 
 impl Plugin for CoreSetupPlugin {
     fn build(&self, app: &mut App) {
-
         app.add_plugins(ZAudioPlugin);
         app.add_plugins(WebPlugin);
         app.add_plugins(FrameDebugUIPlugin);
@@ -115,13 +120,13 @@ impl Plugin for CoreSetupPlugin {
             ),
         );
 
-
         app.add_systems(OnEnter(AppState::LobbyOnline), start_matchbox_socket);
-        app.add_systems(Update, wait_for_players.run_if(in_state(AppState::LobbyOnline)));
+        app.add_systems(
+            Update,
+            wait_for_players.run_if(in_state(AppState::LobbyOnline)),
+        );
 
         app.add_systems(OnEnter(AppState::LobbyLocal), setup_ggrs_local);
-
-
 
         app.add_systems(Update, log_ggrs_events.run_if(in_state(AppState::InGame)));
 
@@ -134,7 +139,6 @@ impl Plugin for CoreSetupPlugin {
 
 impl CoreSetupPlugin {
     pub fn get_default_plugin(&self) -> PluginGroupBuilder {
-
         let window_plugin = WindowPlugin {
             primary_window: Some(Window {
                 title: format!("{}", self.0.app_name),
