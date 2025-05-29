@@ -75,15 +75,13 @@ impl Default for CameraSettings {
 }
 
 // Track which camera mode is active
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CameraMode {
     #[default]
     PlayerLock,
     PlayersLock,
     Unlock,
 }
-
 
 // Component to mark the camera entity
 #[derive(Component, Default)]
@@ -451,11 +449,8 @@ fn player_indicator_system(
                     custom_size: Some(Vec2::splat(settings.indicator_size)),
                     ..default()
                 },
-                Transform::from_translation(Vec3::new(
-                    clamped_pos.x,
-                    clamped_pos.y,
-                    10.0,
-                )).with_rotation(Quat::from_rotation_z(final_angle)),
+                Transform::from_translation(Vec3::new(clamped_pos.x, clamped_pos.y, 10.0))
+                    .with_rotation(Quat::from_rotation_z(final_angle)),
                 PlayerIndicator { player_entity },
             ));
         }
@@ -546,7 +541,7 @@ fn setup_simple_background(mut commands: Commands) {
                             i as f32 * tile_size,
                             j as f32 * tile_size,
                             -10.0, // Behind everything else
-                        ))
+                        )),
                     ));
                 }
             }

@@ -1,4 +1,3 @@
-
 use crate::{fixed_math, rng::RollbackRng};
 
 pub fn calculate_spread_angle(
@@ -15,7 +14,6 @@ pub fn calculate_spread_angle(
     // Convert to a range of -0.5 to 0.5 (similar to original logic)
     let random_val_neg_0_5_to_0_5 = random_val_0_to_1 - fixed_math::new(0.5);
 
-    
     random_val_neg_0_5_to_0_5 * spread
 }
 

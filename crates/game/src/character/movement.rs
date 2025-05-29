@@ -2,8 +2,6 @@ use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use serde::Deserialize;
 
-
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct MovementConfig {
     pub acceleration: fixed_math::Fixed,

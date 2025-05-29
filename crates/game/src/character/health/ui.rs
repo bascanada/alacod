@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 
-
 use super::Health;
 
 #[derive(Component)]

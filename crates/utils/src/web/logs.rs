@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 use std::sync::{Arc, Mutex};
 use tracing_subscriber::{
-    fmt::{
-        self, MakeWriter,
-    },
+    fmt::{self, MakeWriter},
     prelude::*,
     EnvFilter, Registry,
 }; // Updated imports

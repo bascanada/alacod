@@ -4,10 +4,7 @@ use bevy_fixed::fixed_math;
 use utils::net_id::GgrsNetIdFactory;
 
 use crate::{
-    character::{
-        config::CharacterConfig,
-        create::create_character,
-    },
+    character::{config::CharacterConfig, create::create_character},
     collider::{CollisionLayer, CollisionSettings},
     global_asset::GlobalAsset,
     weapons::{WeaponInventory, WeaponsConfig},

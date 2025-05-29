@@ -101,14 +101,12 @@ struct AnimationTimer {
     frame_timer: Timer,
 }
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FacingDirection {
     Left,
     #[default]
     Right,
 }
-
 
 impl FacingDirection {
     pub fn to_int(&self) -> i32 {

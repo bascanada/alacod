@@ -1,11 +1,10 @@
-
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 
 #[derive(Component)]
 pub struct AudioState {}
 
-pub struct ZAudioPlugin {}
+pub struct ZAudioPlugin;
 
 impl Plugin for ZAudioPlugin {
     fn build(&self, app: &mut App) {

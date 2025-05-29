@@ -6,8 +6,9 @@ use bevy::{
     prelude::*,
     utils::{tracing::span, HashMap, HashSet},
 };
+use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_fixed::{fixed_math, rng::RollbackRng};
-use bevy_ggrs::{AddRollbackCommandExtension, PlayerInputs, Rollback};
+use bevy_ggrs::{AddRollbackCommandExtension, GgrsSchedule, PlayerInputs, Rollback};
 use ggrs::PlayerHandle;
 use serde::{Deserialize, Serialize};
 use utils::{
@@ -30,10 +31,13 @@ use crate::{
     },
     collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall},
     global_asset::GlobalAsset,
+    system_set::RollbackSystemSet,
     GAME_SPEED,
 };
 use std::fmt;
 use utils::frame::FrameCount;
+
+use bevy_ggrs::GgrsApp;
 
 // COMPONENTS
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -189,8 +193,7 @@ pub struct Bullet {
 }
 
 /// Component to track the player's weapon inventory
-#[derive(Component, Debug, Clone)]
-#[derive(Default)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct WeaponInventory {
     pub active_weapon_index: usize,
     pub frame_switched: u32,
@@ -199,7 +202,6 @@ pub struct WeaponInventory {
 
     pub reloading_ending_frame: Option<u32>,
 }
-
 
 impl WeaponInventory {
     pub fn active_weapon(&self) -> &(Entity, Weapon) {
@@ -632,13 +634,8 @@ pub fn weapon_rollback_system(
         let (weapon_entity, _) = inventory.weapons[inventory.active_weapon_index];
 
         // Get the entity for the active weapon
-        if let Ok((
-            weapon,
-            mut weapon_state,
-            mut weapon_modes_state,
-            weapon_transform,
-            parent,
-        )) = weapon_query.get_mut(weapon_entity)
+        if let Ok((weapon, mut weapon_state, mut weapon_modes_state, weapon_transform, parent)) =
+            weapon_query.get_mut(weapon_entity)
         {
             let active_mode = weapon_state.active_mode.clone();
             let weapon_config = weapon.config.firing_modes.get(&active_mode).unwrap();
@@ -740,9 +737,7 @@ pub fn weapon_rollback_system(
                         }
                     }
 
-                    FiringMode::Shotgun {
-                        ..
-                    } => {
+                    FiringMode::Shotgun { .. } => {
                         if !weapon_state.is_firing && frames_since_last_shot >= frame_per_shot {
                             // Shotgun fires all pellets at once, so we don't need burst_shots_left
                             (true, weapon_mode_state.mag_ammo == 0)
@@ -1126,5 +1121,40 @@ pub fn weapons_config_update_system(
                 }
             }
         }
+    }
+}
+
+pub struct BaseWeaponGamePlugin {}
+
+impl Plugin for BaseWeaponGamePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(self::ui::WeaponDebugUIPlugin);
+
+        app.add_plugins(RonAssetPlugin::<WeaponsConfig>::new(&["ron"]));
+
+        app.rollback_component_with_clone::<WeaponInventory>()
+            .rollback_component_with_clone::<WeaponModesState>()
+            .rollback_component_with_clone::<WeaponState>()
+            .rollback_component_with_clone::<Bullet>();
+
+        app.add_systems(
+            Update,
+            (
+                update_weapon_sprite_direction,
+                weapon_inventory_system,
+                weapons_config_update_system,
+            ),
+        );
+
+        app.add_systems(
+            GgrsSchedule,
+            (
+                system_weapon_position,
+                weapon_rollback_system.after(system_weapon_position),
+                bullet_rollback_system.after(weapon_rollback_system),
+                bullet_rollback_collision_system.after(bullet_rollback_system),
+            )
+                .in_set(RollbackSystemSet::Weapon),
+        );
     }
 }

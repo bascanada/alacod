@@ -68,3 +68,24 @@ pub fn setup_logging(suffix: Option<String>) -> Result<WorkerGuard, Box<dyn std:
 
     Ok(guard)
 }
+
+
+#[derive(Resource)]
+pub struct LogGuard {
+    pub guard: tracing_appender::non_blocking::WorkerGuard
+}
+
+
+pub struct NativeLogPlugin(pub String);
+
+
+impl Plugin for NativeLogPlugin {
+    fn build(&self, app: &mut App) {
+        if cfg!(not(target_arch = "wasm32")) {
+            let guard = setup_logging(Some(self.0.clone())).unwrap();
+            app.insert_resource(LogGuard {
+                guard,
+            });
+        }
+    }
+}

@@ -2,10 +2,7 @@ use bevy::{prelude::*, reflect::TypePath, utils::HashMap};
 use bevy_fixed::fixed_math;
 use serde::Deserialize;
 
-use crate::{
-    character::movement::MovementConfig,
-    collider::ColliderConfig,
-};
+use crate::{character::movement::MovementConfig, collider::ColliderConfig};
 
 use super::health::HealthConfig;
 

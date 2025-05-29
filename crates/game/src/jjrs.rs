@@ -16,8 +16,8 @@ use crate::{
         player::{create::create_player, jjrs::PeerConfig},
     },
     collider::{spawn_test_wall, CollisionSettings},
+    core::AppState,
     global_asset::GlobalAsset,
-    plugins::AppState,
     weapons::WeaponsConfig,
 };
 
@@ -102,8 +102,13 @@ pub fn setup_ggrs_local(
 
         Session::SyncTest(sess)
     } else {
-        let _socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port).unwrap_or_else(|_| panic!("Failed to bind udp to {}",
-                session_config.connection.udp_port));
+        let _socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port)
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Failed to bind udp to {}",
+                    session_config.connection.udp_port
+                )
+            });
         panic!("");
         //let sess = sess_build.start_p2p_session(socket).expect("failed to start p2p session");
 

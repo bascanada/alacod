@@ -1,5 +1,5 @@
-use animation::{ActiveLayers, FacingDirection};
 use animation::AnimationState;
+use animation::{ActiveLayers, FacingDirection};
 use bevy::window::PrimaryWindow;
 use bevy::{prelude::*, utils::HashMap};
 use bevy_fixed::fixed_math;

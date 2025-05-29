@@ -2,13 +2,10 @@ use bevy::prelude::*;
 
 pub mod logs;
 
-pub struct WebPlugin {}
+pub struct WebPlugin;
 
 impl Plugin for WebPlugin {
-    fn build(
-        &self,
-        app: &mut App
-    ) {
+    fn build(&self, app: &mut App) {
         #[cfg(target_arch = "wasm32")]
         {
             console_error_panic_hook::set_once();

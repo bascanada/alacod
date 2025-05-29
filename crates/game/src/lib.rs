@@ -2,12 +2,13 @@ pub mod audio;
 pub mod camera;
 pub mod character;
 pub mod collider;
-pub mod debug;
+pub mod core;
 pub mod frame;
 pub mod global_asset;
 pub mod jjrs;
-pub mod plugins;
+pub mod system_set;
 pub mod weapons;
+pub mod args;
 
 use lazy_static::lazy_static;
 

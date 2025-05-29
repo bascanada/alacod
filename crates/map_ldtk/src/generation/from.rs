@@ -125,10 +125,7 @@ fn to_available_level(level: &Level, tile_size: &(i32, i32)) -> AvailableLevel {
         .unwrap_or_else(|| Err("No Layers present"))
         .unwrap();
 
-    let grid: Vec<&[i32]> = connection_layer
-        .int_grid_csv
-        .chunks(level_size.0)
-        .collect();
+    let grid: Vec<&[i32]> = connection_layer.int_grid_csv.chunks(level_size.0).collect();
 
     let level_type = {
         let is_spawn = get_level_field(level, map_const::LEVEL_FIELD_SPAWN).is_some_and(|x| {

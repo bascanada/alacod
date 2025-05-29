@@ -62,6 +62,9 @@ format:
 	@echo "Running fmy..."
 	cargo fmt --all -- --emit=files
 
+format_fix:
+	cargo fmt
+
 
 # Test
 

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use utils::frame::FrameCount;
 
-use crate::plugins::GameInfo;
+use crate::core::GameInfo;
 
 // You can also register resources.
 

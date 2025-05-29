@@ -3,7 +3,7 @@ use bevy::{prelude::*, utils::HashMap};
 use utils::bmap;
 
 use crate::{
-    camera::CameraSettingsAsset, character::config::CharacterConfig, plugins::AppState,
+    camera::CameraSettingsAsset, character::config::CharacterConfig, core::{AppState, OnlineState},
     weapons::WeaponsConfig,
 };
 
@@ -79,6 +79,7 @@ pub fn add_global_asset(mut commands: Commands, asset_server: Res<AssetServer>) 
 
 pub fn loading_asset_system(
     mut app_state: ResMut<NextState<AppState>>,
+    online: Res<OnlineState>,
     global_assets: Res<GlobalAsset>,
     asset_server: Res<AssetServer>,
 ) {
@@ -109,6 +110,10 @@ pub fn loading_asset_system(
         return;
     }
 
-    app_state.set(AppState::Lobby);
+    if matches!(*online, OnlineState::Online) {
+        app_state.set(AppState::LobbyOnline);
+    } else {
+        app_state.set(AppState::LobbyLocal);
+    }
     info!("loading of asset is done , now entering lobby");
 }

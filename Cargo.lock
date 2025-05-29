@@ -3399,6 +3399,7 @@ dependencies = [
  "bevy_ggrs",
  "bevy_kira_audio",
  "bevy_matchbox",
+ "clap",
  "ggrs",
  "lazy_static",
  "leafwing-input-manager",
@@ -3409,6 +3410,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "utils",
+ "web-sys",
 ]
 
 [[package]]

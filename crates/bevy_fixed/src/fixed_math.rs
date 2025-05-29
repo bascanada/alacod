@@ -564,7 +564,7 @@ impl std::ops::Neg for FixedVec3 {
 // Fixed-point angle functions
 pub fn atan2_fixed(y: Fixed, x: Fixed) -> Fixed {
     // Convert to the format expected by fixed_trigonometry
-     // This returns a fixed-point angle in radians
+    // This returns a fixed-point angle in radians
     atan2(y, x)
 }
 
@@ -790,9 +790,7 @@ pub struct FixedPosition {
 
 impl From<&FixedVec3> for FixedPosition {
     fn from(val: &FixedVec3) -> Self {
-        FixedPosition {
-            value: *val,
-        }
+        FixedPosition { value: *val }
     }
 }
 

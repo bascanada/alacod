@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::AddRollbackCommandExtension;
+use bevy_ggrs::GgrsApp;
 use serde::{Deserialize, Serialize};
 use utils::net_id::GgrsNetId;
 
@@ -242,4 +243,16 @@ pub fn spawn_test_wall(
             g_id,
         ))
         .add_rollback();
+}
+
+pub struct BaseColliderGamePlugin {}
+
+impl Plugin for BaseColliderGamePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<CollisionSettings>();
+
+        app.rollback_component_with_clone::<Collider>()
+            .rollback_component_with_clone::<Wall>()
+            .rollback_component_with_clone::<CollisionLayer>();
+    }
 }
