@@ -64,7 +64,7 @@ impl Room {
 
         Self {
             level_iid,
-            position: position,
+            position,
             entity_locations: level.entity_locations.clone(),
             connections,
             properties,
@@ -116,8 +116,8 @@ impl Room {
     pub fn is_outside(&self, config: &MapGenerationConfig) -> bool {
         let position = &self.position;
 
-        (position.0 > config.max_width || position.0 < (config.max_width * -1))
-            || (position.1 > config.max_heigth || position.1 < (config.max_heigth * -1))
+        (position.0 > config.max_width || position.0 < -config.max_width)
+            || (position.1 > config.max_heigth || position.1 < -config.max_heigth)
     }
 
     pub fn get_connecting_room_position(
@@ -141,7 +141,7 @@ impl Room {
                 Position(
                     my_position.0 + (their_connection.side.get_factor() * (offset_pixel)),
                     my_position.1
-                        + (their_connection.side.get_factor() * -1 * their_level.level_size_p.1),
+                        + (-their_connection.side.get_factor() * their_level.level_size_p.1),
                 )
             }
             Side::W | Side::E => {
@@ -149,7 +149,7 @@ impl Room {
 
                 Position(
                     my_position.0
-                        + (their_connection.side.get_factor() * -1 * their_level.level_size_p.0),
+                        + (-their_connection.side.get_factor() * their_level.level_size_p.0),
                     my_position.1 + (their_connection.side.get_factor() * (offset_pixel)),
                 )
             }

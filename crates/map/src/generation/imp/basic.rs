@@ -81,7 +81,7 @@ impl BasicMapGeneration {
                     self.map.rooms_possible.remove(index);
                 }
 
-                if self.map.rooms_possible.len() == 0 {
+                if self.map.rooms_possible.is_empty() {
                     println!("no more room_possible stopping generation");
                     return None;
                 }
@@ -112,7 +112,7 @@ impl BasicMapGeneration {
                     previous_room_def.connections.get(connection.index).unwrap()
                 };
 
-                if connection_def.compatiable_levels.len() == 0 {
+                if connection_def.compatiable_levels.is_empty() {
                     previous_room
                         .connections
                         .get_mut(connection_def.index)
@@ -146,8 +146,8 @@ impl BasicMapGeneration {
                         .unwrap();
 
                     let my_position = previous_room.get_connecting_room_position(
-                        &connection_def,
-                        &compatible_level_def,
+                        connection_def,
+                        compatible_level_def,
                         compatible_level.1,
                         &self.context.tile_size,
                     );
@@ -322,7 +322,7 @@ impl IMapGeneration for BasicMapGeneration {
                         return *b;
                     }
                 }
-                return false;
+                false
             })
             .flat_map(|roor| {
                 roor.entity_locations
