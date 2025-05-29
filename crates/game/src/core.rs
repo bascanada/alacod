@@ -1,4 +1,3 @@
-use std::default;
 
 use animation::D2AnimationPlugin;
 use bevy::{
@@ -13,7 +12,6 @@ use bevy_ggrs::{GgrsApp, GgrsPlugin, GgrsSchedule};
 use serde::{Deserialize, Serialize};
 use utils::{
     frame::FrameCount,
-    logs::NativeLogPlugin,
     net_id::{GgrsNetId, GgrsNetIdFactory},
     web::WebPlugin,
 };
@@ -141,7 +139,7 @@ impl CoreSetupPlugin {
     pub fn get_default_plugin(&self) -> PluginGroupBuilder {
         let window_plugin = WindowPlugin {
             primary_window: Some(Window {
-                title: format!("{}", self.0.app_name),
+                title: self.0.app_name.to_string(),
                 resolution: WindowResolution::new(800., 600.),
 
                 resizable: true,
