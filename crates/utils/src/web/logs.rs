@@ -2,12 +2,10 @@ use bevy::prelude::*;
 use std::sync::{Arc, Mutex};
 use tracing_subscriber::{
     fmt::{
-        self,
-        format::{FmtSpan, Writer},
-        FormatFields, MakeWriter,
+        self, MakeWriter,
     },
     prelude::*,
-    EnvFilter, Layer, Registry,
+    EnvFilter, Registry,
 }; // Updated imports
 use tracing_web::MakeWebConsoleWriter;
 use wasm_bindgen::prelude::*;
@@ -82,11 +80,9 @@ pub fn check_for_log_download_request(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut trigger: ResMut<DownloadLogTrigger>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::KeyL) {
-        if !trigger.0 {
-            info!("Log download requested (L key)!"); // Corrected log message
-            trigger.0 = true;
-        }
+    if keyboard_input.just_pressed(KeyCode::KeyL) && !trigger.0 {
+        info!("Log download requested (L key)!"); // Corrected log message
+        trigger.0 = true;
     }
 }
 
