@@ -1,5 +1,6 @@
 PROFILE ?= dev
 
+LOBBY ?= "test"
 NUMBER_PLAYER ?= 2
 
 CURRENT_TAG := $(shell git describe --tags --exact-match HEAD 2>/dev/null)
@@ -100,7 +101,7 @@ character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
 
 character_tester_matchbox:
-	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby test_2 --players localhost remote --cid $(CID)
+	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
 
 host_website:
 	cd website && APP_VERSION=$(VERSION) npm run dev

@@ -25,7 +25,7 @@ pub enum PlayerAction {
 
     PointerPosition,
     PointerClick,
-    
+
     SwitchLockMode,
     SwitchToUnlockMode,
     SwitchTargetPlayer,
@@ -71,7 +71,4 @@ pub fn get_input_map() -> InputMap<PlayerAction> {
     map.insert(PlayerAction::SwitchToUnlockMode, KeyCode::KeyO);
 
     map.with_dual_axis(PlayerAction::Pan, GamepadStick::LEFT)
-
 }
-
-

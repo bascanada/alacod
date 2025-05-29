@@ -1,30 +1,34 @@
 use bevy::prelude::*;
+use bevy_fixed::fixed_math;
 use bevy_ggrs::AddRollbackCommandExtension;
 use serde::{Deserialize, Serialize};
-use bevy_fixed::fixed_math;
 use utils::net_id::GgrsNetId;
-
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ColliderShape {
-    Circle { radius: fixed_math::Fixed },
-    Rectangle { width: fixed_math::Fixed, height: fixed_math::Fixed },
+    Circle {
+        radius: fixed_math::Fixed,
+    },
+    Rectangle {
+        width: fixed_math::Fixed,
+        height: fixed_math::Fixed,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ColliderConfig {
     pub shape: ColliderShape,
-    pub offset: fixed_math::FixedVec3
+    pub offset: fixed_math::FixedVec3,
 }
 
 impl Into<Collider> for &ColliderConfig {
     fn into(self) -> Collider {
-        Collider { shape: self.shape.clone(), offset: self.offset.clone()}
-    } 
+        Collider {
+            shape: self.shape.clone(),
+            offset: self.offset.clone(),
+        }
+    }
 }
-
-
 
 #[derive(Component, Clone, Debug, Serialize, Deserialize)]
 pub struct Collider {
@@ -32,14 +36,11 @@ pub struct Collider {
     pub offset: fixed_math::FixedVec3, // Offset from entity transform
 }
 
-
 #[derive(Component, Clone)]
 pub struct Wall;
 
-
 #[derive(Component, Clone, Serialize, Deserialize)]
 pub struct CollisionLayer(pub usize);
-
 
 #[derive(Resource)]
 pub struct CollisionSettings {
@@ -54,13 +55,13 @@ impl Default for CollisionSettings {
     fn default() -> Self {
         // Initialize empty collision matrix
         let mut layer_matrix = [[false; 8]; 8];
-        
+
         // Define collision layers
         let enemy_layer = 1;
         let environment_layer = 2;
         let player_layer = 3;
         let wall_layer = 4;
-        
+
         // Set up collision relationships
         layer_matrix[enemy_layer][wall_layer] = true; // Symmetric for simplicity
         layer_matrix[enemy_layer][player_layer] = true; // Symmetric for simplicity
@@ -69,9 +70,9 @@ impl Default for CollisionSettings {
         layer_matrix[wall_layer][enemy_layer] = true;
         layer_matrix[wall_layer][player_layer] = true;
         layer_matrix[player_layer][wall_layer] = true;
-        
+
         // Player bullets shouldn't hit players
-        
+
         Self {
             enemy_layer,
             environment_layer,
@@ -81,7 +82,6 @@ impl Default for CollisionSettings {
         }
     }
 }
-
 
 pub fn is_colliding(
     pos_a: &fixed_math::FixedVec3,
@@ -95,21 +95,34 @@ pub fn is_colliding(
 
     match (&collider_a.shape, &collider_b.shape) {
         // Circle to Circle
-        (ColliderShape::Circle { radius: radius_a }, ColliderShape::Circle { radius: radius_b }) => {
+        (
+            ColliderShape::Circle { radius: radius_a },
+            ColliderShape::Circle { radius: radius_b },
+        ) => {
             // (final_pos_a - final_pos_b) is FixedVec3. Its length_squared() returns FixedWide.
-            let distance_sq_fw: fixed_math::FixedWide = (final_pos_a - final_pos_b).length_squared();
+            let distance_sq_fw: fixed_math::FixedWide =
+                (final_pos_a - final_pos_b).length_squared();
 
             // Radii are Fixed. Sum them as Fixed, then convert to FixedWide for squaring.
             let combined_radius_fixed = *radius_a + *radius_b;
-            let combined_radius_fw = fixed_math::FixedWide::from_num(combined_radius_fixed.to_num::<f32>());
+            let combined_radius_fw =
+                fixed_math::FixedWide::from_num(combined_radius_fixed.to_num::<f32>());
             let combined_radius_sq_fw = combined_radius_fw.saturating_mul(combined_radius_fw);
 
             distance_sq_fw < combined_radius_sq_fw // Compare FixedWide < FixedWide
-        },
+        }
 
         // Rectangle to Rectangle (AABB)
-        (ColliderShape::Rectangle { width: width_a, height: height_a },
-         ColliderShape::Rectangle { width: width_b, height: height_b }) => {
+        (
+            ColliderShape::Rectangle {
+                width: width_a,
+                height: height_a,
+            },
+            ColliderShape::Rectangle {
+                width: width_b,
+                height: height_b,
+            },
+        ) => {
             // This logic uses Fixed directly and should be fine as it's AABB.
             let two_fx = fixed_math::new(2.0); // Or fixed_math::Fixed::from_num(2)
             let half_width_a = width_a.saturating_div(two_fx);
@@ -132,21 +145,19 @@ pub fn is_colliding(
             max_a_x > min_b_x &&
             min_a_y < max_b_y &&
             max_a_y > min_b_y
-        },
+        }
 
         // Circle to Rectangle
-        (ColliderShape::Circle { radius },
-         ColliderShape::Rectangle { width, height }) => {
+        (ColliderShape::Circle { radius }, ColliderShape::Rectangle { width, height }) => {
             // Pass FixedVec3 for positions
             circle_rect_collision_fixed(final_pos_a, *radius, final_pos_b, *width, *height)
-        },
+        }
 
         // Rectangle to Circle (swap arguments)
-        (ColliderShape::Rectangle { width, height },
-         ColliderShape::Circle { radius }) => {
+        (ColliderShape::Rectangle { width, height }, ColliderShape::Circle { radius }) => {
             // Pass FixedVec3 for positions
             circle_rect_collision_fixed(final_pos_b, *radius, final_pos_a, *width, *height)
-        },
+        }
     }
 }
 
@@ -154,7 +165,7 @@ pub fn is_colliding(
 fn circle_rect_collision_fixed(
     circle_pos_v3: fixed_math::FixedVec3, // Now explicitly FixedVec3
     circle_radius_fixed: fixed_math::Fixed,
-    rect_pos_v3: fixed_math::FixedVec3,   // Now explicitly FixedVec3
+    rect_pos_v3: fixed_math::FixedVec3, // Now explicitly FixedVec3
     rect_width_fixed: fixed_math::Fixed,
     rect_height_fixed: fixed_math::Fixed,
 ) -> bool {
@@ -163,12 +174,21 @@ fn circle_rect_collision_fixed(
     let half_height_fixed = rect_height_fixed.saturating_div(two_fx);
 
     // Find the closest point on the rectangle to the circle center (using X and Y components)
-    let closest_x_fixed = circle_pos_v3.x.max(rect_pos_v3.x - half_width_fixed).min(rect_pos_v3.x + half_width_fixed);
-    let closest_y_fixed = circle_pos_v3.y.max(rect_pos_v3.y - half_height_fixed).min(rect_pos_v3.y + half_height_fixed);
+    let closest_x_fixed = circle_pos_v3
+        .x
+        .max(rect_pos_v3.x - half_width_fixed)
+        .min(rect_pos_v3.x + half_width_fixed);
+    let closest_y_fixed = circle_pos_v3
+        .y
+        .max(rect_pos_v3.y - half_height_fixed)
+        .min(rect_pos_v3.y + half_height_fixed);
 
     // Calculate distance from circle center's XY projection to closest XY point on rect
-    let diff_v2 = fixed_math::FixedVec2::new(circle_pos_v3.x - closest_x_fixed, circle_pos_v3.y - closest_y_fixed);
-    
+    let diff_v2 = fixed_math::FixedVec2::new(
+        circle_pos_v3.x - closest_x_fixed,
+        circle_pos_v3.y - closest_y_fixed,
+    );
+
     // diff_v2.length_squared() returns FixedWide
     let distance_sq_fw: fixed_math::FixedWide = diff_v2.length_squared();
 
@@ -180,7 +200,6 @@ fn circle_rect_collision_fixed(
     distance_sq_fw < radius_sq_fw
 }
 
-
 // test function for wall
 
 pub fn spawn_test_wall(
@@ -191,26 +210,36 @@ pub fn spawn_test_wall(
     color: Color,
     g_id: GgrsNetId,
 ) {
-    let translation = fixed_math::FixedVec3::new(fixed_math::new(position.x), fixed_math::new(position.y), fixed_math::new(position.z));
-    let transform = fixed_math::FixedTransform3D::new(translation, fixed_math::FixedMat3::IDENTITY, fixed_math::FixedVec3::ONE);
+    let translation = fixed_math::FixedVec3::new(
+        fixed_math::new(position.x),
+        fixed_math::new(position.y),
+        fixed_math::new(position.z),
+    );
+    let transform = fixed_math::FixedTransform3D::new(
+        translation,
+        fixed_math::FixedMat3::IDENTITY,
+        fixed_math::FixedVec3::ONE,
+    );
 
-    commands.spawn((
-        Wall,
-        transform.to_bevy_transform(),
-        transform,
-        Sprite {
-            color,
-            custom_size: Some(size),
-            ..Default::default()
-        },
-        Collider {
-            shape: ColliderShape::Rectangle { 
-                width: fixed_math::Fixed::from_num(size.x), 
-                height: fixed_math::Fixed::from_num(size.y)
+    commands
+        .spawn((
+            Wall,
+            transform.to_bevy_transform(),
+            transform,
+            Sprite {
+                color,
+                custom_size: Some(size),
+                ..Default::default()
             },
-            offset: fixed_math::FixedVec3::ZERO,
-        },
-        CollisionLayer(collision_settings.wall_layer),
-        g_id,
-    )).add_rollback();
+            Collider {
+                shape: ColliderShape::Rectangle {
+                    width: fixed_math::Fixed::from_num(size.x),
+                    height: fixed_math::Fixed::from_num(size.y),
+                },
+                offset: fixed_math::FixedVec3::ZERO,
+            },
+            CollisionLayer(collision_settings.wall_layer),
+            g_id,
+        ))
+        .add_rollback();
 }

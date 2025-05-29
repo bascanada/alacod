@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 
+use crate::map_const;
 use map::game::entity::map::door::DoorComponent;
 use map::generation::entity::door::DoorConfig;
-use crate::map_const;
 
 pub fn door_component_from_field(entity_instance: &EntityInstance) -> DoorComponent {
     println!("FROM FIELD {:?}", entity_instance);

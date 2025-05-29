@@ -2,16 +2,13 @@ use bevy::prelude::*;
 use chrono::Local; // Import chrono
 use std::fs; // For directory creation
 use std::path::Path;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 #[cfg(not(target_arch = "wasm32"))]
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[cfg(not(target_arch = "wasm32"))]
 // Function to set up logging and return the guard
-pub fn setup_logging(
-    suffix: Option<String>,
-
-) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
+pub fn setup_logging(suffix: Option<String>) -> Result<WorkerGuard, Box<dyn std::error::Error>> {
     let log_directory = Path::new("logs");
 
     // Create the log directory if it doesn't exist
@@ -20,9 +17,10 @@ pub fn setup_logging(
     }
 
     // Generate a filename with the current timestamp
-    let suffix = suffix.map_or_else(|| {
-        Local::now().format("%Y-%m-%d_%H-%M-%S").to_string()
-    }, |v| v);
+    let suffix = suffix.map_or_else(
+        || Local::now().format("%Y-%m-%d_%H-%M-%S").to_string(),
+        |v| v,
+    );
 
     let log_filename = format!("game_run_{}.log", suffix);
     let log_file_path = log_directory.join(log_filename);
@@ -38,8 +36,8 @@ pub fn setup_logging(
             eprintln!("Failed to create log file {:?}: {}", log_file_path, e);
             // As a simple fallback, we won't log to file in this error case.
             // A more robust solution might try a default name or panic.
-             let (non_blocking_writer, guard) = tracing_appender::non_blocking(std::io::stderr());
-             let subscriber = tracing_subscriber::registry()
+            let (non_blocking_writer, guard) = tracing_appender::non_blocking(std::io::stderr());
+            let subscriber = tracing_subscriber::registry()
                 .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
                 .with(fmt::Layer::new().with_writer(non_blocking_writer));
             tracing::subscriber::set_global_default(subscriber)?;
@@ -47,11 +45,13 @@ pub fn setup_logging(
         }
     };
 
-
     let (non_blocking_writer, guard) = tracing_appender::non_blocking(file_appender);
 
     let subscriber = tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,wgpu_core=warn,wgpu_hal=warn,naga=warn".into()))
+        .with(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,wgpu_core=warn,wgpu_hal=warn,naga=warn".into()),
+        )
         .with(
             fmt::Layer::new()
                 .with_writer(non_blocking_writer) // Log to our timestamped file
@@ -59,8 +59,7 @@ pub fn setup_logging(
                 .with_ansi(false), // ANSI colors don't make sense in a file
         )
         .with(
-            fmt::Layer::new()
-                .with_writer(std::io::stdout), // Also log to console
+            fmt::Layer::new().with_writer(std::io::stdout), // Also log to console
         );
 
     tracing::subscriber::set_global_default(subscriber)?;

@@ -92,7 +92,8 @@ impl BasicMapGeneration {
                     .get(
                         self.data
                             .rng
-                            .next_u32_range(0, self.map.rooms_possible.len() as u32) as usize,
+                            .next_u32_range(0, self.map.rooms_possible.len() as u32)
+                            as usize,
                     )
                     .copied();
 
@@ -124,7 +125,10 @@ impl BasicMapGeneration {
                         .compatiable_levels
                         .iter()
                         .skip(
-                            self.data.rng.next_u32_range(0, connection_def.compatiable_levels.len() as u32) as usize
+                            self.data
+                                .rng
+                                .next_u32_range(0, connection_def.compatiable_levels.len() as u32)
+                                as usize,
                         )
                         .last()
                         .unwrap();
@@ -202,7 +206,12 @@ impl IMapGeneration for BasicMapGeneration {
 
         let spawning_room_def = spawning_levels
             .iter()
-            .skip(self.data.rng.next_u32_range_inclusive(0, (spawning_levels.len() -1) as u32) as usize)
+            .skip(
+                self.data
+                    .rng
+                    .next_u32_range_inclusive(0, (spawning_levels.len() - 1) as u32)
+                    as usize,
+            )
             .last();
 
         if spawning_room_def.is_none() {
@@ -211,8 +220,14 @@ impl IMapGeneration for BasicMapGeneration {
 
         let spawning_room_def = (*spawning_room_def.unwrap()).clone();
 
-        let x: i32 = self.data.rng.next_i32_range_inclusive(-self.context.config.max_width, self.context.config.max_width - spawning_room_def.level_size_p.0);
-        let y: i32 = self.data.rng.next_i32_range_inclusive(-self.context.config.max_heigth, self.context.config.max_heigth - spawning_room_def.level_size_p.1);
+        let x: i32 = self.data.rng.next_i32_range_inclusive(
+            -self.context.config.max_width,
+            self.context.config.max_width - spawning_room_def.level_size_p.0,
+        );
+        let y: i32 = self.data.rng.next_i32_range_inclusive(
+            -self.context.config.max_heigth,
+            self.context.config.max_heigth - spawning_room_def.level_size_p.1,
+        );
 
         let spawning_room_def = Room::create(
             spawning_room_def.clone(),

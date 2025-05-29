@@ -1,6 +1,5 @@
 pub mod ui;
 
-
 use bevy::prelude::*;
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::SpatialAudioReceiver;
@@ -8,7 +7,10 @@ use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 use ui::CameraDebugUIPlugin;
 
-use crate::{character::player::{control::PlayerAction, LocalPlayer, Player}, plugins::AppState};
+use crate::{
+    character::player::{control::PlayerAction, LocalPlayer, Player},
+    plugins::AppState,
+};
 
 #[derive(Asset, TypePath, Debug, Clone, Deserialize, Serialize)]
 pub struct CameraSettingsAsset(pub CameraSettings);
@@ -21,14 +23,16 @@ impl Plugin for CameraControlPlugin {
         app.init_resource::<CameraSettings>()
             .add_plugins(CameraDebugUIPlugin)
             .add_plugins(RonAssetPlugin::<CameraSettingsAsset>::new(&[".ron"]))
-            .add_systems( Startup, (setup_camera, setup_simple_background))
-            .add_systems(Update, (
-                character_visuals_update_system,
-                camera_control_system,
-                player_indicator_system,
-                camera_input_system,
-                
-            ));
+            .add_systems(Startup, (setup_camera, setup_simple_background))
+            .add_systems(
+                Update,
+                (
+                    character_visuals_update_system,
+                    camera_control_system,
+                    player_indicator_system,
+                    camera_input_system,
+                ),
+            );
     }
 }
 
@@ -102,7 +106,7 @@ pub struct PlayerIndicator {
     pub player_entity: Entity,
 }
 
-// System to handle camera input 
+// System to handle camera input
 fn camera_input_system(
     action_query: Query<&ActionState<PlayerAction>>,
     mut camera_query: Query<&mut GameCamera>,
@@ -113,13 +117,13 @@ fn camera_input_system(
     } else {
         return;
     };
-    
+
     let mut camera = if let Ok(cam) = camera_query.get_single_mut() {
         cam
     } else {
         return;
     };
-    
+
     // Handle mode switching
     if action_state.just_pressed(&PlayerAction::SwitchLockMode) {
         if matches!(camera.mode, CameraMode::PlayerLock) {
@@ -134,7 +138,7 @@ fn camera_input_system(
             camera.mode = CameraMode::Unlock;
         }
     }
-    
+
     // Handle player switching in PlayerLock mode
     /*
     if action_state.just_pressed(PlayerAction::SwitchTargetPlayer) && camera.mode == CameraMode::PlayerLock {
@@ -162,21 +166,22 @@ fn camera_input_system(
     */
 }
 
-
-
 // Main camera control system
 fn camera_control_system(
     time: Res<Time>,
     settings: Res<CameraSettings>,
     windows: Query<&Window>,
     action_query: Query<&ActionState<PlayerAction>>,
-    mut camera_query: Query<(&mut GameCamera, &mut Transform, &mut OrthographicProjection), Without<Player>>,
+    mut camera_query: Query<
+        (&mut GameCamera, &mut Transform, &mut OrthographicProjection),
+        Without<Player>,
+    >,
     player_query: Query<(Entity, &Transform, &Player, Option<&LocalPlayer>), Without<GameCamera>>,
 ) {
     // Get the primary window for dimensions
     let window = windows.get_single().unwrap();
     let window_size = Vec2::new(window.width(), window.height());
-    
+
     // Get mouse position normalized to -1.0 to 1.0 range
     let mouse_position = if let Some(position) = window.cursor_position() {
         Vec2::new(
@@ -193,11 +198,12 @@ fn camera_control_system(
         return;
     };
 
-    let (mut camera, mut camera_transform, mut projection) = if let Ok(cam) = camera_query.get_single_mut() {
-        cam
-    } else {
-        return;
-    };
+    let (mut camera, mut camera_transform, mut projection) =
+        if let Ok(cam) = camera_query.get_single_mut() {
+            cam
+        } else {
+            return;
+        };
 
     // Find the local player if not already set
     if camera.target_player_id.is_none() {
@@ -253,23 +259,23 @@ fn camera_control_system(
                 // Calculate required zoom to fit all players
                 let width_ratio = size.x / window_size.x;
                 let height_ratio = size.y / window_size.y;
-                
+
                 // Take the larger ratio to ensure both dimensions fit
                 let required_zoom = width_ratio.max(height_ratio);
-                
+
                 // Add a small margin factor
                 let target_zoom = required_zoom * 1.1;
-                
+
                 // Clamp to our zoom limits
                 camera.target_zoom = target_zoom.clamp(settings.min_zoom, settings.max_zoom_out);
-                
+
                 // Always center on all players
                 camera.target_position = center;
             }
         }
         CameraMode::Unlock => {
             let mut move_dir = Vec2::ZERO;
-            
+
             // Handle keyboard input for camera movement
             if action_state.pressed(&PlayerAction::MoveCameraUp) {
                 move_dir.y += 1.0;
@@ -283,11 +289,11 @@ fn camera_control_system(
             if action_state.pressed(&PlayerAction::MoveCameraRight) {
                 move_dir.x += 1.0;
             }
-            
+
             // Also handle edge detection if enabled
             if settings.use_edge_detection {
                 let edge_margin = settings.edge_margin;
-                
+
                 if mouse_position.x > 1.0 - edge_margin {
                     move_dir.x += 1.0;
                 }
@@ -310,20 +316,20 @@ fn camera_control_system(
             // Apply movement
             let delta = move_dir * settings.free_move_speed * time.delta().as_secs_f32();
             camera.target_position += delta;
-            
+
             // Keep zoom at min level in free mode
             camera.target_zoom = settings.min_zoom;
         }
     }
-    
+
     // Smoothly interpolate camera position
     let current_pos = camera_transform.translation.truncate();
     let lerp_factor = settings.lerp_speed * time.delta().as_secs_f32();
-    
+
     // Explicitly apply lerp to both X and Y components
     let new_x = current_pos.x + (camera.target_position.x - current_pos.x) * lerp_factor;
     let new_y = current_pos.y + (camera.target_position.y - current_pos.y) * lerp_factor;
-    
+
     camera_transform.translation.x = new_x;
     camera_transform.translation.y = new_y;
 
@@ -359,7 +365,7 @@ fn player_indicator_system(
     let camera_pos = camera_transform.translation.truncate();
     let half_width = (window.width() * projection.scale) / 2.0;
     let half_height = (window.height() * projection.scale) / 2.0;
-    
+
     let visible_rect = Rect {
         min: Vec2::new(camera_pos.x - half_width, camera_pos.y - half_height),
         max: Vec2::new(camera_pos.x + half_width, camera_pos.y + half_height),
@@ -377,66 +383,73 @@ fn player_indicator_system(
         // Check if player is outside the visible area
         if !visible_rect.contains(player_pos) {
             // Determine where to place the indicator based on player position relative to screen
-            
+
             // Calculate relative position to screen
             let relative_pos = player_pos - camera_pos;
             let angle_to_player = relative_pos.y.atan2(relative_pos.x);
-            
+
             // Determine which edge to place the indicator on
             // We'll use the angle to determine the closest edge
-            
+
             // Calculate aspect ratio to handle rectangular screens properly
             let aspect_ratio = window.width() / window.height();
-            
+
             // Calculate normalized slope based on angle
             let angle_tangent = angle_to_player.tan();
             let normalized_tangent = angle_tangent / aspect_ratio;
-            
+
             // Determine which side of the screen to place the indicator
-            let (indicator_pos, final_angle) = if angle_to_player.abs() < std::f32::consts::PI / 4.0 {
+            let (indicator_pos, final_angle) = if angle_to_player.abs() < std::f32::consts::PI / 4.0
+            {
                 // Right side of screen
                 (
                     Vec2::new(
                         visible_rect.max.x - settings.indicator_edge_distance,
-                        camera_pos.y + (visible_rect.max.x - camera_pos.x) * angle_tangent
+                        camera_pos.y + (visible_rect.max.x - camera_pos.x) * angle_tangent,
                     ),
-                    angle_to_player
+                    angle_to_player,
                 )
             } else if angle_to_player.abs() > 3.0 * std::f32::consts::PI / 4.0 {
                 // Left side of screen
                 (
                     Vec2::new(
                         visible_rect.min.x + settings.indicator_edge_distance,
-                        camera_pos.y + (camera_pos.x - visible_rect.min.x) * angle_tangent
+                        camera_pos.y + (camera_pos.x - visible_rect.min.x) * angle_tangent,
                     ),
-                    angle_to_player
+                    angle_to_player,
                 )
             } else if angle_to_player > 0.0 {
                 // Top side of screen
                 (
                     Vec2::new(
                         camera_pos.x + (visible_rect.max.y - camera_pos.y) / angle_tangent,
-                        visible_rect.max.y - settings.indicator_edge_distance
+                        visible_rect.max.y - settings.indicator_edge_distance,
                     ),
-                    angle_to_player
+                    angle_to_player,
                 )
             } else {
                 // Bottom side of screen
                 (
                     Vec2::new(
                         camera_pos.x + (camera_pos.y - visible_rect.min.y) / angle_tangent,
-                        visible_rect.min.y + settings.indicator_edge_distance
+                        visible_rect.min.y + settings.indicator_edge_distance,
                     ),
-                    angle_to_player
+                    angle_to_player,
                 )
             };
-            
+
             // Make sure the indicator is within the screen bounds
             let clamped_pos = Vec2::new(
-                indicator_pos.x.clamp(visible_rect.min.x + settings.indicator_edge_distance, visible_rect.max.x - settings.indicator_edge_distance),
-                indicator_pos.y.clamp(visible_rect.min.y + settings.indicator_edge_distance, visible_rect.max.y - settings.indicator_edge_distance)
+                indicator_pos.x.clamp(
+                    visible_rect.min.x + settings.indicator_edge_distance,
+                    visible_rect.max.x - settings.indicator_edge_distance,
+                ),
+                indicator_pos.y.clamp(
+                    visible_rect.min.y + settings.indicator_edge_distance,
+                    visible_rect.max.y - settings.indicator_edge_distance,
+                ),
             );
-            
+
             // Spawn the indicator
             commands.spawn((
                 SpriteBundle {
@@ -445,13 +458,15 @@ fn player_indicator_system(
                         custom_size: Some(Vec2::splat(settings.indicator_size)),
                         ..default()
                     },
-                    transform: Transform::from_translation(Vec3::new(clamped_pos.x, clamped_pos.y, 10.0))
-                        .with_rotation(Quat::from_rotation_z(final_angle)),
+                    transform: Transform::from_translation(Vec3::new(
+                        clamped_pos.x,
+                        clamped_pos.y,
+                        10.0,
+                    ))
+                    .with_rotation(Quat::from_rotation_z(final_angle)),
                     ..default()
                 },
-                PlayerIndicator {
-                    player_entity,
-                },
+                PlayerIndicator { player_entity },
             ));
         }
     }
@@ -487,8 +502,10 @@ pub struct Rect {
 
 impl Rect {
     pub fn contains(&self, point: Vec2) -> bool {
-        point.x >= self.min.x && point.x <= self.max.x && 
-        point.y >= self.min.y && point.y <= self.max.y
+        point.x >= self.min.x
+            && point.x <= self.max.x
+            && point.y >= self.min.y
+            && point.y <= self.max.y
     }
 }
 
@@ -507,19 +524,19 @@ pub fn setup_camera(mut commands: Commands, settings: Res<CameraSettings>) {
     ));
 }
 
-
 fn setup_simple_background(mut commands: Commands) {
     // Background parameters
     let tile_size = 400.0;
     let grid_size = 20; // This creates a 20x20 grid of tiles
-    
+
     // Create a parent entity for all background tiles
-    commands.spawn(SpatialBundle::default())
+    commands
+        .spawn(SpatialBundle::default())
         .insert(Name::new("Background"))
         .with_children(|parent| {
             // Create a simple checkered pattern
-            for i in -grid_size/2..grid_size/2 {
-                for j in -grid_size/2..grid_size/2 {
+            for i in -grid_size / 2..grid_size / 2 {
+                for j in -grid_size / 2..grid_size / 2 {
                     // Alternate colors in a checkered pattern
                     let is_dark = (i + j) % 2 == 0;
                     let color = if is_dark {
@@ -527,7 +544,7 @@ fn setup_simple_background(mut commands: Commands) {
                     } else {
                         Color::rgb(0.3, 0.3, 0.35) // Lighter blue-gray
                     };
-                    
+
                     // Spawn a square sprite
                     parent.spawn(SpriteBundle {
                         sprite: Sprite {
@@ -536,9 +553,9 @@ fn setup_simple_background(mut commands: Commands) {
                             ..default()
                         },
                         transform: Transform::from_translation(Vec3::new(
-                            i as f32 * tile_size, 
-                            j as f32 * tile_size, 
-                            -10.0 // Behind everything else
+                            i as f32 * tile_size,
+                            j as f32 * tile_size,
+                            -10.0, // Behind everything else
                         )),
                         ..default()
                     });

@@ -1,14 +1,13 @@
 pub mod ui;
 
 use bevy::{log::Level, prelude::*, scene::ron::de, utils::tracing::span};
+use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;
 use ggrs::PlayerHandle;
 use pathfinding::matrix::directions::N;
 use serde::{Deserialize, Serialize};
-use bevy_fixed::fixed_math;
-use utils::{frame::FrameCount, net_id::GgrsNetId};
 use std::fmt;
-
+use utils::{frame::FrameCount, net_id::GgrsNetId};
 
 #[derive(Component, Reflect, Debug, Clone, Serialize, Deserialize)]
 pub enum HitBy {
@@ -16,20 +15,17 @@ pub enum HitBy {
     Player(PlayerHandle),
 }
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HealthConfig {
     pub max: fixed_math::Fixed,
 }
 
-
 #[derive(Component, Clone, Debug, Serialize, Default, Deserialize)]
 pub struct Health {
     pub current: fixed_math::Fixed,
     pub max: fixed_math::Fixed,
-    pub invulnerable_until_frame: Option<u32>,  // Optional invulnerability window
+    pub invulnerable_until_frame: Option<u32>, // Optional invulnerability window
 }
-
 
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Death {
@@ -42,9 +38,6 @@ pub struct DamageAccumulator {
     pub hit_count: u32,
     pub last_hit_by: Option<Vec<HitBy>>,
 }
-
-
-
 
 impl fmt::Display for HitBy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -84,10 +77,13 @@ impl fmt::Display for Death {
 
 impl From<HealthConfig> for Health {
     fn from(value: HealthConfig) -> Self {
-       Self { current: value.max, max: value.max, invulnerable_until_frame: None } 
-    } 
+        Self {
+            current: value.max,
+            max: value.max,
+            invulnerable_until_frame: None,
+        }
+    }
 }
-
 
 pub fn rollback_apply_accumulated_damage(
     frame: Res<FrameCount>,
@@ -97,24 +93,25 @@ pub fn rollback_apply_accumulated_damage(
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "apply_damage");
     let _enter = system_span.enter();
 
-
     for (entity, accumulator, g_id, mut health) in query.iter_mut() {
-
         if accumulator.total_damage > fixed_math::FIXED_ZERO {
-
             health.current = health.current.saturating_sub(accumulator.total_damage);
 
-            info!("{} receive {} dmg health is {}", g_id, accumulator.total_damage, health.current);
+            info!(
+                "{} receive {} dmg health is {}",
+                g_id, accumulator.total_damage, health.current
+            );
 
             commands.entity(entity).remove::<DamageAccumulator>();
 
             if health.current <= fixed_math::FIXED_ZERO {
-                commands.entity(entity).insert(Death{ last_hit_by: accumulator.last_hit_by.clone( )});
+                commands.entity(entity).insert(Death {
+                    last_hit_by: accumulator.last_hit_by.clone(),
+                });
             }
         }
     }
 }
-
 
 pub fn rollback_apply_death(
     frame: Res<FrameCount>,
@@ -138,4 +135,3 @@ pub fn rollback_apply_death(
         commands.entity(entity).try_despawn_recursive();
     }
 }
-

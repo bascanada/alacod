@@ -10,9 +10,7 @@ mod tests {
     use bevy_ecs_ldtk::ldtk::LdtkJson;
     use utils::get_crate_root_path;
 
-    use map::{
-        generation::{config::MapGenerationConfig, map_generation},
-    };
+    use map::generation::{config::MapGenerationConfig, map_generation};
 
     use crate::loader::file::load_ldtk_json_file;
 

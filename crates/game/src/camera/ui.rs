@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::text::JustifyText;
 
-use crate::camera::{GameCamera, CameraMode};
+use crate::camera::{CameraMode, GameCamera};
 
 // Marker component for camera debug text
 #[derive(Component)]
@@ -43,11 +43,11 @@ fn update_camera_debug_text(
                 CameraMode::PlayersLock => "PlayersLock",
                 CameraMode::Unlock => "Unlock",
             };
-            
+
             // Update the text
             text.0 = format!(
-                "Camera: {} | Zoom: {:.2} | Target: {:.2} | Pos: ({:.1}, {:.1})", 
-                mode_str, 
+                "Camera: {} | Zoom: {:.2} | Target: {:.2} | Pos: ({:.1}, {:.1})",
+                mode_str,
                 projection.scale,
                 camera.target_zoom,
                 camera.target_position.x,
@@ -63,6 +63,6 @@ pub struct CameraDebugUIPlugin;
 impl Plugin for CameraDebugUIPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_camera_debug_ui)
-           .add_systems(Update, update_camera_debug_text);
+            .add_systems(Update, update_camera_debug_text);
     }
 }

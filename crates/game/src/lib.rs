@@ -1,14 +1,13 @@
-pub mod plugins;
-pub mod character;
-pub mod jjrs;
-pub mod camera;
-pub mod frame;
 pub mod audio;
-pub mod global_asset;
-pub mod weapons;
+pub mod camera;
+pub mod character;
 pub mod collider;
 pub mod debug;
-
+pub mod frame;
+pub mod global_asset;
+pub mod jjrs;
+pub mod plugins;
+pub mod weapons;
 
 use lazy_static::lazy_static;
 

@@ -5,7 +5,6 @@ use crate::character::enemy::Enemy;
 
 use super::Health;
 
-
 #[derive(Component)]
 pub struct HealthBar;
 

@@ -2,7 +2,6 @@ use bevy::math::{Vec2, Vec3};
 
 use crate::{fixed_math, rng::RollbackRng};
 
-
 pub fn calculate_spread_angle(
     rng: &mut RollbackRng,
     spread: fixed_math::Fixed,
@@ -55,13 +54,21 @@ mod tests {
             // if random_val_neg_0_5_to_0_5 is in [-0.5, 0.5)
             // So, angle is in [-max_spread_rad * 0.5, max_spread_rad * 0.5)
             let half_max_spread = max_spread_rad * 0.5;
-            assert!(angle >= -half_max_spread && angle < half_max_spread,
-                    "Calculated spread angle {} was not in range [{}, {}) for max_spread_rad {}",
-                    angle, -half_max_spread, half_max_spread, max_spread_rad);
+            assert!(
+                angle >= -half_max_spread && angle < half_max_spread,
+                "Calculated spread angle {} was not in range [{}, {}) for max_spread_rad {}",
+                angle,
+                -half_max_spread,
+                half_max_spread,
+                max_spread_rad
+            );
         }
 
         // Test with zero spread
         let angle_zero_spread = calculate_spread_angle(&mut rng, 0.0);
-        assert_eq!(angle_zero_spread, 0.0, "Angle with zero spread should be zero.");
+        assert_eq!(
+            angle_zero_spread, 0.0,
+            "Angle with zero spread should be zero."
+        );
     }
 }

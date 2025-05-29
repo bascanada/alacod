@@ -1,17 +1,21 @@
 use std::net::SocketAddr;
 
-use utils::cid::generate_timestamp_correlation_id;
+use utils::cid::generate_random_correlation_id;
 
-
-
-#[cfg(target_arch = "wasm32")]
-mod web;
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
+#[cfg(target_arch = "wasm32")]
+mod web;
 
-
-pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String, String) {
-
+pub fn get_args() -> (
+    u16,
+    usize,
+    Vec<String>,
+    Vec<SocketAddr>,
+    String,
+    String,
+    String,
+) {
     #[cfg(not(target_arch = "wasm32"))]
     {
         use clap::Parser;
@@ -24,7 +28,7 @@ pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String, 
             args.spectators.unwrap_or(vec![]),
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
-            args.cid.unwrap_or(generate_timestamp_correlation_id())
+            args.cid.unwrap_or(generate_random_correlation_id()),
         );
     }
     #[cfg(target_arch = "wasm32")]
@@ -38,8 +42,7 @@ pub fn get_args() -> (u16, usize, Vec<String>, Vec<SocketAddr>, String, String, 
             vec![],
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
-            generate_timestamp_correlation_id(),
+            generate_random_correlation_id(),
         );
     }
-
 }

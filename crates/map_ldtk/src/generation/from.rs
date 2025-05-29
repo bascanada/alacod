@@ -2,16 +2,14 @@ use std::rc::Rc;
 
 use bevy_ecs_ldtk::ldtk::{FieldValue, LayerInstance, LdtkJson, Level};
 
-use map::{
-    generation::{
-        config::MapGenerationConfig,
-        context::{
-            populate_level_connections, scan_height_side, scan_width_side, AvailableLevel,
-            LevelType, MapGenerationContext, Side,
-        },
-        entity::location::{EntityLocation, EntityLocations},
-        position::Position,
+use map::generation::{
+    config::MapGenerationConfig,
+    context::{
+        populate_level_connections, scan_height_side, scan_width_side, AvailableLevel, LevelType,
+        MapGenerationContext, Side,
     },
+    entity::location::{EntityLocation, EntityLocations},
+    position::Position,
 };
 
 use crate::map_const;

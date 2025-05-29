@@ -9,14 +9,10 @@ pub fn increase_frame_system(mut frame_count: ResMut<FrameCount>) {
     frame_count.frame += 1;
 }
 
-
-
 // DEBUG
 
 #[derive(Component)]
 struct FrameCountText;
-
-
 
 fn setup_frame_counter_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("fonts/FiraMono-Medium.ttf");
@@ -51,7 +47,6 @@ fn update_frame_counter_text(
         warn!("Could not find unique FrameCountText entity to update.");
     }
 }
-
 
 pub struct FrameDebugUIPlugin;
 

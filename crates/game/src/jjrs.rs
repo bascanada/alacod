@@ -2,21 +2,31 @@ use std::net::SocketAddr;
 
 use animation::SpriteSheetConfig;
 use bevy::prelude::*;
+use bevy_fixed::{fixed_math, rng::RollbackRng};
 use bevy_ggrs::{ggrs::PlayerType, prelude::*};
 use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
 use ggrs::UdpNonBlockingSocket;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use bevy_fixed::{fixed_math, rng::RollbackRng};
 use utils::net_id::GgrsNetIdFactory;
 
-use crate::{character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::{create::create_player, jjrs::PeerConfig}}, collider::{spawn_test_wall, CollisionSettings}, global_asset::GlobalAsset, plugins::AppState, weapons::{WeaponAsset, WeaponsConfig}};
+use crate::{
+    character::{
+        config::CharacterConfig,
+        enemy::spawning::EnemySpawnerState,
+        player::{create::create_player, jjrs::PeerConfig},
+    },
+    collider::{spawn_test_wall, CollisionSettings},
+    global_asset::GlobalAsset,
+    plugins::AppState,
+    weapons::{WeaponAsset, WeaponsConfig},
+};
 
 pub struct GggrsConnectionConfiguration {
     pub max_player: usize,
     pub input_delay: usize,
     pub desync_interval: u32,
     pub socket: bool,
-    pub udp_port: u16
+    pub udp_port: u16,
 }
 
 #[derive(Resource)]
@@ -28,7 +38,6 @@ pub struct GggrsSessionConfiguration {
     pub connection: GggrsConnectionConfiguration,
     pub players: Vec<String>,
 }
-
 
 // For local connection
 
@@ -47,14 +56,15 @@ pub fn setup_ggrs_local(
 
     ggrs_config: Res<GggrsSessionConfiguration>,
 
-    mut id_provider: ResMut<GgrsNetIdFactory>
+    mut id_provider: ResMut<GgrsNetIdFactory>,
 ) {
-
     info!("start local connection with CID={}", ggrs_config.cid);
 
     let mut sess_build = SessionBuilder::<PeerConfig>::new()
         .with_num_players(session_config.connection.max_player)
-        .with_desync_detection_mode(ggrs::DesyncDetection::On { interval: session_config.connection.desync_interval })
+        .with_desync_detection_mode(ggrs::DesyncDetection::On {
+            interval: session_config.connection.desync_interval,
+        })
         .with_input_delay(session_config.connection.input_delay);
 
     for (i, addr) in session_config.players.iter().enumerate() {
@@ -67,20 +77,38 @@ pub fn setup_ggrs_local(
             let remote_addr: SocketAddr = addr.parse().unwrap();
             //sess_build = sess_build.add_player(PlayerType::Remote(remote_addr), i).expect("Failed to add player");
         }
-        create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, local, i, &mut id_provider);
+        create_player(
+            &mut commands,
+            &global_assets,
+            &weapons_asset,
+            &character_asset,
+            &collision_settings,
+            &asset_server,
+            &mut texture_atlas_layouts,
+            &sprint_sheet_assets,
+            local,
+            i,
+            &mut id_provider,
+        );
     }
 
     spawn_test_map(&mut commands, &mut id_provider, &collision_settings);
 
-   // Start a synctest session
+    // Start a synctest session
     let sess = if session_config.connection.socket == false {
         let sess = sess_build
-        .start_synctest_session()
-        .expect("Failed to start synctest session");
+            .start_synctest_session()
+            .expect("Failed to start synctest session");
 
         Session::SyncTest(sess)
     } else {
-        let socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port).expect(format!("Failed to bind udp to {}", session_config.connection.udp_port).as_str());
+        let socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port).expect(
+            format!(
+                "Failed to bind udp to {}",
+                session_config.connection.udp_port
+            )
+            .as_str(),
+        );
         panic!("");
         //let sess = sess_build.start_p2p_session(socket).expect("failed to start p2p session");
 
@@ -94,13 +122,13 @@ pub fn setup_ggrs_local(
     app_state.set(AppState::InGame);
 }
 
-
-
 // For matchbox socket connection
 
-
 pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessionConfiguration>) {
-    let url = format!("{}/{}?next={}", ggrs_config.matchbox_url, ggrs_config.lobby, ggrs_config.connection.max_player);
+    let url = format!(
+        "{}/{}?next={}",
+        ggrs_config.matchbox_url, ggrs_config.lobby, ggrs_config.connection.max_player
+    );
     commands.insert_resource(MatchboxSocket::new_unreliable(url));
 
     info!("start p2p connection with CID={}", ggrs_config.cid);
@@ -112,14 +140,17 @@ pub fn wait_for_players(
 
     collision_settings: Res<CollisionSettings>,
 
-
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     sprint_sheet_assets: Res<Assets<SpriteSheetConfig>>,
     session_config: Res<GggrsSessionConfiguration>,
 
-    mut commands: Commands, global_assets: Res<GlobalAsset>, weapons_asset: Res<Assets<WeaponsConfig>>, mut socket: ResMut<MatchboxSocket>, ggrs_config: Res<GggrsSessionConfiguration>,
-    mut id_provider: ResMut<GgrsNetIdFactory>
+    mut commands: Commands,
+    global_assets: Res<GlobalAsset>,
+    weapons_asset: Res<Assets<WeaponsConfig>>,
+    mut socket: ResMut<MatchboxSocket>,
+    ggrs_config: Res<GggrsSessionConfiguration>,
+    mut id_provider: ResMut<GgrsNetIdFactory>,
 ) {
     // regularly call update_peers to update the list of connected peers
     let Ok(peer_changes) = socket.try_update_peers() else {
@@ -145,7 +176,6 @@ pub fn wait_for_players(
     info!("All peers have joined, going in-game");
     // TODO
 
-
     // create a GGRS P2P session
     let mut session_builder = ggrs::SessionBuilder::<PeerConfig>::new()
         .with_num_players(num_players)
@@ -159,7 +189,19 @@ pub fn wait_for_players(
 
         let is_local = matches!(player, PlayerType::Local);
 
-        create_player(&mut commands, &global_assets, &weapons_asset,  &character_asset, &collision_settings, &asset_server, &mut texture_atlas_layouts, &sprint_sheet_assets, is_local, i, &mut id_provider);
+        create_player(
+            &mut commands,
+            &global_assets,
+            &weapons_asset,
+            &character_asset,
+            &collision_settings,
+            &asset_server,
+            &mut texture_atlas_layouts,
+            &sprint_sheet_assets,
+            is_local,
+            i,
+            &mut id_provider,
+        );
     }
 
     spawn_test_map(&mut commands, &mut id_provider, &collision_settings);
@@ -172,42 +214,36 @@ pub fn wait_for_players(
         .start_p2p_session(channel)
         .expect("failed to start session");
 
-
     commands.insert_resource(RollbackRng::new(12345));
     commands.insert_resource(bevy_ggrs::Session::P2P(ggrs_session));
 
     app_state.set(AppState::InGame);
 }
 
-pub fn log_ggrs_events(
-    mut session: ResMut<bevy_ggrs::Session<PeerConfig>>,
-) {
-
-        if let Session::P2P(session) = session.as_mut() {
-            for event in session.events() {
-                info!("GGRS Event: {:?}", event);
-                match event {
-                    GgrsEvent::Disconnected { addr } => {
-                        panic!("Other player@{:?} disconnected", addr)
-                    }
-                    GgrsEvent::DesyncDetected {
-                        frame,
-                        local_checksum,
-                        remote_checksum,
-                        addr,
-                    } => {
-                        error!(
-                            "Desync detected on frame {} local {} remote {}@{:?}",
-                            frame, local_checksum, remote_checksum, addr
-                        );
-                    }
-                    _ => (),
+pub fn log_ggrs_events(mut session: ResMut<bevy_ggrs::Session<PeerConfig>>) {
+    if let Session::P2P(session) = session.as_mut() {
+        for event in session.events() {
+            info!("GGRS Event: {:?}", event);
+            match event {
+                GgrsEvent::Disconnected { addr } => {
+                    panic!("Other player@{:?} disconnected", addr)
                 }
+                GgrsEvent::DesyncDetected {
+                    frame,
+                    local_checksum,
+                    remote_checksum,
+                    addr,
+                } => {
+                    error!(
+                        "Desync detected on frame {} local {} remote {}@{:?}",
+                        frame, local_checksum, remote_checksum, addr
+                    );
+                }
+                _ => (),
             }
         }
-
+    }
 }
-
 
 fn spawn_test_map(
     commands: &mut Commands,
@@ -220,7 +256,7 @@ fn spawn_test_map(
         Vec2::new(125.0, 500.0),
         &collision_settings,
         Color::rgb(0.6, 0.3, 0.3), // Reddish color
-        id_provider.next("wall".into())
+        id_provider.next("wall".into()),
     );
     spawn_test_wall(
         commands,
@@ -228,7 +264,7 @@ fn spawn_test_map(
         Vec2::new(125.0, 500.0),
         &collision_settings,
         Color::rgb(0.6, 0.3, 0.3), // Reddish color
-        id_provider.next("wall".into())
+        id_provider.next("wall".into()),
     );
 
     let spawn_positions = [
@@ -241,21 +277,18 @@ fn spawn_test_map(
     for position in spawn_positions.iter() {
         spawn_test_enemy_spawner(commands, position.clone());
     }
-
 }
 
+fn spawn_test_enemy_spawner(commands: &mut Commands, position: Vec3) {
+    let transform =
+        fixed_math::FixedTransform3D::from_bevy_transform(&Transform::from_translation(position));
 
-fn spawn_test_enemy_spawner(
-    commands: &mut Commands,
-    position: Vec3,
-) {
-    
-    let transform = fixed_math::FixedTransform3D::from_bevy_transform(&Transform::from_translation(position));
-
-    commands.spawn((
-        transform.to_bevy_transform(),
-        transform,
-        EnemySpawnerState::default(),
-        EnemySpawnerComponent::default()
-    )).add_rollback();
+    commands
+        .spawn((
+            transform.to_bevy_transform(),
+            transform,
+            EnemySpawnerState::default(),
+            EnemySpawnerComponent::default(),
+        ))
+        .add_rollback();
 }

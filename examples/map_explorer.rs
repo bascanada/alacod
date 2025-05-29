@@ -1,15 +1,13 @@
 use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use bevy_ecs_ldtk::prelude::*;
 
-use map::{
-    generation::config::MapGenerationConfig,
-};
+use map::generation::config::MapGenerationConfig;
 use map_ldtk::{
     loader::{get_asset_loader_generation, setup_generated_map},
-    plugins::{LdtkRoguePlugin},
+    plugins::LdtkRoguePlugin,
 };
 
-use utils::{web::WebPlugin};
+use utils::web::WebPlugin;
 
 use std::env;
 

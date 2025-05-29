@@ -1,9 +1,14 @@
 use animation::SpriteSheetConfig;
-use bevy::{prelude::*};
-use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
+use bevy::prelude::*;
 use bevy_fixed::{fixed_math, rng::RollbackRng};
+use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 
-use crate::{character::{config::CharacterConfig, player::Player}, collider::{Collider, CollisionSettings, Wall}, global_asset::GlobalAsset, weapons::WeaponsConfig};
+use crate::{
+    character::{config::CharacterConfig, player::Player},
+    collider::{Collider, CollisionSettings, Wall},
+    global_asset::GlobalAsset,
+    weapons::WeaponsConfig,
+};
 use utils::{frame::FrameCount, net_id::GgrsNetIdFactory};
 
 use super::{create::spawn_enemy, Enemy};
@@ -16,7 +21,6 @@ pub struct EnemySpawnerState {
     pub active: bool,
 }
 
-
 impl Default for EnemySpawnerState {
     fn default() -> Self {
         Self {
@@ -24,16 +28,19 @@ impl Default for EnemySpawnerState {
             last_spawn_frame: 0,
             active: true,
         }
-    } 
+    }
 }
-
-
 
 pub fn enemy_spawn_from_spawners_system(
     mut commands: Commands,
     frame: Res<FrameCount>,
     mut rng: ResMut<RollbackRng>,
-    mut spawner_query: Query<(Entity, &EnemySpawnerComponent, &mut EnemySpawnerState, &fixed_math::FixedTransform3D)>,
+    mut spawner_query: Query<(
+        Entity,
+        &EnemySpawnerComponent,
+        &mut EnemySpawnerState,
+        &fixed_math::FixedTransform3D,
+    )>,
     enemy_query: Query<&fixed_math::FixedTransform3D, With<Enemy>>,
     player_query: Query<&fixed_math::FixedTransform3D, With<Player>>,
     global_assets: Res<GlobalAsset>,
@@ -75,7 +82,8 @@ pub fn enemy_spawn_from_spawners_system(
         }
 
         let spawner_pos_v2 = spawner_fixed_transform.translation.truncate();
-        let min_distance_to_player = player_positions.iter()
+        let min_distance_to_player = player_positions
+            .iter()
             .map(|player_pos_v2| spawner_pos_v2.distance(player_pos_v2))
             .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(fixed_math::Fixed::MAX); // Use your Fixed type's MAX value
@@ -99,7 +107,9 @@ pub fn enemy_spawn_from_spawners_system(
 
         // Get mutable access to the components for the current entity
         // This re-fetches, which is necessary after collecting IDs if we need mutable access.
-        if let Ok((_entity_refetch, config, mut state, spawner_fixed_transform)) = spawner_query.get_mut(entity_id) {
+        if let Ok((_entity_refetch, config, mut state, spawner_fixed_transform)) =
+            spawner_query.get_mut(entity_id)
+        {
             // The checks for active/cooldown/distance have already passed for this entity
             // to be in candidate_spawner_entities. state.cooldown_remaining was already decremented if needed.
 
@@ -115,13 +125,13 @@ pub fn enemy_spawn_from_spawners_system(
 
                 let offset_v2 = fixed_math::FixedVec2::new(
                     fixed_math::cos_fixed(angle_fixed),
-                    fixed_math::sin_fixed(angle_fixed)
+                    fixed_math::sin_fixed(angle_fixed),
                 ) * distance_fixed;
 
                 fixed_math::FixedVec3::new(
                     spawner_pos_v2.x.saturating_add(offset_v2.x),
                     spawner_pos_v2.y.saturating_add(offset_v2.y),
-                    fixed_math::FIXED_ZERO
+                    fixed_math::FIXED_ZERO,
                 )
             } else {
                 spawner_fixed_transform.translation

@@ -1,15 +1,21 @@
 use bevy::prelude::*;
+use bevy_common_assets::ron::RonAssetPlugin;
+use bevy_fixed::{
+    fixed_math::{self, sync_bevy_transforms_from_fixed},
+    rng::RollbackRng,
+};
 use bevy_ggrs::{prelude::*, GgrsSchedule};
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use bevy_fixed::{fixed_math::{self, sync_bevy_transforms_from_fixed}, rng::RollbackRng};
 use std::hash::Hash;
-use bevy_common_assets::ron::RonAssetPlugin;
 
 use animation::{set_sprite_flip, D2AnimationPlugin};
 use bevy_ggrs::GgrsPlugin;
 
-use utils::{frame::FrameCount, net_id::{GgrsNetId, GgrsNetIdFactory}};
+use utils::{
+    frame::FrameCount,
+    net_id::{GgrsNetId, GgrsNetIdFactory},
+};
 
 use crate::{
     audio::ZAudioPlugin,
@@ -17,13 +23,44 @@ use crate::{
     character::{
         config::CharacterConfig,
         dash::DashState,
-        enemy::{ai::pathing::{calculate_paths, check_direct_paths, move_enemies, update_enemy_targets, EnemyPath, PathfindingConfig}, spawning::{enemy_spawn_from_spawners_system, EnemySpawnerState}, Enemy},
+        enemy::{
+            ai::pathing::{
+                calculate_paths, check_direct_paths, move_enemies, update_enemy_targets, EnemyPath,
+                PathfindingConfig,
+            },
+            spawning::{enemy_spawn_from_spawners_system, EnemySpawnerState},
+            Enemy,
+        },
         health::{
-            rollback_apply_accumulated_damage,
-            rollback_apply_death,
-            ui::update_health_bars,
-            DamageAccumulator, Death, Health}, movement::{SprintState, Velocity}, player::{control::PlayerAction, input::{apply_friction, apply_inputs, move_characters, read_local_inputs, update_animation_state, PointerWorldPosition}, jjrs::PeerConfig, Player}}, collider::{Collider, CollisionLayer, CollisionSettings, Wall}, debug::SpriteDebugOverlayPlugin, frame::{increase_frame_system}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players, GggrsSessionConfiguration}, weapons::{bullet_rollback_collision_system, bullet_rollback_system, system_weapon_position, ui::WeaponDebugUIPlugin, update_weapon_sprite_direction, weapon_inventory_system, weapon_rollback_system, weapons_config_update_system, Bullet, BulletRollbackState, WeaponInventory, WeaponModesState, WeaponState, WeaponsConfig}};
-        
+            rollback_apply_accumulated_damage, rollback_apply_death, ui::update_health_bars,
+            DamageAccumulator, Death, Health,
+        },
+        movement::{SprintState, Velocity},
+        player::{
+            control::PlayerAction,
+            input::{
+                apply_friction, apply_inputs, move_characters, read_local_inputs,
+                update_animation_state, PointerWorldPosition,
+            },
+            jjrs::PeerConfig,
+            Player,
+        },
+    },
+    collider::{Collider, CollisionLayer, CollisionSettings, Wall},
+    debug::SpriteDebugOverlayPlugin,
+    frame::increase_frame_system,
+    global_asset::{add_global_asset, loading_asset_system},
+    jjrs::{
+        log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players,
+        GggrsSessionConfiguration,
+    },
+    weapons::{
+        bullet_rollback_collision_system, bullet_rollback_system, system_weapon_position,
+        ui::WeaponDebugUIPlugin, update_weapon_sprite_direction, weapon_inventory_system,
+        weapon_rollback_system, weapons_config_update_system, Bullet, BulletRollbackState,
+        WeaponInventory, WeaponModesState, WeaponState, WeaponsConfig,
+    },
+};
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash, States)]
 pub enum AppState {
@@ -40,11 +77,15 @@ pub struct GameInfo {
 
 impl Default for GameInfo {
     fn default() -> Self {
-        Self { version: env!("APP_VERSION").into() }
-    } 
+        Self {
+            version: env!("APP_VERSION").into(),
+        }
+    }
 }
 
-pub struct BaseZombieGamePlugin { online: bool }
+pub struct BaseZombieGamePlugin {
+    online: bool,
+}
 
 impl BaseZombieGamePlugin {
     pub fn new(online: bool) -> Self {
@@ -55,7 +96,7 @@ impl BaseZombieGamePlugin {
 impl Plugin for BaseZombieGamePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameInfo>();
-        app.add_plugins(SpriteDebugOverlayPlugin{});
+        app.add_plugins(SpriteDebugOverlayPlugin {});
 
         app.add_plugins(ZAudioPlugin {});
 
@@ -70,7 +111,6 @@ impl Plugin for BaseZombieGamePlugin {
 
         app.add_plugins(InputManagerPlugin::<PlayerAction>::default());
         app.init_resource::<PointerWorldPosition>();
-
 
         app.init_resource::<CollisionSettings>();
 
@@ -110,14 +150,19 @@ impl Plugin for BaseZombieGamePlugin {
             .rollback_component_with_reflect::<Enemy>();
 
         app.add_systems(Startup, (add_global_asset));
-        app.add_systems(Update, loading_asset_system.run_if(in_state(AppState::Loading)));
-        
+        app.add_systems(
+            Update,
+            loading_asset_system.run_if(in_state(AppState::Loading)),
+        );
 
         if self.online {
             app.add_systems(Startup, start_matchbox_socket.after(add_global_asset));
             app.add_systems(Update, wait_for_players.run_if(in_state(AppState::Lobby)));
         } else {
-            app.add_systems(OnEnter(AppState::Lobby), setup_ggrs_local.after(add_global_asset));
+            app.add_systems(
+                OnEnter(AppState::Lobby),
+                setup_ggrs_local.after(add_global_asset),
+            );
         }
 
         app.add_systems(Update, log_ggrs_events.run_if(in_state(AppState::InGame)));
@@ -125,7 +170,8 @@ impl Plugin for BaseZombieGamePlugin {
         app.add_systems(ReadInputs, read_local_inputs);
         app.insert_resource(FrameCount { frame: 0 });
         app.add_systems(
-            GgrsSchedule, (
+            GgrsSchedule,
+            (
                 // HANDLE ALL PLAYERS INPUT
                 apply_inputs,
                 // MOVEMENT CHARACTERS
@@ -147,16 +193,19 @@ impl Plugin for BaseZombieGamePlugin {
                 check_direct_paths.after(update_enemy_targets),
                 calculate_paths.after(check_direct_paths),
                 move_enemies.after(calculate_paths),
-                
-                increase_frame_system.after(move_enemies)
-            ));
-        app.add_systems(Update, (
-            sync_bevy_transforms_from_fixed,
-            update_weapon_sprite_direction,
-            weapon_inventory_system,
-            weapons_config_update_system,
-            set_sprite_flip,
-            update_health_bars,
-        ));
+                increase_frame_system.after(move_enemies),
+            ),
+        );
+        app.add_systems(
+            Update,
+            (
+                sync_bevy_transforms_from_fixed,
+                update_weapon_sprite_direction,
+                weapon_inventory_system,
+                weapons_config_update_system,
+                set_sprite_flip,
+                update_health_bars,
+            ),
+        );
     }
 }

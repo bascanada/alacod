@@ -1,13 +1,12 @@
-
 use std::net::SocketAddr;
 
 use clap::Parser;
 
 #[derive(Parser)]
 pub struct Opt {
-    #[clap(short, long,)]
+    #[clap(short, long)]
     pub matchbox: Option<String>,
-    #[clap(long,)]
+    #[clap(long)]
     pub lobby: Option<String>,
     #[clap(short, long)]
     pub number_player: Option<usize>,

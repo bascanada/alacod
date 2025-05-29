@@ -9,10 +9,10 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use map::generation::{
-        entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
-        room::{Room, RoomConnection},
-        IMapGenerator,
-    };
+    entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
+    room::{Room, RoomConnection},
+    IMapGenerator,
+};
 
 use crate::map_const::{self, LAYER_ENTITY};
 
@@ -259,29 +259,26 @@ impl IMapGenerator for GeneratedMap {
         self.generated_rooms.push(generated_room);
     }
 
-    fn add_doors(
-        &mut self,
-        doors: &Vec<(EntityLocation, DoorConfig)>,
-    ) {
+    fn add_doors(&mut self, doors: &Vec<(EntityLocation, DoorConfig)>) {
         for (location, door) in doors.iter() {
             self.add_entity_to_level(
                 location,
                 map_const::ENTITY_DOOR_LOCATION,
                 vec![
-                    (map_const::FIELD_PRICE_NAME, FieldValue::Int(Some(door.cost))),
-                    (map_const::FIELD_ELECTRIFY_NAME, FieldValue::Bool(door.electrify)),
+                    (
+                        map_const::FIELD_PRICE_NAME,
+                        FieldValue::Int(Some(door.cost)),
+                    ),
+                    (
+                        map_const::FIELD_ELECTRIFY_NAME,
+                        FieldValue::Bool(door.electrify),
+                    ),
                 ],
             );
         }
     }
 
-    fn add_windows(
-        &mut self,
-        windows: &Vec<(
-            EntityLocation,
-            WindowConfig,
-        )>,
-    ) {
+    fn add_windows(&mut self, windows: &Vec<(EntityLocation, WindowConfig)>) {
         for (location, _) in windows.iter() {
             self.add_entity_to_level(location, map_const::ENTITY_WINDOW_LOCATION, vec![]);
         }

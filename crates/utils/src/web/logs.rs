@@ -1,7 +1,15 @@
-
 use bevy::prelude::*;
 use std::sync::{Arc, Mutex};
-use tracing_subscriber::{fmt::MakeWriter, Registry};
+use tracing_subscriber::{
+    fmt::{
+        self,
+        format::{FmtSpan, Writer},
+        FormatFields, MakeWriter,
+    },
+    prelude::*,
+    EnvFilter, Layer, Registry,
+}; // Updated imports
+use tracing_web::MakeWebConsoleWriter;
 use wasm_bindgen::prelude::*;
 
 #[derive(Resource, Clone, Default)]
@@ -37,127 +45,134 @@ impl<'a> MakeWriter<'a> for WebLogBuffer {
     type Writer = WebLogWriter;
 
     fn make_writer(&'a self) -> Self::Writer {
-        WebLogWriter { buffer: self.0.clone() }
+        WebLogWriter {
+            buffer: self.0.clone(),
+        }
     }
 }
 
-// ---- 2. Interopérabilité WASM pour le Téléchargement ----
-
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_name = download_log_file_js)] // Correspond au nom de la fonction JS
+    #[wasm_bindgen(js_name = download_log_file_js)]
     fn download_log_file_js_binding(filename: &str, content: &str);
 }
 
-// Fonction Rust appelable pour initier le téléchargement via JS
 fn initiate_log_download_from_rust(logs_content: String, filename: &str) {
-    if cfg!(target_arch = "wasm32") { // S'assure que cela n'est appelé que sur WASM
+    if cfg!(target_arch = "wasm32") {
+        // SAFETY: Calling JS function, ensure it's correctly defined on JS side.
         unsafe {
             download_log_file_js_binding(filename, &logs_content);
         }
     } else {
-        warn!("Tentative de téléchargement de log sur une plateforme non-WASM. Ignoré.");
-        // Pour le débogage natif, vous pourriez écrire dans un fichier local ici.
-        // std::fs::write(filename, logs_content).expect("Impossible d'écrire le log localement");
-        // log::info!("Log sauvegardé localement (natif) dans : {}", filename);
+        warn!("Attempting to download log on a non-WASM platform. Ignoring.");
+        // For native debugging, you might write to a local file here.
+        // For example:
+        // if let Err(e) = std::fs::write(filename, logs_content) {
+        //     error!("Failed to write log locally: {}", e);
+        // } else {
+        //     info!("Log saved locally (native) in: {}", filename);
+        // }
     }
 }
-
-// ---- 3. Systèmes Bevy pour Déclencher le Téléchargement ----
 
 #[derive(Resource, Default, Deref, DerefMut)]
 pub struct DownloadLogTrigger(pub bool);
 
-// Système qui écoute une entrée (ex: touche 'L')
 pub fn check_for_log_download_request(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut trigger: ResMut<DownloadLogTrigger>,
 ) {
     if keyboard_input.just_pressed(KeyCode::KeyL) {
         if !trigger.0 {
-            info!("Demande de téléchargement du log reçue (touche L)!");
+            info!("Log download requested (L key)!"); // Corrected log message
             trigger.0 = true;
         }
     }
 }
 
-// Système qui traite la demande et lance le téléchargement
 pub fn process_log_download_trigger(
     mut trigger: ResMut<DownloadLogTrigger>,
     log_buffer: Res<WebLogBuffer>,
-    frame: Res<crate::frame::FrameCount>, // Assurez-vous que votre ressource FrameCount est accessible
+    // Assuming you have a frame counter resource. If not, you might need to adapt the filename.
+    // For this example, let's use a placeholder if frame isn't available or simplify.
+    // frame_count: Option<Res<crate::frame::FrameCount>>, // Example if it's optional
 ) {
     if trigger.0 {
         let logs_string;
         {
-            let buffer_guard = log_buffer.0.lock().unwrap();
+            // Explicitly unlock and handle potential poison.
+            let buffer_guard = log_buffer.0.lock().unwrap_or_else(|poisoned| {
+                error!("Log buffer mutex was poisoned! Recovering.");
+                poisoned.into_inner()
+            });
             logs_string = buffer_guard.clone();
         }
 
         if !logs_string.is_empty() {
-            let filename = format!("game_log_frame_{}.txt", frame.frame); // Utilisez le numéro de frame GGRS ici si possible
+            // Simplified filename if frame count is complex or unavailable for this snippet
+            // let current_time = web_time::SystemTime::now() // Requires web_time crate for wasm
+            //     .duration_since(web_time::UNIX_EPOCH)
+            //     .unwrap_or_default()
+            //     .as_secs();
+            // let filename = format!("game_log_{}.txt", current_time);
+            let filename = "game_log.txt".to_string(); // Simpler filename
+                                                       // If you have your frame count:
+                                                       // let filename = format!("game_log_frame_{}.txt", frame_count.map_or(0, |f| f.frame));
+
             initiate_log_download_from_rust(logs_string, &filename);
+            info!("Log download initiated to {}", filename);
         } else {
-            warn!("Tentative de téléchargement d'un buffer de log vide.");
+            warn!("Log buffer is empty. No download initiated.");
         }
-        
+
         trigger.0 = false;
     }
 }
 
-// ---- 4. Plugin Bevy pour la Configuration ----
-
-// Système de démarrage pour configurer l'abonné tracing
 fn setup_wasm_logging_subscriber_system(mut commands: Commands) {
-    let log_buffer = WebLogBuffer::default();
-    commands.insert_resource(log_buffer.clone());
-
-    use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+    let log_buffer_resource = WebLogBuffer::default();
+    commands.insert_resource(log_buffer_resource.clone());
 
     let filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info,votre_crate=debug")) // Ajustez "votre_crate" avec le nom de votre crate principal
-        .unwrap();
+        .unwrap_or_else(|_| "info,wgpu_core=warn,wgpu_hal=warn,naga=warn".into());
 
-    // Format pour les logs (sans horodatage, sans couleurs ANSI pour le buffer)
-    let log_format = fmt::format()
+    let file_log = fmt::Layer::new()
         .without_time()
-        .with_ansi(false) // Pas de couleurs pour le buffer qui deviendra un fichier
-        .compact(); // ou .pretty() selon la préférence
+        .with_ansi(false)
+        .with_writer(log_buffer_resource);
 
-    let web_log_layer = fmt::Layer::new()
-        .event_format(log_format)
-        .with_writer(log_buffer); // WebLogBuffer implémente MakeWriter
-
-    // Optionnel : pour voir les logs dans la console du navigateur également
-    // Nécessite la crate `tracing-web` et la feature "wasm-bindgen" pour celle-ci.
-    // let console_layer = tracing_web:: برخی از لایه ها برای کنسول وب;
-
+    let console_log = fmt::Layer::new()
+        .without_time()
+        .with_ansi(false)
+        .with_writer(MakeWebConsoleWriter::new());
 
     let subscriber = Registry::default()
         .with(filter)
-        .with(web_log_layer);
-        // .with(console_layer); // Si vous l'ajoutez
+        .with(file_log)
+        .with(console_log);
 
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("Impossible de définir l'abonné tracing global");
+    if let Err(err) = tracing::subscriber::set_global_default(subscriber) {
+        error!("failed to register custom logger {}", err);
+        return;
+    }
 
-    info!("Journalisation WASM initialisée. Logs bufferisés en mémoire. Appuyez sur 'L' pour télécharger.");
+    info!("WASM logging initialized. Logs buffered and sent to console. Press 'L' to download.");
 }
-
-
 
 pub struct WasmWebLogPlugin;
 
 impl Plugin for WasmWebLogPlugin {
     fn build(&self, app: &mut App) {
-        // S'assure que le plugin n'est ajouté que pour la cible WASM
+        // Ensure the plugin is added only for the WASM target
         if cfg!(target_arch = "wasm32") {
             app.add_systems(Startup, setup_wasm_logging_subscriber_system)
-               .init_resource::<DownloadLogTrigger>()
-               .add_systems(Update, (
-                    check_for_log_download_request,
-                    process_log_download_trigger,
-                ).chain()); // .chain() assure l'ordre si nécessaire
+                .init_resource::<DownloadLogTrigger>()
+                .add_systems(
+                    Update,
+                    (check_for_log_download_request, process_log_download_trigger).chain(),
+                );
+
+            info!("WasmWebLogPlugin added.");
         }
     }
 }

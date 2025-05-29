@@ -1,9 +1,7 @@
 use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use bevy_ecs_ldtk::prelude::*;
 
-use map::{
-    game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig, 
-};
+use map::{game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig};
 use map_ldtk::{
     loader::{get_asset_loader_generation, reload_map, setup_generated_map},
     plugins::LdtkRoguePlugin,
@@ -13,8 +11,8 @@ use utils::{
     web::WebPlugin,
 };
 
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::env;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     let level_loader = get_asset_loader_generation();
@@ -49,7 +47,15 @@ fn main() {
         .add_plugins(LdtkRoguePlugin)
         .insert_resource(map_generation_config)
         .register_asset_loader(level_loader)
-        .add_systems(Update, (load_levels_if_not_present, move_camera, keyinput, toggle_door_visibility))
+        .add_systems(
+            Update,
+            (
+                load_levels_if_not_present,
+                move_camera,
+                keyinput,
+                toggle_door_visibility,
+            ),
+        )
         .add_plugins(WebPlugin {})
         .run();
 }

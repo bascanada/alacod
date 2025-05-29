@@ -7118,6 +7118,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-web"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9e6a141feebd51f8d91ebfd785af50fca223c570b86852166caa3b141defe7c"
+dependencies = [
+ "js-sys",
+ "tracing-core",
+ "tracing-subscriber",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "triple_buffer"
 version = "8.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7324,10 +7337,13 @@ dependencies = [
  "bevy_ggrs",
  "chrono",
  "console_error_panic_hook",
+ "getrandom 0.2.15",
+ "rand",
  "serde",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "tracing-web",
  "wasm-bindgen",
  "web-sys",
 ]

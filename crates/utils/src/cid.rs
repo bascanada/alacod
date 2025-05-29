@@ -1,13 +1,14 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 
+pub fn generate_random_correlation_id_with_length(length: usize) -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(length)
+        .map(char::from)
+        .collect()
+}
 
-pub fn generate_timestamp_correlation_id() -> String {
-    let now = SystemTime::now();
-
-    let timestamp_nanos = now.duration_since(UNIX_EPOCH)
-        .expect("Le temps est revenu en arrière !")
-        .as_nanos();
-
-
-    format!("{}", timestamp_nanos)
+pub fn generate_random_correlation_id() -> String {
+    generate_random_correlation_id_with_length(6)
 }

@@ -1,17 +1,19 @@
 use std::hash::{Hash, Hasher};
 
-use fixed::{types::extra::{U16, U32}, FixedI32, FixedI64};
-use fixed_trigonometry::*;
-use fixed_trigonometry::atan::atan2;
 use bevy::{math::Affine3A, prelude::*};
-use serde::{Serialize, Deserialize};
+use fixed::{
+    types::extra::{U16, U32},
+    FixedI32, FixedI64,
+};
+use fixed_trigonometry::atan::atan2;
+use fixed_trigonometry::*;
+use serde::{Deserialize, Serialize};
 
 // Define our fixed-point types
 // Using 16.16 fixed point for general use (good balance of range and precision)
 pub type Fixed = FixedI32<U16>;
 // Using 32.32 for intermediate calculations that need more precision
 pub type FixedWide = FixedI64<U32>;
-
 
 pub fn new(f: f32) -> Fixed {
     Fixed::from_num(f)
@@ -20,7 +22,6 @@ pub fn new(f: f32) -> Fixed {
 pub fn to_f32(f: Fixed) -> f32 {
     f.to_num::<f32>()
 }
-
 
 // Fixed-point 2D vector
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -41,14 +42,12 @@ impl std::fmt::Display for FixedVec2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "( {} {} )", self.x, self.y)
     }
-    
 }
 
 impl std::fmt::Display for FixedVec3 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "( {} {} {} )", self.x, self.y, self.z)
     }
-    
 }
 
 impl Hash for FixedVec3 {
@@ -66,9 +65,8 @@ impl Hash for FixedVec2 {
     }
 }
 
-
 // Conversion constants
-pub const FIXED_ZERO: Fixed= Fixed::from_bits(0);
+pub const FIXED_ZERO: Fixed = Fixed::from_bits(0);
 pub const FIXED_ONE: Fixed = Fixed::from_bits(1 << 16);
 pub const FIXED_HALF: Fixed = Fixed::from_bits(1 << 15);
 pub const FIXED_PI: Fixed = Fixed::from_bits(205887);
@@ -76,28 +74,27 @@ pub const FIXED_TAU: Fixed = Fixed::from_bits(411775);
 pub const FIXED_32_MAX: Fixed = FixedI32::<U16>::MAX;
 pub const FIXED_32_MIN: Fixed = FixedI32::<U16>::MIN;
 
-
 impl FixedVec2 {
     pub const ZERO: Self = Self {
         x: Fixed::from_bits(0),
         y: Fixed::from_bits(0),
     };
-    
+
     pub fn new(x: Fixed, y: Fixed) -> Self {
         Self { x, y }
     }
-    
+
     pub fn from_f32(x: f32, y: f32) -> Self {
         Self {
             x: Fixed::from_num(x),
             y: Fixed::from_num(y),
         }
     }
-    
+
     pub fn to_vec2(&self) -> Vec2 {
         Vec2::new(self.x.to_num::<f32>(), self.y.to_num::<f32>())
     }
-    
+
     pub fn extend(&self) -> FixedVec3 {
         FixedVec3 {
             x: self.x,
@@ -107,9 +104,10 @@ impl FixedVec2 {
     }
 
     pub fn dot(&self, other: &Self) -> Fixed {
-        self.x.saturating_mul(other.x).saturating_add(self.y.saturating_mul(other.y))
+        self.x
+            .saturating_mul(other.x)
+            .saturating_add(self.y.saturating_mul(other.y))
     }
-    
 
     /// Calculates the squared length of the vector using FixedWide for intermediate precision.
     pub fn length_squared_as_wide(&self) -> FixedWide {
@@ -128,7 +126,8 @@ impl FixedVec2 {
     }
 
     /// Calculates the length of the vector.
-    pub fn length(&self) -> Fixed { // Returns your standard Fixed type (I32F16)
+    pub fn length(&self) -> Fixed {
+        // Returns your standard Fixed type (I32F16)
         let len_sq_fw = self.length_squared_as_wide(); // This is FixedWide (I64F32)
 
         // Ensure the squared length is not negative (shouldn't happen with squares)
@@ -170,7 +169,8 @@ impl FixedVec2 {
 
     /// Calculates the squared distance to another vector.
     /// Returns a FixedWide for precision, consistent with length_squared().
-    pub fn distance_squared(&self, other: &Self) -> FixedWide { // << Return FixedWide
+    pub fn distance_squared(&self, other: &Self) -> FixedWide {
+        // << Return FixedWide
         // This will now use the corrected length_squared() that returns FixedWide
         (*self - *other).length_squared()
     }
@@ -192,16 +192,17 @@ impl FixedVec2 {
             Self::ZERO
         }
     }
-    
+
     pub fn normalize_or_zero(&self) -> Self {
         let len_sq = self.length_squared();
-        if len_sq > Fixed::from_bits(256) { // Small epsilon to avoid division by very small numbers
+        if len_sq > Fixed::from_bits(256) {
+            // Small epsilon to avoid division by very small numbers
             self.normalize()
         } else {
             Self::ZERO
         }
     }
-    
+
     pub fn clamp_length_max(&self, max: Fixed) -> Self {
         let len_sq = self.length_squared();
         let max_sq = max.saturating_mul(max);
@@ -281,11 +282,11 @@ impl FixedVec3 {
         y: FIXED_ONE,
         z: FIXED_ONE,
     };
-    
+
     pub fn new(x: Fixed, y: Fixed, z: Fixed) -> Self {
         Self { x, y, z }
     }
-    
+
     pub fn from_f32(x: f32, y: f32, z: f32) -> Self {
         Self {
             x: Fixed::from_num(x),
@@ -294,7 +295,6 @@ impl FixedVec3 {
         }
     }
 
-    
     pub fn to_vec3(&self) -> Vec3 {
         Vec3::new(
             self.x.to_num::<f32>(),
@@ -304,20 +304,24 @@ impl FixedVec3 {
     }
 
     pub fn truncate(&self) -> FixedVec2 {
-        FixedVec2 { x: self.x, y: self.y }
+        FixedVec2 {
+            x: self.x,
+            y: self.y,
+        }
     }
-    
+
     pub fn dot(&self, other: &Self) -> Fixed {
-        self.x.saturating_mul(other.x)
+        self.x
+            .saturating_mul(other.x)
             .saturating_add(self.y.saturating_mul(other.y))
             .saturating_add(self.z.saturating_mul(other.z))
     }
 
-
     /// Calculates the squared length of the 3D vector.
     /// Returns a FixedWide (e.g., FixedI64<U32>) to maintain precision for larger vectors,
     /// as Fixed (e.g., FixedI32<U16>) might not be able to represent the true squared length.
-    pub fn length_squared(&self) -> FixedWide { // << Returns FixedWide
+    pub fn length_squared(&self) -> FixedWide {
+        // << Returns FixedWide
         // Convert components from Fixed (I32F16) to FixedWide (I64F32) before squaring.
         // Assuming FixedWide::from_num(fixed_value.to_num::<f32>()) is your conversion path.
         // If you have direct Fixed -> FixedWide conversion, use that (e.g., FixedWide::from(self.x)).
@@ -336,7 +340,8 @@ impl FixedVec3 {
 
     /// Calculates the length (magnitude) of the 3D vector.
     /// Returns the standard Fixed type (e.g., FixedI32<U16>).
-    pub fn length(&self) -> Fixed { // << Final return type is Fixed (I32F16)
+    pub fn length(&self) -> Fixed {
+        // << Final return type is Fixed (I32F16)
         // Step 1: self.length_squared() now returns FixedWide.
         let len_sq_fw: FixedWide = self.length_squared();
 
@@ -369,7 +374,8 @@ impl FixedVec3 {
 
     /// Calculates the squared distance to another 3D vector.
     /// Returns a FixedWide for precision, consistent with length_squared().
-    pub fn distance_squared(&self, other: &Self) -> FixedWide { // << Return FixedWide
+    pub fn distance_squared(&self, other: &Self) -> FixedWide {
+        // << Return FixedWide
         // This calls the length_squared() method that correctly returns FixedWide
         (*self - *other).length_squared() // Relies on Sub for FixedVec3
     }
@@ -381,10 +387,11 @@ impl FixedVec3 {
             z: self.z.saturating_mul(other.z),
         }
     }
-    
+
     pub fn normalize(&self) -> Self {
         let len = self.length();
-        if len > Fixed::from_bits(0) { // Exactly zero check is fine for fixed point
+        if len > Fixed::from_bits(0) {
+            // Exactly zero check is fine for fixed point
             Self {
                 x: self.x.saturating_div(len),
                 y: self.y.saturating_div(len),
@@ -395,33 +402,34 @@ impl FixedVec3 {
             // Option 1: Return ZERO (common)
             Self::ZERO
             // Option 2: Return a default direction e.g., (1,0,0) if that makes sense for your game
-            // Self::new(super::FIXED_ONE, Fixed::ZERO, Fixed::ZERO) 
+            // Self::new(super::FIXED_ONE, Fixed::ZERO, Fixed::ZERO)
             // Option 3: Panic, if normalizing a zero vector is considered an unrecoverable error
             // panic!("Attempted to normalize a zero-length FixedVec3");
         }
     }
-    
+
     pub fn normalize_or_zero(&self) -> Self {
         let len_sq = self.length_squared();
         // Using the same epsilon as FixedVec2 (256 in bits for 16.16 is 256/65536 = 0.00390625)
         // This epsilon applies to length_squared.
-        if len_sq > Fixed::from_bits(256) { 
+        if len_sq > Fixed::from_bits(256) {
             self.normalize()
         } else {
             Self::ZERO
         }
     }
-    
+
     pub fn clamp_length_max(&self, max: Fixed) -> Self {
         let len_sq = self.length_squared();
         let max_sq = max.saturating_mul(max);
         if len_sq > max_sq {
             // self.normalize() * max // Relies on Mul<Fixed> impl
             let normalized = self.normalize(); // Avoid normalizing if length is zero by using normalize logic
-            if normalized == Self::ZERO && max > Fixed::ZERO { // If original was zero, but max is positive, result is still zero
-                 Self::ZERO
+            if normalized == Self::ZERO && max > Fixed::ZERO {
+                // If original was zero, but max is positive, result is still zero
+                Self::ZERO
             } else {
-                 normalized.saturating_mul_scalar(max) // Using a helper for clarity or direct if Mul implemented
+                normalized.saturating_mul_scalar(max) // Using a helper for clarity or direct if Mul implemented
             }
         } else {
             *self
@@ -451,9 +459,18 @@ impl FixedVec3 {
     // Cross product for FixedVec3
     pub fn cross(&self, other: &Self) -> Self {
         Self {
-            x: self.y.saturating_mul(other.z).saturating_sub(self.z.saturating_mul(other.y)),
-            y: self.z.saturating_mul(other.x).saturating_sub(self.x.saturating_mul(other.z)),
-            z: self.x.saturating_mul(other.y).saturating_sub(self.y.saturating_mul(other.x)),
+            x: self
+                .y
+                .saturating_mul(other.z)
+                .saturating_sub(self.z.saturating_mul(other.y)),
+            y: self
+                .z
+                .saturating_mul(other.x)
+                .saturating_sub(self.x.saturating_mul(other.z)),
+            z: self
+                .x
+                .saturating_mul(other.y)
+                .saturating_sub(self.y.saturating_mul(other.x)),
         }
     }
 
@@ -506,7 +523,8 @@ impl std::ops::SubAssign for FixedVec3 {
     }
 }
 
-impl std::ops::Mul<Fixed> for FixedVec3 { // Scalar multiplication
+impl std::ops::Mul<Fixed> for FixedVec3 {
+    // Scalar multiplication
     type Output = Self;
     fn mul(self, scalar: Fixed) -> Self {
         self.saturating_mul_scalar(scalar)
@@ -521,7 +539,8 @@ impl std::ops::Mul<Fixed> for FixedVec3 { // Scalar multiplication
 //     }
 // }
 
-impl std::ops::Div<Fixed> for FixedVec3 { // Scalar division
+impl std::ops::Div<Fixed> for FixedVec3 {
+    // Scalar division
     type Output = Self;
     fn div(self, scalar: Fixed) -> Self {
         // Add handling for division by zero if `saturating_div`'s behavior (returning MAX/MIN)
@@ -542,8 +561,6 @@ impl std::ops::Neg for FixedVec3 {
     }
 }
 
-
-
 // Fixed-point angle functions
 pub fn atan2_fixed(y: Fixed, x: Fixed) -> Fixed {
     // Convert to the format expected by fixed_trigonometry
@@ -562,8 +579,10 @@ pub fn cos_fixed(angle: Fixed) -> Fixed {
 // Fixed-point matrix for rotations
 #[derive(Debug, Clone, Copy)]
 pub struct FixedMat2 {
-    pub m00: Fixed, pub m01: Fixed,
-    pub m10: Fixed, pub m11: Fixed,
+    pub m00: Fixed,
+    pub m01: Fixed,
+    pub m10: Fixed,
+    pub m11: Fixed,
 }
 
 impl FixedMat2 {
@@ -571,20 +590,26 @@ impl FixedMat2 {
         let c = cos_fixed(angle);
         let s = sin_fixed(angle);
         Self {
-            m00: c, m01: -s,
-            m10: s, m11: c,
+            m00: c,
+            m01: -s,
+            m10: s,
+            m11: c,
         }
     }
-    
+
     pub fn mul_vec2(&self, v: FixedVec2) -> FixedVec2 {
         FixedVec2 {
-            x: self.m00.saturating_mul(v.x).saturating_add(self.m01.saturating_mul(v.y)),
-            y: self.m10.saturating_mul(v.x).saturating_add(self.m11.saturating_mul(v.y)),
+            x: self
+                .m00
+                .saturating_mul(v.x)
+                .saturating_add(self.m01.saturating_mul(v.y)),
+            y: self
+                .m10
+                .saturating_mul(v.x)
+                .saturating_add(self.m11.saturating_mul(v.y)),
         }
     }
 }
-
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FixedMat3 {
@@ -596,9 +621,21 @@ pub struct FixedMat3 {
 
 impl FixedMat3 {
     pub const IDENTITY: Self = Self {
-        x_axis: FixedVec3 { x: FIXED_ONE, y: Fixed::ZERO, z: Fixed::ZERO },
-        y_axis: FixedVec3 { x: Fixed::ZERO, y: FIXED_ONE, z: Fixed::ZERO },
-        z_axis: FixedVec3 { x: Fixed::ZERO, y: Fixed::ZERO, z: FIXED_ONE },
+        x_axis: FixedVec3 {
+            x: FIXED_ONE,
+            y: Fixed::ZERO,
+            z: Fixed::ZERO,
+        },
+        y_axis: FixedVec3 {
+            x: Fixed::ZERO,
+            y: FIXED_ONE,
+            z: Fixed::ZERO,
+        },
+        z_axis: FixedVec3 {
+            x: Fixed::ZERO,
+            y: Fixed::ZERO,
+            z: FIXED_ONE,
+        },
     };
 
     // Helper to create from a Bevy Quat (via Bevy Mat3)
@@ -637,21 +674,29 @@ impl FixedMat3 {
         let cz = cos_fixed(angles_rad_fixed.z);
 
         let x_axis = FixedVec3 {
-            x: cy.saturating_mul(cz).saturating_add(sx.saturating_mul(sy).saturating_mul(sz)),
+            x: cy
+                .saturating_mul(cz)
+                .saturating_add(sx.saturating_mul(sy).saturating_mul(sz)),
             y: cx.saturating_mul(sz),
             z: (cy.saturating_mul(sx).saturating_mul(sz)).saturating_sub(sy.saturating_mul(cz)),
         };
         let y_axis = FixedVec3 {
             x: (cy.saturating_mul(sz)).saturating_sub(sx.saturating_mul(sy).saturating_mul(cz)),
             y: cx.saturating_mul(cz),
-            z: sy.saturating_mul(sz).saturating_add(cy.saturating_mul(sx).saturating_mul(cz)),
+            z: sy
+                .saturating_mul(sz)
+                .saturating_add(cy.saturating_mul(sx).saturating_mul(cz)),
         };
         let z_axis = FixedVec3 {
             x: cx.saturating_mul(sy),
             y: sx.saturating_mul(-FIXED_ONE), // -sx
             z: cy.saturating_mul(cx),
         };
-        Self { x_axis, y_axis, z_axis }
+        Self {
+            x_axis,
+            y_axis,
+            z_axis,
+        }
     }
 
     pub fn from_rotation_z(angle: Fixed) -> Self {
@@ -730,31 +775,26 @@ pub fn fixed_to_vec3(v: FixedVec3) -> Vec3 {
     Vec3::new(
         v.x.to_num::<f32>(),
         v.y.to_num::<f32>(),
-        v.z.to_num::<f32>()
+        v.z.to_num::<f32>(),
     )
 }
 
 pub fn fixed_to_vec2(v: FixedVec2) -> Vec2 {
-    Vec2::new(
-        v.x.to_num::<f32>(),
-        v.y.to_num::<f32>(),
-    )
+    Vec2::new(v.x.to_num::<f32>(), v.y.to_num::<f32>())
 }
-
-
 
 #[derive(Component, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct FixedPosition {
     pub value: FixedVec3,
 }
 
-
 impl Into<FixedPosition> for &FixedVec3 {
-   fn into(self) -> FixedPosition {
-       FixedPosition { value: self.clone() }
-   } 
+    fn into(self) -> FixedPosition {
+        FixedPosition {
+            value: self.clone(),
+        }
+    }
 }
-
 
 #[derive(Debug, Component, Clone, Serialize, Deserialize)]
 pub struct FixedTransform3D {
@@ -762,7 +802,6 @@ pub struct FixedTransform3D {
     pub rotation: FixedMat3,
     pub scale: FixedVec3,
 }
-
 
 impl FixedTransform3D {
     pub const IDENTITY: Self = Self {
@@ -772,7 +811,11 @@ impl FixedTransform3D {
     };
 
     pub fn new(translation: FixedVec3, rotation: FixedMat3, scale: FixedVec3) -> Self {
-        Self { translation, rotation, scale }
+        Self {
+            translation,
+            rotation,
+            scale,
+        }
     }
 
     // Equivalent to Bevy's Transform::transform_point, now including scale
@@ -780,10 +823,10 @@ impl FixedTransform3D {
     pub fn transform_point(&self, local_point: FixedVec3) -> FixedVec3 {
         // 1. Apply scale
         let scaled_point = local_point.mul_element_wise(self.scale);
-        
+
         // 2. Apply rotation
         let rotated_point = self.rotation.mul_vec3(scaled_point);
-        
+
         // 3. Apply translation
         // Assumes FixedVec3 implements std::ops::Add
         rotated_point + self.translation
@@ -793,16 +836,16 @@ impl FixedTransform3D {
     pub fn from_bevy_transform(transform: &Transform) -> Self {
         // Compute the Affine3A matrix from the Transform
         let affine: Affine3A = transform.compute_affine();
-        
+
         // Now decompose the Affine3A matrix
         let (scale_f32, rot_quat_f32, translation_f32) = affine.to_scale_rotation_translation();
-        
+
         Self {
             translation: vec3_to_fixed(translation_f32), // Assuming vec3_to_fixed exists
             rotation: FixedMat3::from_rotation_bevy_quat(rot_quat_f32), // Assuming this exists
-            scale: vec3_to_fixed(scale_f32), // Convert f32 scale to FixedVec3
+            scale: vec3_to_fixed(scale_f32),             // Convert f32 scale to FixedVec3
         }
-    } 
+    }
 
     // If you need to convert back to a Bevy Transform (e.g., for rendering sync)
     // This can be lossy, especially the rotation part (Mat3 -> Quat).
@@ -817,7 +860,7 @@ impl FixedTransform3D {
         let bevy_rot_mat3 = bevy::math::Mat3::from_cols(
             fixed_to_vec3(self.rotation.x_axis),
             fixed_to_vec3(self.rotation.y_axis),
-            fixed_to_vec3(self.rotation.z_axis)
+            fixed_to_vec3(self.rotation.z_axis),
         );
         let rotation_quat = Quat::from_mat3(&bevy_rot_mat3); // Note: Mat3 to Quat can have issues for some matrices (e.g. non-orthogonal)
 
@@ -829,9 +872,7 @@ impl FixedTransform3D {
     }
 }
 
-pub fn sync_bevy_transforms_from_fixed(
-    mut query: Query<(&FixedTransform3D, &mut Transform)>
-) {
+pub fn sync_bevy_transforms_from_fixed(mut query: Query<(&FixedTransform3D, &mut Transform)>) {
     for (fixed_transform, mut bevy_transform) in query.iter_mut() {
         // Sync translation
         bevy_transform.translation = fixed_to_vec3(fixed_transform.translation); // Or fixed_transform.translation.to_vec3()
@@ -845,7 +886,7 @@ pub fn sync_bevy_transforms_from_fixed(
         let bevy_rot_mat3 = bevy::math::Mat3::from_cols(
             fixed_to_vec3(fixed_transform.rotation.x_axis), // Or .x_axis.to_vec3()
             fixed_to_vec3(fixed_transform.rotation.y_axis), // Or .y_axis.to_vec3()
-            fixed_to_vec3(fixed_transform.rotation.z_axis)  // Or .z_axis.to_vec3()
+            fixed_to_vec3(fixed_transform.rotation.z_axis), // Or .z_axis.to_vec3()
         );
         bevy_transform.rotation = Quat::from_mat3(&bevy_rot_mat3);
         // Note: Mat3 to Quat conversion can be problematic for non-orthogonal matrices
