@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use bevy::prelude::*;
-use utils::{cid::generate_random_correlation_id, logs::NativeLogPlugin};
+use utils::{cid::generate_random_correlation_id};
 
 use crate::{
     core::OnlineState,
@@ -63,7 +63,10 @@ impl Plugin for BaseArgsPlugin {
             nbr_player = players.len()
         }
 
-        app.add_plugins(NativeLogPlugin(cid.clone()))
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_plugins(utils::logs::NativeLogPlugin(cid.clone()));
+
+        app
             .insert_resource(if !matchbox.is_empty() {
                 OnlineState::Online
             } else {
