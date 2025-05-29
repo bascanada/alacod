@@ -87,7 +87,7 @@ fn load_levels_if_not_present(
         return;
     }
     let ids: Vec<_> = ldtk_project.ids().collect();
-    let id = ids.get(0).unwrap();
+    let id = ids.first().unwrap();
 
     let ldtk_project = ldtk_project.get(*id).unwrap();
     let level_iids: Vec<_> = ldtk_project
@@ -97,10 +97,10 @@ fn load_levels_if_not_present(
         .collect();
 
     let mut level_set = level_set.iter_mut().last().unwrap();
-    if level_set.iids.len() > 0 {
+    if !level_set.iids.is_empty() {
         let mut clear = false;
         for iid in level_set.iids.iter() {
-            if level_iids.iter().find(|x| iid.to_string() == **x).is_none() {
+            if !level_iids.iter().any(|x| iid.to_string() == *x) {
                 clear = true;
                 break;
             }

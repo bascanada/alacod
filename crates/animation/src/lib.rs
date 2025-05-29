@@ -1,6 +1,6 @@
 use bevy::{prelude::*, reflect::TypePath, sprite::Anchor, utils::HashMap};
 use bevy_common_assets::ron::RonAssetPlugin;
-use bevy_ggrs::{prelude::*, GgrsSchedule};
+use bevy_ggrs::prelude::*;
 use serde::Deserialize;
 
 // CONFIG
@@ -23,7 +23,7 @@ pub enum ConfigurableAnchor {
 
 impl ConfigurableAnchor {
     pub fn to_anchor(&self) -> Anchor {
-        return match self {
+        match self {
             ConfigurableAnchor::Center => Anchor::Center,
             ConfigurableAnchor::BottomLeft => Anchor::BottomLeft,
             ConfigurableAnchor::BottomCenter => Anchor::BottomCenter,
@@ -34,7 +34,7 @@ impl ConfigurableAnchor {
             ConfigurableAnchor::TopCenter => Anchor::TopCenter,
             ConfigurableAnchor::TopRight => Anchor::TopRight,
             // Add Custom case here if you defined it
-        };
+        }
     }
 }
 
@@ -102,16 +102,13 @@ struct AnimationTimer {
 }
 
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum FacingDirection {
     Left,
+    #[default]
     Right,
 }
 
-impl Default for FacingDirection {
-    fn default() -> Self {
-        FacingDirection::Right
-    }
-}
 
 impl FacingDirection {
     pub fn to_int(&self) -> i32 {
@@ -261,7 +258,7 @@ fn character_visuals_update_system(
     for event in ev_asset.read() {
         if let AssetEvent::Modified { id } | AssetEvent::Added { id } = event {
             // Find entities using the modified spritesheet config
-            for (childs, entity, config_handle) in query.iter() {
+            for (childs, _entity, config_handle) in query.iter() {
                 for handle in config_handle.spritesheets.values() {
                     if handle.id() == *id {
                         if let Some(new_config) = spritesheet_configs.get(handle) {

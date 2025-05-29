@@ -5,23 +5,12 @@ use bevy::{
     asset::AssetMetaCheck,
     log::LogPlugin,
     prelude::*,
-    utils::{hashbrown::HashMap, tracing::instrument::WithSubscriber},
     window::WindowResolution,
 };
 use game::{
-    character::{
-        movement::Velocity,
-        player::{
-            control::{get_input_map, PlayerAction},
-            LocalPlayer, Player,
-        },
-    },
-    collider::{spawn_test_wall, CollisionSettings},
     frame::FrameDebugUIPlugin,
-    global_asset::GlobalAsset,
     jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration},
-    plugins::{AppState, BaseZombieGamePlugin},
-    weapons::WeaponsConfig,
+    plugins::BaseZombieGamePlugin,
 };
 
 use utils::{self, web::WebPlugin};
@@ -67,10 +56,10 @@ fn main() {
         .add_plugins(default_plugings)
         .add_plugins(WebPlugin {})
         .add_plugins(FrameDebugUIPlugin)
-        .add_plugins(BaseZombieGamePlugin::new(matchbox != ""))
+        .add_plugins(BaseZombieGamePlugin::new(!matchbox.is_empty()))
         .insert_resource(GggrsSessionConfiguration {
-            cid: cid,
-            matchbox: matchbox != "",
+            cid,
+            matchbox: !matchbox.is_empty(),
             lobby: lobby.clone(),
             matchbox_url: matchbox.clone(),
             connection: GggrsConnectionConfiguration {
@@ -80,7 +69,7 @@ fn main() {
                 socket: players.len() > 1,
                 udp_port: local_port,
             },
-            players: players,
+            players,
         })
         .run();
 }

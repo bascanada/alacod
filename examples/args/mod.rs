@@ -21,7 +21,7 @@ pub fn get_args() -> (
         use clap::Parser;
         let args = cli::Opt::parse();
 
-        return (
+        (
             args.local_port.unwrap_or(0),
             args.number_player.unwrap_or(0),
             args.players.unwrap_or(vec![]),
@@ -29,7 +29,7 @@ pub fn get_args() -> (
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
             args.cid.unwrap_or(generate_random_correlation_id()),
-        );
+        )
     }
     #[cfg(target_arch = "wasm32")]
     {

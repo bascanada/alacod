@@ -37,7 +37,7 @@ fn main() {
     println!("loading base map {}", map_path);
 
     // Open the file
-    let data: LdtkJson = load_ldtk_json_file(&map_path).expect("Failed to deserialize JSON");
+    let data: LdtkJson = load_ldtk_json_file(map_path).expect("Failed to deserialize JSON");
 
     let config = MapGenerationConfig {
         seed,
