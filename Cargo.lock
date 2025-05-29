@@ -163,17 +163,18 @@ dependencies = [
  "bevy_kira_audio",
  "bevy_matchbox",
  "clap",
+ "console_error_panic_hook",
  "derive-getters",
  "game",
  "leafwing-input-manager",
  "map",
+ "map_ldtk",
  "pathfinding",
  "rand",
  "regex",
  "serde",
  "serde_json",
  "utils",
- "wasm-bindgen",
  "web-sys",
 ]
 
@@ -4487,6 +4488,21 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.12",
+ "utils",
+ "uuid",
+]
+
+[[package]]
+name = "map_ldtk"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+ "bevy-inspector-egui",
+ "bevy_ecs_ldtk",
+ "map",
+ "once_cell",
+ "serde",
+ "serde_json",
  "utils",
  "uuid",
 ]

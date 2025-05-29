@@ -2,10 +2,11 @@ use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use bevy_ecs_ldtk::prelude::*;
 
 use map::{
-    game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig, ldtk::{
-        loader::{get_asset_loader_generation, reload_map, setup_generated_map},
-        plugins::{LdtkRoguePlugin, MyWorldInspectorPlugin},
-    }
+    game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig, 
+};
+use map_ldtk::{
+    loader::{get_asset_loader_generation, reload_map, setup_generated_map},
+    plugins::LdtkRoguePlugin,
 };
 use utils::{
     camera::tod::{move_camera, setup_camera},
@@ -44,7 +45,6 @@ fn main() {
                 .set(ImagePlugin::default_nearest())
                 .set(window_plugin),
         )
-        .add_plugins(MyWorldInspectorPlugin)
         .add_systems(Startup, (setup_generated_map, setup_camera))
         .add_plugins(LdtkRoguePlugin)
         .insert_resource(map_generation_config)

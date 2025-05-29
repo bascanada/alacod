@@ -6,8 +6,10 @@ use game::{character::{ movement::Velocity, player::{ control::{get_input_map, P
 
 use utils::{self, web::WebPlugin};
 
+#[bevy_main]
 fn main() {
-
+    #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
 
     let (local_port,mut nbr_player, players, _, matchbox, lobby, cid) = get_args();
 

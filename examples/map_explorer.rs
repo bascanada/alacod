@@ -1,14 +1,14 @@
 use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use bevy_ecs_ldtk::prelude::*;
 
-use game::plugins::BaseZombieGamePlugin;
 use map::{
     generation::config::MapGenerationConfig,
-    ldtk::{
-        loader::{get_asset_loader_generation, setup_generated_map},
-        plugins::{LdtkRoguePlugin, MyWorldInspectorPlugin},
-    },
 };
+use map_ldtk::{
+    loader::{get_asset_loader_generation, setup_generated_map},
+    plugins::{LdtkRoguePlugin},
+};
+
 use utils::{web::WebPlugin};
 
 use std::env;
@@ -42,7 +42,6 @@ fn main() {
                 .set(ImagePlugin::default_nearest())
                 .set(window_plugin),
         )
-        .add_plugins(MyWorldInspectorPlugin)
         .add_systems(Startup, setup_generated_map)
         .add_plugins(WebPlugin {})
         .add_plugins(LdtkRoguePlugin)

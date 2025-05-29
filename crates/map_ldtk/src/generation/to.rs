@@ -8,14 +8,13 @@ use bevy_ecs_ldtk::{
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    generation::{
-        entity::location::EntityLocation,
+use map::generation::{
+        entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
         room::{Room, RoomConnection},
         IMapGenerator,
-    },
-    ldtk::map_const::{self, FIELD_ELECTRIFY_NAME, FIELD_PRICE_NAME, LAYER_ENTITY},
-};
+    };
+
+use crate::map_const::{self, LAYER_ENTITY};
 
 #[derive(Debug, Clone)]
 pub struct GeneratedRoom {
@@ -262,15 +261,15 @@ impl IMapGenerator for GeneratedMap {
 
     fn add_doors(
         &mut self,
-        doors: &Vec<(EntityLocation, crate::generation::entity::door::DoorConfig)>,
+        doors: &Vec<(EntityLocation, DoorConfig)>,
     ) {
         for (location, door) in doors.iter() {
             self.add_entity_to_level(
                 location,
                 map_const::ENTITY_DOOR_LOCATION,
                 vec![
-                    (FIELD_PRICE_NAME, FieldValue::Int(Some(door.cost))),
-                    (FIELD_ELECTRIFY_NAME, FieldValue::Bool(door.electrify)),
+                    (map_const::FIELD_PRICE_NAME, FieldValue::Int(Some(door.cost))),
+                    (map_const::FIELD_ELECTRIFY_NAME, FieldValue::Bool(door.electrify)),
                 ],
             );
         }
@@ -280,7 +279,7 @@ impl IMapGenerator for GeneratedMap {
         &mut self,
         windows: &Vec<(
             EntityLocation,
-            crate::generation::entity::window::WindowConfig,
+            WindowConfig,
         )>,
     ) {
         for (location, _) in windows.iter() {

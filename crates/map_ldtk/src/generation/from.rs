@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use bevy_ecs_ldtk::ldtk::{FieldValue, LayerInstance, LdtkJson, Level};
 
-use crate::{
+use map::{
     generation::{
         config::MapGenerationConfig,
         context::{
@@ -12,8 +12,9 @@ use crate::{
         entity::location::{EntityLocation, EntityLocations},
         position::Position,
     },
-    ldtk::map_const,
 };
+
+use crate::map_const;
 
 fn get_level_field(level: &Level, name: &str) -> Option<FieldValue> {
     level

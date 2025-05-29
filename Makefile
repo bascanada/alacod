@@ -53,7 +53,9 @@ all: test format
 
 clean:
 	@echo "Cleaning the project..."
-	cargo clean
+	@cargo clean
+	@CARGO_TARGET_DIR=./target_wasm cargo clean
+
 
 format:
 	@echo "Running fmy..."

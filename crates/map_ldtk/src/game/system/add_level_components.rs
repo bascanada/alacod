@@ -1,10 +1,6 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
-
-use crate::{
-    game::entity::map::room::RoomComponent,
-    generation::{entity::room::RoomConfig, LEVEL_PROPERTIES_SPAWN_NAME},
-};
+use map::{game::entity::map::room::RoomComponent, generation::{entity::room::RoomConfig, LEVEL_PROPERTIES_SPAWN_NAME}};
 
 pub fn add_room_component_to_ldtk_level(
     mut level_events: EventReader<LevelEvent>,
