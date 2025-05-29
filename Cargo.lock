@@ -175,6 +175,7 @@ dependencies = [
  "serde",
  "serde_json",
  "utils",
+ "wasm-bindgen",
  "web-sys",
 ]
 

@@ -78,7 +78,11 @@ dep_web:
 	rustup target add wasm32-unknown-unknown
 	cargo install wasm-bindgen-cli
 
-dep: dep_web
+dep_format:
+	rustup component add rustfmt
+	rustup component add clippy
+
+dep: dep_web dep_format
 
 # Dev run
 
