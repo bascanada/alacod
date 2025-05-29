@@ -388,10 +388,8 @@ pub fn calculate_paths(
                 }
             }
 
-            if waypoints.len() < config.max_path_length {
-                if waypoints.is_empty() || waypoints.back() != Some(&target_v2) {
-                    waypoints.push_back(target_v2);
-                }
+            if waypoints.len() < config.max_path_length && (waypoints.is_empty() || waypoints.back() != Some(&target_v2)) {
+                waypoints.push_back(target_v2);
             }
 
             if !waypoints.is_empty() {

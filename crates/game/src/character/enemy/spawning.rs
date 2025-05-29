@@ -5,7 +5,7 @@ use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 
 use crate::{
     character::{config::CharacterConfig, player::Player},
-    collider::{Collider, CollisionSettings, Wall},
+    collider::CollisionSettings,
     global_asset::GlobalAsset,
     weapons::WeaponsConfig,
 };

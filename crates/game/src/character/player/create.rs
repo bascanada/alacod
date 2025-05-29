@@ -1,19 +1,16 @@
-use animation::{AnimationBundle, SpriteSheetConfig};
-use bevy::{math::VectorSpace, prelude::*, utils::HashMap};
-use bevy_kira_audio::prelude::*;
+use animation::SpriteSheetConfig;
+use bevy::prelude::*;
 use leafwing_input_manager::{prelude::ActionState, InputManagerBundle};
-use utils::{bmap, net_id::GgrsNetIdFactory};
+use utils::net_id::GgrsNetIdFactory;
 
 use crate::{
     character::{
         config::CharacterConfig,
         create::create_character,
-        dash::DashState,
-        movement::{SprintState, Velocity},
     },
-    collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings},
+    collider::{CollisionLayer, CollisionSettings},
     global_asset::GlobalAsset,
-    weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig},
+    weapons::{spawn_weapon_for_player, WeaponInventory, WeaponsConfig},
 };
 
 use super::{
@@ -23,7 +20,7 @@ use super::{
 };
 use bevy_fixed::fixed_math;
 
-const PLAYER_COLORS: &'static [LinearRgba] = &[
+const PLAYER_COLORS: &[LinearRgba] = &[
     LinearRgba::RED,
     LinearRgba::BLUE,
     LinearRgba::GREEN,

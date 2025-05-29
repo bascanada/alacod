@@ -1,10 +1,9 @@
 pub mod ui;
 
-use bevy::{log::Level, prelude::*, scene::ron::de, utils::tracing::span};
+use bevy::{log::Level, prelude::*, utils::tracing::span};
 use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;
 use ggrs::PlayerHandle;
-use pathfinding::matrix::directions::N;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use utils::{frame::FrameCount, net_id::GgrsNetId};

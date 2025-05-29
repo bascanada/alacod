@@ -1,15 +1,8 @@
-use animation::AnimationState;
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
-use bevy_ggrs::Rollback;
 use serde::Deserialize;
 
-use crate::collider::{is_colliding, Collider, CollisionLayer, CollisionSettings, Wall};
 
-use super::{
-    config::{CharacterConfig, CharacterConfigHandles},
-    Character,
-};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct MovementConfig {

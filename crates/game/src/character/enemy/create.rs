@@ -5,12 +5,10 @@ use utils::net_id::GgrsNetIdFactory;
 
 use crate::{
     character::{
-        config::{CharacterConfig, CharacterConfigHandles},
+        config::CharacterConfig,
         create::create_character,
-        movement::Velocity,
-        player::input::CursorPosition,
     },
-    collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings},
+    collider::{CollisionLayer, CollisionSettings},
     global_asset::GlobalAsset,
     weapons::{WeaponInventory, WeaponsConfig},
 };

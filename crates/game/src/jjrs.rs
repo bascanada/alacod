@@ -18,7 +18,7 @@ use crate::{
     collider::{spawn_test_wall, CollisionSettings},
     global_asset::GlobalAsset,
     plugins::AppState,
-    weapons::{WeaponAsset, WeaponsConfig},
+    weapons::WeaponsConfig,
 };
 
 pub struct GggrsConnectionConfiguration {
@@ -95,20 +95,15 @@ pub fn setup_ggrs_local(
     spawn_test_map(&mut commands, &mut id_provider, &collision_settings);
 
     // Start a synctest session
-    let sess = if session_config.connection.socket == false {
+    let sess = if !session_config.connection.socket {
         let sess = sess_build
             .start_synctest_session()
             .expect("Failed to start synctest session");
 
         Session::SyncTest(sess)
     } else {
-        let socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port).expect(
-            format!(
-                "Failed to bind udp to {}",
-                session_config.connection.udp_port
-            )
-            .as_str(),
-        );
+        let socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port).unwrap_or_else(|_| panic!("Failed to bind udp to {}",
+                session_config.connection.udp_port));
         panic!("");
         //let sess = sess_build.start_p2p_session(socket).expect("failed to start p2p session");
 
@@ -254,7 +249,7 @@ fn spawn_test_map(
         commands,
         Vec3::new(500.0, 250.0, 0.0),
         Vec2::new(125.0, 500.0),
-        &collision_settings,
+        collision_settings,
         Color::rgb(0.6, 0.3, 0.3), // Reddish color
         id_provider.next("wall".into()),
     );
@@ -262,7 +257,7 @@ fn spawn_test_map(
         commands,
         Vec3::new(-500.0, 250.0, 0.0),
         Vec2::new(125.0, 500.0),
-        &collision_settings,
+        collision_settings,
         Color::rgb(0.6, 0.3, 0.3), // Reddish color
         id_provider.next("wall".into()),
     );
@@ -275,7 +270,7 @@ fn spawn_test_map(
     ];
 
     for position in spawn_positions.iter() {
-        spawn_test_enemy_spawner(commands, position.clone());
+        spawn_test_enemy_spawner(commands, *position);
     }
 }
 

@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_fixed::{fixed_math, rng::RollbackRng};
 use bevy_ggrs::{AddRollbackCommandExtension, PlayerInputs, Rollback};
-use ggrs::{Frame, PlayerHandle};
+use ggrs::PlayerHandle;
 use serde::{Deserialize, Serialize};
 use utils::{
     bmap,
@@ -19,7 +19,7 @@ use utils::{
 use crate::{
     character::{
         dash::DashState,
-        health::{self, DamageAccumulator, Health, HitBy},
+        health::{DamageAccumulator, Health, HitBy},
         movement::SprintState,
         player::{
             input::{
@@ -191,6 +191,7 @@ pub struct Bullet {
 
 /// Component to track the player's weapon inventory
 #[derive(Component, Debug, Clone)]
+#[derive(Default)]
 pub struct WeaponInventory {
     pub active_weapon_index: usize,
     pub frame_switched: u32,
@@ -200,21 +201,10 @@ pub struct WeaponInventory {
     pub reloading_ending_frame: Option<u32>,
 }
 
-impl Default for WeaponInventory {
-    fn default() -> Self {
-        Self {
-            active_weapon_index: 0,
-            frame_switched: 0,
-            frame_switched_mode: 0,
-            reloading_ending_frame: None,
-            weapons: Vec::new(),
-        }
-    }
-}
 
 impl WeaponInventory {
     pub fn active_weapon(&self) -> &(Entity, Weapon) {
-        return self.weapons.get(self.active_weapon_index).unwrap();
+        self.weapons.get(self.active_weapon_index).unwrap()
     }
 }
 
@@ -407,14 +397,14 @@ pub fn spawn_weapon_for_player(
         .unwrap();
     create_child_sprite(
         commands,
-        &asset_server,
+        asset_server,
         texture_atlas_layouts,
-        entity.clone(),
-        &spritesheet_config,
+        entity,
+        spritesheet_config,
         0,
     );
 
-    inventory.weapons.push((entity.clone(), weapon));
+    inventory.weapons.push((entity, weapon));
 
     if active {
         commands
@@ -658,7 +648,7 @@ pub fn weapon_rollback_system(
 
         // Get the entity for the active weapon
         if let Ok((
-            mut weapon,
+            weapon,
             mut weapon_state,
             mut weapon_modes_state,
             weapon_transform,
@@ -791,8 +781,8 @@ pub fn weapon_rollback_system(
                             fixed_math::Fixed::from_num(input.pan_x),
                             fixed_math::Fixed::from_num(input.pan_y),
                         );
-                        aim_dir.x = aim_dir.x / fixed_math::new(127.0);
-                        aim_dir.y = aim_dir.y / fixed_math::new(127.0);
+                        aim_dir.x /= fixed_math::new(127.0);
+                        aim_dir.y /= fixed_math::new(127.0);
                         aim_dir = aim_dir.normalize();
 
                         match weapon_config.firing_mode {
@@ -823,7 +813,7 @@ pub fn weapon_rollback_system(
                                         weapon_transform,
                                         facing_direction,
                                         direction,
-                                        weapon_config.bullet_type.clone(),
+                                        weapon_config.bullet_type,
                                         weapon_config.range,
                                         player.handle,
                                         frame.frame,
@@ -854,7 +844,7 @@ pub fn weapon_rollback_system(
                                     weapon_transform,
                                     facing_direction,
                                     direction,
-                                    weapon_config.bullet_type.clone(),
+                                    weapon_config.bullet_type,
                                     weapon_config.range,
                                     player.handle,
                                     frame.frame,
@@ -983,7 +973,7 @@ pub fn bullet_rollback_collision_system(
             /* no mut here */ _,
         ) in collider_query.iter()
         {
-            if !settings.layer_matrix[bullet_layer.0 as usize][target_layer.0 as usize] {
+            if !settings.layer_matrix[bullet_layer.0][target_layer.0] {
                 continue;
             }
             if is_colliding(
@@ -1039,7 +1029,7 @@ pub fn bullet_rollback_collision_system(
                         .insert(DamageAccumulator {
                             hit_count: 1,
                             total_damage: bullet.damage,
-                            last_hit_by: last_hit_by,
+                            last_hit_by,
                         });
                 }
             }
@@ -1109,15 +1099,15 @@ pub fn weapon_inventory_system(
 }
 
 pub fn update_weapon_sprite_direction(
-    mut query_sprite: Query<(&mut Sprite)>,
+    mut query_sprite: Query<&mut Sprite>,
     query_players: Query<(&Children, &FacingDirection)>,
-    query_weapons: Query<(&Children), With<ActiveWeapon>>,
+    query_weapons: Query<&Children, With<ActiveWeapon>>,
 ) {
     for (childs, direction) in query_players.iter() {
         for child in childs.iter() {
             if let Ok(childs) = query_weapons.get(*child) {
                 for child in childs.iter() {
-                    if let Ok((mut sprite)) = query_sprite.get_mut(*child) {
+                    if let Ok(mut sprite) = query_sprite.get_mut(*child) {
                         match direction {
                             FacingDirection::Left => {
                                 sprite.flip_y = true;

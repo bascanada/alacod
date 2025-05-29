@@ -4,7 +4,7 @@ use utils::frame::FrameCount;
 
 use crate::{character::player::LocalPlayer, plugins::AppState};
 
-use super::{WeaponInventory, WeaponModeState, WeaponModesState, WeaponState};
+use super::{WeaponInventory, WeaponModesState, WeaponState};
 
 #[derive(Component)]
 struct CurrentWeaponText;
@@ -56,7 +56,7 @@ fn setup_weapon_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         AmmoText,
         Text::new("Ammo: "),
         TextFont {
-            font: font,
+            font,
             font_size: 16.0,
             ..Default::default()
         },
@@ -112,7 +112,7 @@ fn update_weapons_text(
                         )
                     )
                 } else {
-                    format!("")
+                    String::new()
                 };
             }
         }

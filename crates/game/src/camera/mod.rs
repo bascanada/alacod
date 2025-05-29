@@ -7,10 +7,7 @@ use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 use ui::CameraDebugUIPlugin;
 
-use crate::{
-    character::player::{control::PlayerAction, LocalPlayer, Player},
-    plugins::AppState,
-};
+use crate::character::player::{control::PlayerAction, LocalPlayer, Player};
 
 #[derive(Asset, TypePath, Debug, Clone, Deserialize, Serialize)]
 pub struct CameraSettingsAsset(pub CameraSettings);
@@ -79,17 +76,14 @@ impl Default for CameraSettings {
 
 // Track which camera mode is active
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum CameraMode {
+    #[default]
     PlayerLock,
     PlayersLock,
     Unlock,
 }
 
-impl Default for CameraMode {
-    fn default() -> Self {
-        CameraMode::PlayerLock
-    }
-}
 
 // Component to mark the camera entity
 #[derive(Component, Default)]
@@ -477,7 +471,7 @@ fn character_visuals_update_system(
     asset_server: Res<AssetServer>,
     camera_asset: Res<Assets<CameraSettingsAsset>>,
     mut r_camera: ResMut<CameraSettings>,
-    mut camera_query: Query<(&mut GameCamera, &mut Transform, &mut OrthographicProjection)>,
+    camera_query: Query<(&mut GameCamera, &mut Transform, &mut OrthographicProjection)>,
 ) {
     for event in ev_asset.read() {
         if let AssetEvent::Added { id } = event {

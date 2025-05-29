@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     character::movement::MovementConfig,
-    collider::{Collider, ColliderConfig},
+    collider::ColliderConfig,
 };
 
 use super::health::HealthConfig;

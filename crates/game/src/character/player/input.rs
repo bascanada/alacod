@@ -1,7 +1,7 @@
 use animation::{ActiveLayers, FacingDirection};
-use animation::{AnimationState, CharacterAnimationHandles};
+use animation::AnimationState;
 use bevy::window::PrimaryWindow;
-use bevy::{prelude::*, time::Time, utils::HashMap};
+use bevy::{prelude::*, utils::HashMap};
 use bevy_fixed::fixed_math;
 use bevy_ggrs::prelude::*;
 use bevy_ggrs::LocalInputs;
@@ -10,11 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::character::config::{CharacterConfig, CharacterConfigHandles};
 use crate::character::dash::DashState;
-use crate::character::movement::{MovementConfig, SprintState, Velocity};
+use crate::character::movement::{SprintState, Velocity};
 use crate::character::player::{control::PlayerAction, Player};
 use crate::collider::{is_colliding, Collider, CollisionLayer, CollisionSettings, Wall};
-use crate::weapons::{ActiveWeapon, WeaponInventory};
-use utils::frame::FrameCount;
+use crate::weapons::WeaponInventory;
 
 use super::jjrs::PeerConfig;
 use super::LocalPlayer;
@@ -59,14 +58,12 @@ fn get_facing_direction(input: &BoxInput) -> FacingDirection {
         FacingDirection::Right
     } else if input.pan_x < -PAN_FACING_THRESHOLD {
         FacingDirection::Left
+    } else if input.buttons & INPUT_RIGHT != 0 {
+        FacingDirection::Right
+    } else if input.buttons & INPUT_LEFT != 0 {
+        FacingDirection::Left
     } else {
-        if input.buttons & INPUT_RIGHT != 0 {
-            FacingDirection::Right
-        } else if input.buttons & INPUT_LEFT != 0 {
-            FacingDirection::Left
-        } else {
-            FacingDirection::Right
-        }
+        FacingDirection::Right
     }
 }
 
@@ -151,7 +148,7 @@ pub fn read_local_inputs(
 }
 
 pub fn apply_inputs(
-    mut commands: Commands,
+    commands: Commands,
     inputs: Res<PlayerInputs<PeerConfig>>,
     character_configs: Res<Assets<CharacterConfig>>,
     mut query: Query<
@@ -177,7 +174,7 @@ pub fn apply_inputs(
         mut transform,
         mut dash_state,
         mut velocity,
-        mut active_layers,
+        active_layers,
         mut facing_direction,
         mut cursor_position,
         mut sprint_state,
@@ -195,7 +192,7 @@ pub fn apply_inputs(
                 // Calculate position based on remaining frames and distance
                 let completed_fraction = fixed_math::FIXED_ONE
                     - (fixed_math::new(dash_state.dash_frames_remaining as f32)
-                        / fixed_math::new((config.movement.dash_duration_frames as f32)));
+                        / fixed_math::new(config.movement.dash_duration_frames as f32));
 
                 let dash_offset =
                     dash_state.dash_direction * dash_state.dash_total_distance * completed_fraction;
@@ -355,7 +352,7 @@ pub fn move_characters(
         for (target_entity, target_transform, target_collider, target_layer) in
             collider_query.iter()
         {
-            if !settings.layer_matrix[collision_layer.0 as usize][target_layer.0 as usize] {
+            if !settings.layer_matrix[collision_layer.0][target_layer.0] {
                 continue;
             }
             if is_colliding(

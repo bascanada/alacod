@@ -52,7 +52,6 @@ use crate::{
     global_asset::{add_global_asset, loading_asset_system},
     jjrs::{
         log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players,
-        GggrsSessionConfiguration,
     },
     weapons::{
         bullet_rollback_collision_system, bullet_rollback_system, system_weapon_position,
@@ -89,7 +88,7 @@ pub struct BaseZombieGamePlugin {
 
 impl BaseZombieGamePlugin {
     pub fn new(online: bool) -> Self {
-        Self { online: online }
+        Self { online }
     }
 }
 
@@ -149,7 +148,7 @@ impl Plugin for BaseZombieGamePlugin {
             .rollback_component_with_reflect::<Player>()
             .rollback_component_with_reflect::<Enemy>();
 
-        app.add_systems(Startup, (add_global_asset));
+        app.add_systems(Startup, add_global_asset);
         app.add_systems(
             Update,
             loading_asset_system.run_if(in_state(AppState::Loading)),

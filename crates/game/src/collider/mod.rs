@@ -21,11 +21,11 @@ pub struct ColliderConfig {
     pub offset: fixed_math::FixedVec3,
 }
 
-impl Into<Collider> for &ColliderConfig {
-    fn into(self) -> Collider {
+impl From<&ColliderConfig> for Collider {
+    fn from(val: &ColliderConfig) -> Self {
         Collider {
-            shape: self.shape.clone(),
-            offset: self.offset.clone(),
+            shape: val.shape.clone(),
+            offset: val.offset,
         }
     }
 }

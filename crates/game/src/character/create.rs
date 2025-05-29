@@ -6,9 +6,8 @@ use utils::net_id::GgrsNetIdFactory;
 
 use crate::{
     character::{config::CharacterConfigHandles, movement::Velocity},
-    collider::{Collider, ColliderShape, CollisionLayer, CollisionSettings},
+    collider::{Collider, CollisionLayer},
     global_asset::GlobalAsset,
-    weapons::{spawn_weapon_for_player, FiringMode, Weapon, WeaponInventory, WeaponsConfig},
 };
 
 use bevy_ggrs::AddRollbackCommandExtension;
@@ -16,7 +15,7 @@ use bevy_ggrs::AddRollbackCommandExtension;
 use super::{
     config::CharacterConfig,
     dash::DashState,
-    health::{ui::HealthBar, DamageAccumulator, Health},
+    health::{ui::HealthBar, Health},
     movement::SprintState,
     Character,
 };
@@ -90,7 +89,7 @@ pub fn create_character(
         collider,
         health,
         collision_layer,
-        Character::default(),
+        Character,
         CharacterConfigHandles {
             config: player_config_handle.clone(),
         },
@@ -118,10 +117,10 @@ pub fn create_character(
         let spritesheet_config = sprint_sheet_assets.get(map_layers.get(k).unwrap()).unwrap();
         create_child_sprite(
             commands,
-            &asset_server,
+            asset_server,
             texture_atlas_layouts,
-            entity.clone(),
-            &spritesheet_config,
+            entity,
+            spritesheet_config,
             0,
         );
     }
