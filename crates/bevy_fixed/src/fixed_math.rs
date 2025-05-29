@@ -564,8 +564,8 @@ impl std::ops::Neg for FixedVec3 {
 // Fixed-point angle functions
 pub fn atan2_fixed(y: Fixed, x: Fixed) -> Fixed {
     // Convert to the format expected by fixed_trigonometry
-    let angle_rad = atan2(y, x); // This returns a fixed-point angle in radians
-    angle_rad
+     // This returns a fixed-point angle in radians
+    atan2(y, x)
 }
 
 pub fn sin_fixed(angle: Fixed) -> Fixed {
@@ -720,9 +720,9 @@ impl FixedMat3 {
     pub fn mul_mat3(&self, other: &FixedMat3) -> Self {
         // Each column of the new matrix is self (this matrix) multiplied
         // by the corresponding column-vector of the 'other' matrix.
-        let new_x_axis = self.mul_vec3(other.x_axis.clone()); // Or pass by reference if mul_vec3 accepts it
-        let new_y_axis = self.mul_vec3(other.y_axis.clone());
-        let new_z_axis = self.mul_vec3(other.z_axis.clone());
+        let new_x_axis = self.mul_vec3(other.x_axis); // Or pass by reference if mul_vec3 accepts it
+        let new_y_axis = self.mul_vec3(other.y_axis);
+        let new_z_axis = self.mul_vec3(other.z_axis);
 
         Self {
             x_axis: new_x_axis,
@@ -788,10 +788,10 @@ pub struct FixedPosition {
     pub value: FixedVec3,
 }
 
-impl Into<FixedPosition> for &FixedVec3 {
-    fn into(self) -> FixedPosition {
+impl From<&FixedVec3> for FixedPosition {
+    fn from(val: &FixedVec3) -> Self {
         FixedPosition {
-            value: self.clone(),
+            value: *val,
         }
     }
 }

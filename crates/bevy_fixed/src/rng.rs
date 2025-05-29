@@ -154,8 +154,8 @@ mod tests {
             // Pushing f32 directly can have precision issues with assert_eq! on Vecs.
             // For testing determinism, comparing the bit patterns of f32s is more robust if needed,
             // but direct comparison should work for this LCG.
-            sequence1.push(rng1.next_f32());
-            sequence2.push(rng2.next_f32());
+            sequence1.push(rng1.next_fixed());
+            sequence2.push(rng2.next_fixed());
         }
         assert_eq!(
             sequence1, sequence2,
@@ -167,7 +167,7 @@ mod tests {
     fn test_rng_f32_range() {
         let mut rng = RollbackRng::new(98765);
         for _ in 0..1000 {
-            let val = rng.next_f32();
+            let val = rng.next_fixed();
             assert!(
                 val >= 0.0 && val < 1.0,
                 "next_f32() output {} was not in range [0.0, 1.0)",
@@ -180,7 +180,7 @@ mod tests {
     fn test_rng_f32_symmetric_range() {
         let mut rng = RollbackRng::new(112233);
         for _ in 0..1000 {
-            let val = rng.next_f32_symmetric();
+            let val = rng.next_fixed_symmetric();
             assert!(
                 val >= -1.0 && val < 1.0,
                 "next_f32_symmetric() output {} was not in range [-1.0, 1.0)",
@@ -225,13 +225,13 @@ mod tests {
             "Seed should change after calling next_u32."
         );
         let seed_after_u32 = rng.seed;
-        rng.next_f32();
+        rng.next_fixed();
         assert_ne!(
             rng.seed, seed_after_u32,
             "Seed should change after calling next_f32."
         );
         let seed_after_f32 = rng.seed;
-        rng.next_f32_symmetric();
+        rng.next_fixed_symmetric();
         assert_ne!(
             rng.seed, seed_after_f32,
             "Seed should change after calling next_f32_symmetric."
