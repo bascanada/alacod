@@ -169,7 +169,7 @@ mod tests {
         for _ in 0..1000 {
             let val = rng.next_fixed();
             assert!(
-                val >= 0.0 && val < 1.0,
+                (0.0..1.0).contains(&val),
                 "next_f32() output {} was not in range [0.0, 1.0)",
                 val
             );
@@ -182,7 +182,7 @@ mod tests {
         for _ in 0..1000 {
             let val = rng.next_fixed_symmetric();
             assert!(
-                val >= -1.0 && val < 1.0,
+                (-1.0..1.0).contains(&val),
                 "next_f32_symmetric() output {} was not in range [-1.0, 1.0)",
                 val
             );
