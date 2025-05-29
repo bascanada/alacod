@@ -154,29 +154,14 @@ dependencies = [
 name = "alacod"
 version = "0.0.1"
 dependencies = [
- "animation",
  "bevy",
- "bevy-inspector-egui",
  "bevy_ecs_ldtk",
  "bevy_ecs_tilemap",
- "bevy_ggrs",
- "bevy_kira_audio",
- "bevy_matchbox",
- "clap",
- "console_error_panic_hook",
- "derive-getters",
  "game",
- "leafwing-input-manager",
  "map",
  "map_ldtk",
- "pathfinding",
- "rand",
- "regex",
- "serde",
  "serde_json",
  "utils",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -1170,7 +1155,6 @@ dependencies = [
  "bevy",
  "disqualified",
  "ggrs",
- "instant",
  "log",
  "seahash",
  "serde",
