@@ -32,7 +32,7 @@ mod tests {
     fn test_generated_level() {
         let generated_map = get_context();
 
-        let _first_level = generated_map.generated_rooms.get(0).unwrap();
+        let _first_level = generated_map.generated_rooms.first().unwrap();
     }
 
     fn get_context() -> GeneratedMap {
@@ -52,6 +52,6 @@ mod tests {
 
         let _data = generator.get_generated_map();
 
-        return generator;
+        generator
     }
 }

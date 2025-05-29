@@ -31,7 +31,7 @@ pub fn add_room_component_to_ldtk_level(
                     config: room_config,
                 });
 
-                if *is_spawn == true {
+                if *is_spawn {
                     println!("found a spawn level: {}", level_iid);
                 }
             }

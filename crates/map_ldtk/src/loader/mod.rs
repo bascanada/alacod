@@ -11,7 +11,7 @@ use map::generation::map_generation;
 
 use super::generation::{from_map, GeneratedMap};
 
-static mut CONFIG: Lazy<MapGenerationConfig> = Lazy::new(|| MapGenerationConfig::default());
+static mut CONFIG: Lazy<MapGenerationConfig> = Lazy::new(MapGenerationConfig::default);
 
 fn set_global_config(config: &MapGenerationConfig) {
     unsafe {

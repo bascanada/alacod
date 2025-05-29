@@ -105,7 +105,7 @@ pub fn get_new_entity(
                 .field_defs
                 .iter()
                 .find(|fd| fd.identifier == x.0)
-                .expect(format!("failed to get field for entity {}", x.0).as_str());
+                .unwrap_or_else(|| panic!("failed to get field for entity {}", x.0));
 
             let real_editor_value = match x.1.clone() {
                 FieldValue::Int(v) => Some(("V_Int", serde_json::to_value(v).unwrap())),
@@ -185,7 +185,7 @@ impl GeneratedMap {
             .unwrap();
 
         let new_entity = get_new_entity(
-            &level,
+            level,
             entity_type,
             location,
             (
@@ -254,7 +254,7 @@ impl IMapGenerator for GeneratedMap {
             })
         }
 
-        println!("");
+        println!();
 
         self.generated_rooms.push(generated_room);
     }
