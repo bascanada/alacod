@@ -54,7 +54,7 @@ fn draw_sprite_debug_rects_system(
 
         // 4. Get the 2D rotation (angle around the Z-axis)
         // The transform.rotation is a Quaternion. We need to extract the Z-axis rotation.
-        let z_rotation_angle = transform.rotation.to_euler(EulerRot::ZYX).0; // .0 gives Z for ZYX order
+        let _z_rotation_angle = transform.rotation.to_euler(EulerRot::ZYX).0; // .0 gives Z for ZYX order
 
         // 5. Draw the 2D rectangle using gizmos
         gizmos.rect_2d(world_position, final_visual_size, debug_rect_color);

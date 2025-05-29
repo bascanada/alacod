@@ -104,7 +104,7 @@ pub struct PlayerIndicator {
 fn camera_input_system(
     action_query: Query<&ActionState<PlayerAction>>,
     mut camera_query: Query<&mut GameCamera>,
-    player_query: Query<(Entity, &Player)>,
+    _player_query: Query<(Entity, &Player)>,
 ) {
     let action_state = if let Ok(state) = action_query.get_single() {
         state
@@ -390,7 +390,7 @@ fn player_indicator_system(
 
             // Calculate normalized slope based on angle
             let angle_tangent = angle_to_player.tan();
-            let normalized_tangent = angle_tangent / aspect_ratio;
+            let _normalized_tangent = angle_tangent / aspect_ratio;
 
             // Determine which side of the screen to place the indicator
             let (indicator_pos, final_angle) = if angle_to_player.abs() < std::f32::consts::PI / 4.0
@@ -446,20 +446,16 @@ fn player_indicator_system(
 
             // Spawn the indicator
             commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: player_info.color,
-                        custom_size: Some(Vec2::splat(settings.indicator_size)),
-                        ..default()
-                    },
-                    transform: Transform::from_translation(Vec3::new(
-                        clamped_pos.x,
-                        clamped_pos.y,
-                        10.0,
-                    ))
-                    .with_rotation(Quat::from_rotation_z(final_angle)),
+                Sprite {
+                    color: player_info.color,
+                    custom_size: Some(Vec2::splat(settings.indicator_size)),
                     ..default()
                 },
+                Transform::from_translation(Vec3::new(
+                    clamped_pos.x,
+                    clamped_pos.y,
+                    10.0,
+                )).with_rotation(Quat::from_rotation_z(final_angle)),
                 PlayerIndicator { player_entity },
             ));
         }
@@ -468,10 +464,10 @@ fn player_indicator_system(
 
 fn character_visuals_update_system(
     mut ev_asset: EventReader<AssetEvent<CameraSettingsAsset>>,
-    asset_server: Res<AssetServer>,
     camera_asset: Res<Assets<CameraSettingsAsset>>,
     mut r_camera: ResMut<CameraSettings>,
-    camera_query: Query<(&mut GameCamera, &mut Transform, &mut OrthographicProjection)>,
+    _asset_server: Res<AssetServer>,
+    _camera_query: Query<(&mut GameCamera, &mut Transform, &mut OrthographicProjection)>,
 ) {
     for event in ev_asset.read() {
         if let AssetEvent::Added { id } = event {
@@ -540,19 +536,18 @@ fn setup_simple_background(mut commands: Commands) {
                     };
 
                     // Spawn a square sprite
-                    parent.spawn(SpriteBundle {
-                        sprite: Sprite {
+                    parent.spawn((
+                        Sprite {
                             color,
                             custom_size: Some(Vec2::new(tile_size, tile_size)),
                             ..default()
                         },
-                        transform: Transform::from_translation(Vec3::new(
+                        Transform::from_translation(Vec3::new(
                             i as f32 * tile_size,
                             j as f32 * tile_size,
                             -10.0, // Behind everything else
-                        )),
-                        ..default()
-                    });
+                        ))
+                    ));
                 }
             }
         });

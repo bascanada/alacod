@@ -74,7 +74,7 @@ pub fn setup_ggrs_local(
                 .add_player(PlayerType::Local, i)
                 .expect("Failed to add player");
         } else {
-            let remote_addr: SocketAddr = addr.parse().unwrap();
+            let _remote_addr: SocketAddr = addr.parse().unwrap();
             //sess_build = sess_build.add_player(PlayerType::Remote(remote_addr), i).expect("Failed to add player");
         }
         create_player(
@@ -102,7 +102,7 @@ pub fn setup_ggrs_local(
 
         Session::SyncTest(sess)
     } else {
-        let socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port).unwrap_or_else(|_| panic!("Failed to bind udp to {}",
+        let _socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port).unwrap_or_else(|_| panic!("Failed to bind udp to {}",
                 session_config.connection.udp_port));
         panic!("");
         //let sess = sess_build.start_p2p_session(socket).expect("failed to start p2p session");
@@ -138,7 +138,7 @@ pub fn wait_for_players(
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     sprint_sheet_assets: Res<Assets<SpriteSheetConfig>>,
-    session_config: Res<GggrsSessionConfiguration>,
+    _session_config: Res<GggrsSessionConfiguration>,
 
     mut commands: Commands,
     global_assets: Res<GlobalAsset>,

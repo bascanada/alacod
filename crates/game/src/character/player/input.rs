@@ -148,7 +148,7 @@ pub fn read_local_inputs(
 }
 
 pub fn apply_inputs(
-    commands: Commands,
+    _commands: Commands,
     inputs: Res<PlayerInputs<PeerConfig>>,
     character_configs: Res<Assets<CharacterConfig>>,
     mut query: Query<
@@ -169,12 +169,12 @@ pub fn apply_inputs(
     >,
 ) {
     for (
-        entity,
-        inventory,
+        _entity,
+        _inventory,
         mut transform,
         mut dash_state,
         mut velocity,
-        active_layers,
+        _active_layers,
         mut facing_direction,
         mut cursor_position,
         mut sprint_state,
@@ -349,7 +349,7 @@ pub fn move_characters(
         new_transform.translation.x += velocity.x * fixed_math::new(FIXED_TIMESTEP);
         new_transform.translation.y += velocity.y * fixed_math::new(FIXED_TIMESTEP);
 
-        for (target_entity, target_transform, target_collider, target_layer) in
+        for (_target_entity, target_transform, target_collider, target_layer) in
             collider_query.iter()
         {
             if !settings.layer_matrix[collision_layer.0][target_layer.0] {

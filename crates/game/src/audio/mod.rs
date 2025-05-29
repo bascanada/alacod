@@ -15,6 +15,8 @@ impl Plugin for ZAudioPlugin {
     }
 }
 
+/*
 fn play_loop(asset_server: Res<AssetServer>, audio: Res<Audio>) {
     audio.play(asset_server.load("sounds/loop.ogg")).looped();
 }
+*/

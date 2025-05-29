@@ -3,7 +3,6 @@ pub mod ui;
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
 use bevy::{
     log::Level,
-    math::VectorSpace,
     prelude::*,
     utils::{tracing::span, HashMap, HashSet},
 };
@@ -36,7 +35,7 @@ use crate::{
 use std::fmt;
 use utils::frame::FrameCount;
 
-// COMPONENTSo
+// COMPONENTS
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum FiringMode {
     Automatic {}, // Hold trigger to continuously fire
@@ -232,14 +231,6 @@ pub struct WeaponState {
     pub active_mode: String,
 }
 
-// Rollback state for bullets
-#[derive(Component, Clone)]
-pub struct BulletRollbackState {
-    spawn_frame: u32,
-    initial_position: fixed_math::FixedVec2,
-    direction: fixed_math::FixedVec2,
-}
-
 #[derive(Event)]
 pub struct FireWeaponEvent {
     pub player_entity: Entity,
@@ -431,7 +422,7 @@ fn spawn_bullet_rollback(
     range: fixed_math::Fixed,
     player_handle: PlayerHandle,
     current_frame: u32,
-    collision_settings: &Res<CollisionSettings>,
+    _collision_settings: &Res<CollisionSettings>,
     parent_layer: &CollisionLayer,
     id_factory: &mut ResMut<GgrsNetIdFactory>,
 ) -> Entity {
@@ -448,8 +439,7 @@ fn spawn_bullet_rollback(
         BulletType::Explosive {
             speed,
             damage: damage_bullet,
-            blast_radius,
-            explosive_damage_multiplier,
+            ..
         } => (
             direction * (*speed / *GAME_SPEED),
             *damage_bullet,
@@ -459,7 +449,7 @@ fn spawn_bullet_rollback(
         BulletType::Piercing {
             speed,
             damage: damage_bullet,
-            penetration,
+            ..
         } => (
             direction * (*speed / *GAME_SPEED),
             *damage_bullet,
@@ -533,11 +523,6 @@ fn spawn_bullet_rollback(
             player_handle,
             created_at: current_frame,
         },
-        BulletRollbackState {
-            spawn_frame: current_frame,
-            initial_position: new_projectile_fixed_transform.translation.truncate(),
-            direction,
-        },
         Collider {
             offset: fixed_math::FixedVec3::ZERO,
             shape: ColliderShape::Circle { radius },
@@ -568,7 +553,7 @@ pub fn system_weapon_position(
     query: Query<(&Children, &CursorPosition, &FacingDirection), With<Rollback>>,
     mut query_weapon: Query<&mut fixed_math::FixedTransform3D, With<ActiveWeapon>>,
 ) {
-    for (childs, cursor_position, direction) in query.iter() {
+    for (childs, cursor_position, _direction) in query.iter() {
         for child in childs.iter() {
             if let Ok(mut transform) = query_weapon.get_mut(*child) {
                 let cursor_game_world_pos = fixed_math::FixedVec3::new(
@@ -623,7 +608,7 @@ pub fn weapon_rollback_system(
     let _enter = system_span.enter(); // Enter the span
 
     // Process weapon firing for all players
-    for (entity, mut inventory, sprint_state, dash_state, collision_layer, transform, player) in
+    for (_entity, mut inventory, sprint_state, dash_state, collision_layer, transform, player) in
         inventory_query.iter_mut()
     {
         let (input, _input_status) = inputs[player.handle];
@@ -756,8 +741,7 @@ pub fn weapon_rollback_system(
                     }
 
                     FiringMode::Shotgun {
-                        pellet_count,
-                        spread_angle,
+                        ..
                     } => {
                         if !weapon_state.is_firing && frames_since_last_shot >= frame_per_shot {
                             // Shotgun fires all pellets at once, so we don't need burst_shots_left
@@ -884,13 +868,12 @@ pub fn bullet_rollback_system(
         &GgrsNetId,
         &mut fixed_math::FixedTransform3D,
         &mut Bullet,
-        &BulletRollbackState,
     )>,
 ) {
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "bullet_movement");
     let _enter = system_span.enter();
 
-    for (entity, g_id, mut transform, mut bullet, bullet_state) in bullet_query.iter_mut() {
+    for (entity, g_id, mut transform, mut bullet) in bullet_query.iter_mut() {
         // Move bullet based on velocity (fixed timestep)
         let delta = bullet.velocity; // Assume bullet.velocity is already deterministic for this frame
 
@@ -991,7 +974,7 @@ pub fn bullet_rollback_collision_system(
         }
 
         // Sort the collided entities to pick the "first" one deterministically
-        actual_collided_target_entities.sort_unstable_by_key(|(e, g_id)| g_id.0);
+        actual_collided_target_entities.sort_unstable_by_key(|(_, g_id)| g_id.0);
 
         // The bullet will interact with the first entity in this sorted list.
         let (deterministic_target_entity, deterministic_target_g_id) =

@@ -19,7 +19,7 @@ pub fn spawn_enemy(
     enemy_type_name: String,
     position: fixed_math::FixedVec3,
     commands: &mut Commands,
-    weapons_asset: &Res<Assets<WeaponsConfig>>,
+    _weapons_asset: &Res<Assets<WeaponsConfig>>,
     characters_asset: &Res<Assets<CharacterConfig>>,
     asset_server: &Res<AssetServer>,
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,

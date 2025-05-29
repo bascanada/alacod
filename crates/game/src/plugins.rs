@@ -56,7 +56,7 @@ use crate::{
     weapons::{
         bullet_rollback_collision_system, bullet_rollback_system, system_weapon_position,
         ui::WeaponDebugUIPlugin, update_weapon_sprite_direction, weapon_inventory_system,
-        weapon_rollback_system, weapons_config_update_system, Bullet, BulletRollbackState,
+        weapon_rollback_system, weapons_config_update_system, Bullet, 
         WeaponInventory, WeaponModesState, WeaponState, WeaponsConfig,
     },
 };
@@ -137,7 +137,6 @@ impl Plugin for BaseZombieGamePlugin {
             .rollback_component_with_clone::<WeaponModesState>()
             .rollback_component_with_clone::<WeaponState>()
             .rollback_component_with_clone::<Bullet>()
-            .rollback_component_with_clone::<BulletRollbackState>()
             .rollback_component_with_clone::<Collider>()
             .rollback_component_with_clone::<Wall>()
             .rollback_component_with_clone::<CollisionLayer>()
