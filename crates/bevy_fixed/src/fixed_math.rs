@@ -65,6 +65,7 @@ impl Hash for FixedVec2 {
     }
 }
 
+
 // Conversion constants
 pub const FIXED_ZERO: Fixed = Fixed::from_bits(0);
 pub const FIXED_ONE: Fixed = Fixed::from_bits(1 << 16);
