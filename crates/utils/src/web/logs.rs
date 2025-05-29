@@ -58,6 +58,7 @@ extern "C" {
 fn initiate_log_download_from_rust(logs_content: String, filename: &str) {
     if cfg!(target_arch = "wasm32") {
         // SAFETY: Calling JS function, ensure it's correctly defined on JS side.
+        #[warn(unused_unsafe)]
         unsafe {
             download_log_file_js_binding(filename, &logs_content);
         }
