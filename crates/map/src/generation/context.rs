@@ -128,13 +128,13 @@ pub fn scan_width_side(
             connections.push(Connection {
                 index: *index,
                 size,
-                side: side.clone(),
+                side,
                 starting_at: i,
                 level_id: level.level_id.clone(),
                 compatiable_levels: vec![],
             });
 
-            *index = *index + 1;
+            *index += 1;
 
             i += size;
         } else {
@@ -166,13 +166,13 @@ pub fn scan_height_side(
             connections.push(Connection {
                 index: *index,
                 size,
-                side: side.clone(),
+                side,
                 starting_at: i,
                 level_id: level.level_id.clone(),
                 compatiable_levels: vec![],
             });
 
-            *index = *index + 1;
+            *index += 1;
 
             i += size;
         } else {
@@ -206,7 +206,7 @@ pub fn populate_level_connections(available_levels: &mut Vec<AvailableLevel>) {
 
                     let other_connection = other_level.connections.get(yy).unwrap();
 
-                    if connection.are_matching(&other_connection) {
+                    if connection.are_matching(other_connection) {
                         //if other_level.level_type != LevelType::Spawn {
                         to_add_elements.push((i, y, (available_levels[ii + i].clone(), yy)));
                         //}

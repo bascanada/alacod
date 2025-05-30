@@ -2,19 +2,16 @@ use bevy::ecs::system::Resource;
 
 use crate::fixed_math;
 
-
-
 #[derive(Debug, Resource, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RollbackRng {
     pub seed: u32,
 }
 
-
 impl RollbackRng {
     // Constants for the LCG algorithm. These are common choices.
-    const A: u32 = 1664525;  // Multiplier
+    const A: u32 = 1664525; // Multiplier
     const C: u32 = 1013904223; // Increment
-    // Modulus M is implicitly 2^32 because we are using u32 and letting overflow happen.
+                               // Modulus M is implicitly 2^32 because we are using u32 and letting overflow happen.
 
     /// Creates a new RNG instance with a given seed.
     /// This seed should ideally be synchronized across all players at the start of the game.
@@ -65,12 +62,12 @@ impl RollbackRng {
     /// Note: max is exclusive, min is inclusive.
     pub fn next_u32_range(&mut self, min: u32, max: u32) -> u32 {
         debug_assert!(min < max, "min must be less than max");
-        
+
         let range = max - min;
         if range == 0 {
             return min;
         }
-        
+
         // Simple modulo approach
         min + (self.next_u32() % range)
     }
@@ -78,11 +75,11 @@ impl RollbackRng {
     /// Generates a random u32 value in the range [min, max] (both inclusive).
     pub fn next_u32_range_inclusive(&mut self, min: u32, max: u32) -> u32 {
         debug_assert!(min <= max, "min must be less than or equal to max");
-        
+
         if min == max {
             return min;
         }
-        
+
         // Add 1 to make max inclusive
         let range = max - min + 1;
         min + (self.next_u32() % range)
@@ -90,13 +87,13 @@ impl RollbackRng {
 
     pub fn next_i32_range(&mut self, min: i32, max: i32) -> i32 {
         debug_assert!(min < max, "min must be less than max");
-        
+
         // Calculate range as u64 to avoid overflow
         let range = (max as i64 - min as i64) as u64;
         if range == 0 {
             return min;
         }
-        
+
         // Use modulo to get value in range, then add to min
         min + (self.next_u32() as u64 % range) as i32
     }
@@ -104,11 +101,11 @@ impl RollbackRng {
     /// Generates a random i32 value in the range [min, max] (both inclusive).
     pub fn next_i32_range_inclusive(&mut self, min: i32, max: i32) -> i32 {
         debug_assert!(min <= max, "min must be less than or equal to max");
-        
+
         if min == max {
             return min;
         }
-        
+
         // Calculate range as u64 to avoid overflow, add 1 for inclusive
         let range = (max as i64 - min as i64 + 1) as u64;
         min + (self.next_u32() as u64 % range) as i32
@@ -138,7 +135,10 @@ mod tests {
             sequence2.push(rng2.next_u32());
         }
 
-        assert_eq!(sequence1, sequence2, "Two RNGs with the same seed should produce the same sequence of u32s.");
+        assert_eq!(
+            sequence1, sequence2,
+            "Two RNGs with the same seed should produce the same sequence of u32s."
+        );
         assert_ne!(rng1.seed, 12345, "RNG seed should change after generation.");
     }
 
@@ -154,18 +154,25 @@ mod tests {
             // Pushing f32 directly can have precision issues with assert_eq! on Vecs.
             // For testing determinism, comparing the bit patterns of f32s is more robust if needed,
             // but direct comparison should work for this LCG.
-            sequence1.push(rng1.next_f32());
-            sequence2.push(rng2.next_f32());
+            sequence1.push(rng1.next_fixed());
+            sequence2.push(rng2.next_fixed());
         }
-        assert_eq!(sequence1, sequence2, "Two RNGs with the same seed should produce the same sequence of f32s.");
+        assert_eq!(
+            sequence1, sequence2,
+            "Two RNGs with the same seed should produce the same sequence of f32s."
+        );
     }
 
     #[test]
     fn test_rng_f32_range() {
         let mut rng = RollbackRng::new(98765);
         for _ in 0..1000 {
-            let val = rng.next_f32();
-            assert!(val >= 0.0 && val < 1.0, "next_f32() output {} was not in range [0.0, 1.0)", val);
+            let val = rng.next_fixed();
+            assert!(
+                (0.0..1.0).contains(&val),
+                "next_f32() output {} was not in range [0.0, 1.0)",
+                val
+            );
         }
     }
 
@@ -173,8 +180,12 @@ mod tests {
     fn test_rng_f32_symmetric_range() {
         let mut rng = RollbackRng::new(112233);
         for _ in 0..1000 {
-            let val = rng.next_f32_symmetric();
-            assert!(val >= -1.0 && val < 1.0, "next_f32_symmetric() output {} was not in range [-1.0, 1.0)", val);
+            let val = rng.next_fixed_symmetric();
+            assert!(
+                (-1.0..1.0).contains(&val),
+                "next_f32_symmetric() output {} was not in range [-1.0, 1.0)",
+                val
+            );
         }
     }
 
@@ -186,7 +197,10 @@ mod tests {
         let val1 = rng1.next_u32();
         let val2 = rng2.next_u32();
 
-        assert_ne!(val1, val2, "RNGs with different seeds should produce different first values (highly likely).");
+        assert_ne!(
+            val1, val2,
+            "RNGs with different seeds should produce different first values (highly likely)."
+        );
 
         // Further check a short sequence
         let mut seq1 = vec![val1];
@@ -195,20 +209,32 @@ mod tests {
             seq1.push(rng1.next_u32());
             seq2.push(rng2.next_u32());
         }
-        assert_ne!(seq1, seq2, "RNGs with different seeds should produce different sequences.");
+        assert_ne!(
+            seq1, seq2,
+            "RNGs with different seeds should produce different sequences."
+        );
     }
 
-     #[test]
+    #[test]
     fn test_rng_state_changes() {
         let mut rng = RollbackRng::new(777);
         let initial_seed = rng.seed;
         rng.next_u32();
-        assert_ne!(rng.seed, initial_seed, "Seed should change after calling next_u32.");
+        assert_ne!(
+            rng.seed, initial_seed,
+            "Seed should change after calling next_u32."
+        );
         let seed_after_u32 = rng.seed;
-        rng.next_f32();
-        assert_ne!(rng.seed, seed_after_u32, "Seed should change after calling next_f32.");
+        rng.next_fixed();
+        assert_ne!(
+            rng.seed, seed_after_u32,
+            "Seed should change after calling next_f32."
+        );
         let seed_after_f32 = rng.seed;
-        rng.next_f32_symmetric();
-        assert_ne!(rng.seed, seed_after_f32, "Seed should change after calling next_f32_symmetric.");
+        rng.next_fixed_symmetric();
+        assert_ne!(
+            rng.seed, seed_after_f32,
+            "Seed should change after calling next_f32_symmetric."
+        );
     }
 }

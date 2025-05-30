@@ -1,6 +1,6 @@
 use bevy::{prelude::*, reflect::TypePath, sprite::Anchor, utils::HashMap};
-use bevy_ggrs::{prelude::*, GgrsSchedule};
 use bevy_common_assets::ron::RonAssetPlugin;
+use bevy_ggrs::prelude::*;
 use serde::Deserialize;
 
 // CONFIG
@@ -22,20 +22,19 @@ pub enum ConfigurableAnchor {
 }
 
 impl ConfigurableAnchor {
-
     pub fn to_anchor(&self) -> Anchor {
-         return match self {
-             ConfigurableAnchor::Center => Anchor::Center,
-             ConfigurableAnchor::BottomLeft => Anchor::BottomLeft,
-             ConfigurableAnchor::BottomCenter => Anchor::BottomCenter,
-             ConfigurableAnchor::BottomRight => Anchor::BottomRight,
-             ConfigurableAnchor::CenterLeft => Anchor::CenterLeft,
-             ConfigurableAnchor::CenterRight => Anchor::CenterRight,
-             ConfigurableAnchor::TopLeft => Anchor::TopLeft,
-             ConfigurableAnchor::TopCenter => Anchor::TopCenter,
-             ConfigurableAnchor::TopRight => Anchor::TopRight,
-             // Add Custom case here if you defined it
-         };
+        match self {
+            ConfigurableAnchor::Center => Anchor::Center,
+            ConfigurableAnchor::BottomLeft => Anchor::BottomLeft,
+            ConfigurableAnchor::BottomCenter => Anchor::BottomCenter,
+            ConfigurableAnchor::BottomRight => Anchor::BottomRight,
+            ConfigurableAnchor::CenterLeft => Anchor::CenterLeft,
+            ConfigurableAnchor::CenterRight => Anchor::CenterRight,
+            ConfigurableAnchor::TopLeft => Anchor::TopLeft,
+            ConfigurableAnchor::TopCenter => Anchor::TopCenter,
+            ConfigurableAnchor::TopRight => Anchor::TopRight,
+            // Add Custom case here if you defined it
+        }
     }
 }
 
@@ -55,7 +54,6 @@ pub struct SpriteSheetConfig {
     pub anchor: ConfigurableAnchor,
 }
 
-
 // -- Animation Definition Configuration --
 #[derive(Deserialize, Debug, Clone)]
 pub struct AnimationIndices {
@@ -72,7 +70,7 @@ pub struct AnimationMapConfig {
 // COMPONENT
 #[derive(Component, Default, Clone, Debug)]
 pub struct LayerName {
-    pub name: String
+    pub name: String,
 }
 
 #[derive(Component)]
@@ -95,7 +93,7 @@ pub struct AnimationState(pub String);
 pub struct CharacterAnimationHandles {
     pub spritesheets: HashMap<String, Handle<SpriteSheetConfig>>,
     pub animations: Handle<AnimationMapConfig>,
-    pub starting_index: usize
+    pub starting_index: usize,
 }
 
 #[derive(Component)]
@@ -103,16 +101,11 @@ struct AnimationTimer {
     frame_timer: Timer,
 }
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FacingDirection {
     Left,
+    #[default]
     Right,
-}
-
-impl Default for FacingDirection {
-    fn default() -> Self {
-        FacingDirection::Right
-    }
 }
 
 impl FacingDirection {
@@ -122,7 +115,6 @@ impl FacingDirection {
             FacingDirection::Right => 1,
         }
     }
-    
 }
 
 // Bundle
@@ -158,15 +150,10 @@ impl AnimationBundle {
             active_layers: ActiveLayers {
                 layers: starting_layers,
             },
-            facing_direction: FacingDirection::default()
+            facing_direction: FacingDirection::default(),
         }
     }
 }
-
-
-
-
-
 
 // Animates sprite based on AnimationState
 fn animate_sprite_system(
@@ -179,7 +166,6 @@ fn animate_sprite_system(
         &AnimationState,
     )>,
     mut query_sprites: Query<(&mut Sprite, &LayerName), With<AnimatedLayer>>,
-    
 ) {
     for (childs, config_handles, mut timer, state) in query.iter_mut() {
         if let Some(anim_config) = animation_configs.get(&config_handles.animations) {
@@ -265,19 +251,16 @@ fn character_visuals_update_system(
     spritesheet_configs: Res<Assets<SpriteSheetConfig>>,
     mut ev_asset: EventReader<AssetEvent<SpriteSheetConfig>>,
     query: Query<(&Children, Entity, &CharacterAnimationHandles)>,
-    mut query_sprite: Query<(&mut Sprite,&mut Transform, &LayerName)>,
+    mut query_sprite: Query<(&mut Sprite, &mut Transform, &LayerName)>,
 ) {
     for event in ev_asset.read() {
         if let AssetEvent::Modified { id } | AssetEvent::Added { id } = event {
             // Find entities using the modified spritesheet config
-            for (childs, entity, config_handle) in query.iter() {
+            for (childs, _entity, config_handle) in query.iter() {
                 for handle in config_handle.spritesheets.values() {
                     if handle.id() == *id {
                         if let Some(new_config) = spritesheet_configs.get(handle) {
-                            info!(
-                                "Spritesheet config modified {}",
-                                new_config.name,
-                            );
+                            info!("Spritesheet config modified {}", new_config.name,);
                             let new_layout = TextureAtlasLayout::from_grid(
                                 UVec2::new(new_config.tile_size.0, new_config.tile_size.1),
                                 new_config.columns,
@@ -287,7 +270,9 @@ fn character_visuals_update_system(
                             );
 
                             for child in childs.iter() {
-                                if let Ok((mut sprite, mut transform, layer_name)) = query_sprite.get_mut(*child) {
+                                if let Ok((mut sprite, mut transform, layer_name)) =
+                                    query_sprite.get_mut(*child)
+                                {
                                     if layer_name.name == new_config.name {
                                         sprite.texture_atlas = Some(TextureAtlas {
                                             layout: texture_atlas_layouts.add(new_layout.clone()),
@@ -309,8 +294,6 @@ fn character_visuals_update_system(
         }
     }
 }
-
-
 
 // SYSTEM THAT RUN ON THE BEVY SCHEDULE FOR SYNCH
 
@@ -341,7 +324,7 @@ pub fn create_child_sprite(
 
     parent_entity: Entity,
     spritesheet_config: &SpriteSheetConfig,
-    current_frame_index: usize
+    current_frame_index: usize,
 ) -> Entity {
     let texture_handle: Handle<Image> = asset_server.load(&spritesheet_config.path);
     let layout = TextureAtlasLayout::from_grid(
@@ -356,7 +339,6 @@ pub fn create_child_sprite(
     );
     let layout_handle = texture_atlas_layouts.add(layout);
 
-
     let mut entity_commands = commands.spawn((
         Sprite {
             image: texture_handle.clone(),
@@ -367,14 +349,19 @@ pub fn create_child_sprite(
             anchor: spritesheet_config.anchor.to_anchor(),
             ..default()
         },
-        Transform::from_scale(Vec3::splat(spritesheet_config.scale))
-            .with_translation(Vec3::new(spritesheet_config.offset_x, spritesheet_config.offset_y, spritesheet_config.offset_z)),
-            //.with_rotation(Quat::IDENTITY),
-        LayerName { name: spritesheet_config.name.clone() },
+        Transform::from_scale(Vec3::splat(spritesheet_config.scale)).with_translation(Vec3::new(
+            spritesheet_config.offset_x,
+            spritesheet_config.offset_y,
+            spritesheet_config.offset_z,
+        )),
+        //.with_rotation(Quat::IDENTITY),
+        LayerName {
+            name: spritesheet_config.name.clone(),
+        },
     ));
 
     if spritesheet_config.animated {
-        entity_commands.insert(AnimatedLayer{});
+        entity_commands.insert(AnimatedLayer {});
     }
 
     let sprite = entity_commands.add_rollback().id();
@@ -392,9 +379,8 @@ impl Plugin for D2AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(RonAssetPlugin::<SpriteSheetConfig>::new(&["ron"]));
         app.add_plugins(RonAssetPlugin::<AnimationMapConfig>::new(&["ron"]));
-        
-        app
-            .rollback_component_with_reflect::<AnimationState>()
+
+        app.rollback_component_with_reflect::<AnimationState>()
             .rollback_component_with_clone::<LayerName>()
             .rollback_component_with_clone::<ActiveLayers>();
 
@@ -404,7 +390,7 @@ impl Plugin for D2AnimationPlugin {
                 character_visuals_update_system,
                 animate_sprite_system.after(character_visuals_update_system),
                 check_animation_config_reload_system.after(animate_sprite_system),
-            )
+            ),
         );
     }
 }

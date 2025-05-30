@@ -2,18 +2,17 @@ use std::rc::Rc;
 
 use bevy_ecs_ldtk::ldtk::{FieldValue, LayerInstance, LdtkJson, Level};
 
-use crate::{
-    generation::{
-        config::MapGenerationConfig,
-        context::{
-            populate_level_connections, scan_height_side, scan_width_side, AvailableLevel,
-            LevelType, MapGenerationContext, Side,
-        },
-        entity::location::{EntityLocation, EntityLocations},
-        position::Position,
+use map::generation::{
+    config::MapGenerationConfig,
+    context::{
+        populate_level_connections, scan_height_side, scan_width_side, AvailableLevel, LevelType,
+        MapGenerationContext, Side,
     },
-    ldtk::map_const,
+    entity::location::{EntityLocation, EntityLocations},
+    position::Position,
 };
+
+use crate::map_const;
 
 fn get_level_field(level: &Level, name: &str) -> Option<FieldValue> {
     level
@@ -119,20 +118,17 @@ fn to_available_level(level: &Level, tile_size: &(i32, i32)) -> AvailableLevel {
         .as_ref()
         .map(|layer_instance| {
             layer_instance
-                .into_iter()
+                .iter()
                 .find(|item| map_const::LAYER_CONNECTION == item.identifier)
-                .ok_or_else(|| "Failed to find LevelConnetion Layer on level")
+                .ok_or("Failed to find LevelConnetion Layer on level")
         })
         .unwrap_or_else(|| Err("No Layers present"))
         .unwrap();
 
-    let grid: Vec<&[i32]> = connection_layer
-        .int_grid_csv
-        .chunks(level_size.0 as usize)
-        .collect();
+    let grid: Vec<&[i32]> = connection_layer.int_grid_csv.chunks(level_size.0).collect();
 
     let level_type = {
-        let is_spawn = get_level_field(&level, map_const::LEVEL_FIELD_SPAWN).map_or(false, |x| {
+        let is_spawn = get_level_field(level, map_const::LEVEL_FIELD_SPAWN).is_some_and(|x| {
             if let FieldValue::Bool(value) = x {
                 value
             } else {
@@ -140,7 +136,7 @@ fn to_available_level(level: &Level, tile_size: &(i32, i32)) -> AvailableLevel {
             }
         });
 
-        if is_spawn == true {
+        if is_spawn {
             LevelType::Spawn
         } else {
             LevelType::Normal
@@ -207,7 +203,7 @@ fn to_available_level(level: &Level, tile_size: &(i32, i32)) -> AvailableLevel {
 }
 
 pub fn from_map(map_json: &LdtkJson, config: MapGenerationConfig) -> MapGenerationContext {
-    if map_json.levels.len() < 1 {
+    if map_json.levels.is_empty() {
         eprintln!("to few level present in the project");
     }
 
@@ -216,7 +212,7 @@ pub fn from_map(map_json: &LdtkJson, config: MapGenerationConfig) -> MapGenerati
         map_json.default_entity_height,
     );
 
-    let first_level = map_json.levels.get(0).unwrap();
+    let first_level = map_json.levels.first().unwrap();
 
     let level_size = (
         first_level.px_wid / tile_size.0,
@@ -231,7 +227,7 @@ pub fn from_map(map_json: &LdtkJson, config: MapGenerationConfig) -> MapGenerati
     let mut available_levels: Vec<AvailableLevel> = map_json
         .levels
         .iter()
-        .map(|item| to_available_level(&item, &tile_size))
+        .map(|item| to_available_level(item, &tile_size))
         .collect();
 
     populate_level_connections(&mut available_levels);

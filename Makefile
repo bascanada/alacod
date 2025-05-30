@@ -1,5 +1,6 @@
 PROFILE ?= dev
 
+LOBBY ?= "test"
 NUMBER_PLAYER ?= 2
 
 CURRENT_TAG := $(shell git describe --tags --exact-match HEAD 2>/dev/null)
@@ -53,11 +54,16 @@ all: test format
 
 clean:
 	@echo "Cleaning the project..."
-	cargo clean
+	@cargo clean
+	@CARGO_TARGET_DIR=./target_wasm cargo clean
+
 
 format:
 	@echo "Running fmy..."
 	cargo fmt --all -- --emit=files
+
+format_fix:
+	cargo fmt
 
 
 # Test
@@ -76,7 +82,11 @@ dep_web:
 	rustup target add wasm32-unknown-unknown
 	cargo install wasm-bindgen-cli
 
-dep: dep_web
+dep_format:
+	rustup component add rustfmt
+	rustup component add clippy
+
+dep: dep_web dep_format
 
 # Dev run
 
@@ -94,7 +104,7 @@ character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
 
 character_tester_matchbox:
-	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby test_2 --players localhost remote --cid $(CID)
+	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
 
 host_website:
 	cd website && APP_VERSION=$(VERSION) npm run dev

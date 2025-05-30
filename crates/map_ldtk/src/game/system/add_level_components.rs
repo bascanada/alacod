@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
-
-use crate::{
+use map::{
     game::entity::map::room::RoomComponent,
     generation::{entity::room::RoomConfig, LEVEL_PROPERTIES_SPAWN_NAME},
 };
@@ -32,7 +31,7 @@ pub fn add_room_component_to_ldtk_level(
                     config: room_config,
                 });
 
-                if *is_spawn == true {
+                if *is_spawn {
                     println!("found a spawn level: {}", level_iid);
                 }
             }

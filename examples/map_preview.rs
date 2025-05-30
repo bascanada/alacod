@@ -1,19 +1,18 @@
 use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use bevy_ecs_ldtk::prelude::*;
 
-use map::{
-    game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig, ldtk::{
-        loader::{get_asset_loader_generation, reload_map, setup_generated_map},
-        plugins::{LdtkRoguePlugin, MyWorldInspectorPlugin},
-    }
+use map::{game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig};
+use map_ldtk::{
+    loader::{get_asset_loader_generation, reload_map, setup_generated_map},
+    plugins::LdtkRoguePlugin,
 };
 use utils::{
     camera::tod::{move_camera, setup_camera},
     web::WebPlugin,
 };
 
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::env;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     let level_loader = get_asset_loader_generation();
@@ -44,12 +43,19 @@ fn main() {
                 .set(ImagePlugin::default_nearest())
                 .set(window_plugin),
         )
-        .add_plugins(MyWorldInspectorPlugin)
         .add_systems(Startup, (setup_generated_map, setup_camera))
         .add_plugins(LdtkRoguePlugin)
         .insert_resource(map_generation_config)
         .register_asset_loader(level_loader)
-        .add_systems(Update, (load_levels_if_not_present, move_camera, keyinput, toggle_door_visibility))
+        .add_systems(
+            Update,
+            (
+                load_levels_if_not_present,
+                move_camera,
+                keyinput,
+                toggle_door_visibility,
+            ),
+        )
         .add_plugins(WebPlugin {})
         .run();
 }
@@ -81,7 +87,7 @@ fn load_levels_if_not_present(
         return;
     }
     let ids: Vec<_> = ldtk_project.ids().collect();
-    let id = ids.get(0).unwrap();
+    let id = ids.first().unwrap();
 
     let ldtk_project = ldtk_project.get(*id).unwrap();
     let level_iids: Vec<_> = ldtk_project
@@ -91,10 +97,10 @@ fn load_levels_if_not_present(
         .collect();
 
     let mut level_set = level_set.iter_mut().last().unwrap();
-    if level_set.iids.len() > 0 {
+    if !level_set.iids.is_empty() {
         let mut clear = false;
         for iid in level_set.iids.iter() {
-            if level_iids.iter().find(|x| iid.to_string() == **x).is_none() {
+            if !level_iids.iter().any(|x| iid.to_string() == *x) {
                 clear = true;
                 break;
             }

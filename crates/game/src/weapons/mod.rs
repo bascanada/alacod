@@ -1,36 +1,63 @@
 pub mod ui;
 
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
-use bevy::{log::Level, math::VectorSpace, prelude::*, utils::{tracing::span, HashMap, HashSet}};
+use bevy::{
+    log::Level,
+    prelude::*,
+    utils::{tracing::span, HashMap, HashSet},
+};
+use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_fixed::{fixed_math, rng::RollbackRng};
-use bevy_ggrs::{AddRollbackCommandExtension, PlayerInputs, Rollback};
-use ggrs::{Frame, PlayerHandle};
+use bevy_ggrs::{AddRollbackCommandExtension, GgrsSchedule, PlayerInputs, Rollback};
+use ggrs::PlayerHandle;
 use serde::{Deserialize, Serialize};
-use utils::{bmap, net_id::{GgrsNetId, GgrsNetIdFactory}};
+use utils::{
+    bmap,
+    net_id::{GgrsNetId, GgrsNetIdFactory},
+};
 
-use crate::{character::{dash::DashState, health::{self, DamageAccumulator, Health, HitBy}, movement::SprintState, player::{input::{CursorPosition, INPUT_DASH, INPUT_RELOAD, INPUT_SPRINT, INPUT_SWITCH_WEAPON_MODE}, jjrs::PeerConfig, Player}}, collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall}, global_asset::GlobalAsset, GAME_SPEED};
-use utils::frame::FrameCount;
+use crate::{
+    character::{
+        dash::DashState,
+        health::{DamageAccumulator, Health, HitBy},
+        movement::SprintState,
+        player::{
+            input::{
+                CursorPosition, INPUT_DASH, INPUT_RELOAD, INPUT_SPRINT, INPUT_SWITCH_WEAPON_MODE,
+            },
+            jjrs::PeerConfig,
+            Player,
+        },
+    },
+    collider::{is_colliding, Collider, ColliderShape, CollisionLayer, CollisionSettings, Wall},
+    global_asset::GlobalAsset,
+    system_set::RollbackSystemSet,
+    GAME_SPEED,
+};
 use std::fmt;
+use utils::frame::FrameCount;
 
+use bevy_ggrs::GgrsApp;
 
-// COMPONENTSo
+// COMPONENTS
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum FiringMode {
-    Automatic{},  // Hold trigger to continuously fire
-    Manual{},     // One shot per trigger pull
-    Burst{pellets_per_shot: u32, cooldown_frames: u32},      // Fire a fixed number of shots per trigger pull
-    Shotgun{pellet_count: u32, spread_angle: fixed_math::Fixed},
+    Automatic {}, // Hold trigger to continuously fire
+    Manual {},    // One shot per trigger pull
+    Burst {
+        pellets_per_shot: u32,
+        cooldown_frames: u32,
+    }, // Fire a fixed number of shots per trigger pull
+    Shotgun {
+        pellet_count: u32,
+        spread_angle: fixed_math::Fixed,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MagBulletConfig {
-    Mag {
-        mag_size: u32,
-        mag_limit: u32,
-    },
-    Magless {
-        bullet_limit: u32,
-    },
+    Mag { mag_size: u32, mag_limit: u32 },
+    Magless { bullet_limit: u32 },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -88,8 +115,6 @@ pub struct WeaponConfig {
     pub firing_modes: HashMap<String, FiringModeConfig>,
 }
 
-
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WeaponSpriteConfig {
     pub name: String,
@@ -116,7 +141,10 @@ pub struct Weapon {
 
 impl From<WeaponAsset> for Weapon {
     fn from(value: WeaponAsset) -> Self {
-        Self { config: value.config, sprite_config: value.sprite_config }
+        Self {
+            config: value.config,
+            sprite_config: value.sprite_config,
+        }
     }
 }
 
@@ -125,7 +153,6 @@ pub struct HitMarker {
     pub target: Entity,
     pub damage: fixed_math::Fixed,
 }
-
 
 #[derive(Component)]
 pub struct VisualEffectRequest {
@@ -153,8 +180,6 @@ pub struct ExplosionMarker {
 #[derive(Component)]
 pub struct ActiveWeapon;
 
-
-
 /// Component for bullets
 #[derive(Component, Clone)]
 pub struct Bullet {
@@ -167,36 +192,22 @@ pub struct Bullet {
     pub created_at: u32,
 }
 
-
 /// Component to track the player's weapon inventory
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Default)]
 pub struct WeaponInventory {
     pub active_weapon_index: usize,
     pub frame_switched: u32,
     pub frame_switched_mode: u32,
-    pub weapons: Vec<(Entity, Weapon)>,  // Store entity handles and weapon data
+    pub weapons: Vec<(Entity, Weapon)>, // Store entity handles and weapon data
 
     pub reloading_ending_frame: Option<u32>,
 }
 
-impl Default for WeaponInventory {
-    fn default() -> Self {
-        Self {
-            active_weapon_index: 0,
-            frame_switched: 0,
-            frame_switched_mode: 0,
-            reloading_ending_frame: None,
-            weapons: Vec::new(),
-        }
-    }
-}
-
 impl WeaponInventory {
     pub fn active_weapon(&self) -> &(Entity, Weapon) {
-        return self.weapons.get(self.active_weapon_index).unwrap();
+        self.weapons.get(self.active_weapon_index).unwrap()
     }
 }
-
 
 #[derive(Reflect, Default, Clone)]
 pub struct WeaponModeState {
@@ -208,7 +219,6 @@ pub struct WeaponModeState {
     pub mag_size: u32,
     pub burst_cooldown: bool,
 }
-
 
 #[derive(Component, Reflect, Default, Clone)]
 pub struct WeaponModesState {
@@ -223,14 +233,6 @@ pub struct WeaponState {
     pub active_mode: String,
 }
 
-// Rollback state for bullets
-#[derive(Component, Clone)]
-pub struct BulletRollbackState {
-    spawn_frame: u32,
-    initial_position: fixed_math::FixedVec2,
-    direction: fixed_math::FixedVec2,
-}
-
 #[derive(Event)]
 pub struct FireWeaponEvent {
     pub player_entity: Entity,
@@ -241,9 +243,7 @@ pub struct FireWeaponEvent {
 #[derive(Asset, TypePath, Serialize, Deserialize)]
 pub struct WeaponsConfig(pub HashMap<String, WeaponAsset>);
 
-
 // UTILITY FUNCTION
-
 
 impl WeaponModeState {
     // Do the reloading of the ammo when the reloading process is over or some other event
@@ -267,15 +267,14 @@ impl WeaponModesState {
     }
 }
 
-
 impl WeaponInventory {
-
     pub fn is_reloading(&self) -> bool {
         self.reloading_ending_frame.is_some()
     }
 
     pub fn is_reloading_over(&self, current_frame: u32) -> bool {
-        self.reloading_ending_frame.map_or_else(|| true, |f| current_frame >= f)
+        self.reloading_ending_frame
+            .map_or_else(|| true, |f| current_frame >= f)
     }
 
     pub fn clear_reloading(&mut self) {
@@ -291,8 +290,10 @@ impl WeaponInventory {
             if reload_time_seconds <= fixed_math::new(0.0) {
                 None
             } else {
-                let frames_to_reload = (reload_time_seconds * bevy_fixed::fixed_math::new(60.)).ceil() ;
-                if frames_to_reload == 0 { // Ensure at least one frame for very short reload times
+                let frames_to_reload =
+                    (reload_time_seconds * bevy_fixed::fixed_math::new(60.)).ceil();
+                if frames_to_reload == 0 {
+                    // Ensure at least one frame for very short reload times
                     Some(current_game_frame + 1)
                 } else {
                     Some(current_game_frame + frames_to_reload.to_num::<u32>())
@@ -302,9 +303,7 @@ impl WeaponInventory {
     }
 }
 
-
 // start the reload process
-
 
 // Function to spawn weapon , all weapon should be spawn on the user when they got them
 pub fn spawn_weapon_for_player(
@@ -323,12 +322,23 @@ pub fn spawn_weapon_for_player(
 
     id_factory: &mut ResMut<GgrsNetIdFactory>,
 ) -> Entity {
+    let map_layers = global_assets
+        .spritesheets
+        .get(&weapon.sprite_config.name)
+        .unwrap()
+        .clone();
+    let animation_handle = global_assets
+        .animations
+        .get(&weapon.sprite_config.name)
+        .unwrap()
+        .clone();
 
-    let map_layers = global_assets.spritesheets.get(&weapon.sprite_config.name).unwrap().clone();
-    let animation_handle = global_assets.animations.get(&weapon.sprite_config.name).unwrap().clone();
-
-    let animation_bundle =
-        AnimationBundle::new(map_layers.clone(), animation_handle.clone(), weapon.sprite_config.index, bmap!("body" => String::new()));
+    let animation_bundle = AnimationBundle::new(
+        map_layers.clone(),
+        animation_handle.clone(),
+        weapon.sprite_config.index,
+        bmap!("body" => String::new()),
+    );
 
     let mut weapon_state = WeaponState::default();
     let mut weapon_modes_state = WeaponModesState::default();
@@ -336,46 +346,63 @@ pub fn spawn_weapon_for_player(
     for (k, v) in weapon.config.firing_modes.iter() {
         let mut weapon_mode_state = WeaponModeState::default();
         match v.mag {
-            MagBulletConfig::Mag { mag_size, mag_limit } => {
+            MagBulletConfig::Mag {
+                mag_size,
+                mag_limit,
+            } => {
                 weapon_mode_state.mag_ammo = mag_size;
                 weapon_mode_state.mag_quantity = mag_limit;
                 weapon_mode_state.mag_size = mag_size;
-            },
-            MagBulletConfig::Magless {  bullet_limit } => {
+            }
+            MagBulletConfig::Magless { bullet_limit } => {
                 weapon_mode_state.mag_ammo = bullet_limit;
-            },
+            }
         };
 
-        weapon_modes_state.modes.insert(k.clone(), weapon_mode_state);
+        weapon_modes_state
+            .modes
+            .insert(k.clone(), weapon_mode_state);
     }
 
     let weapon: Weapon = weapon.into();
 
-    let transform = Transform::from_translation(fixed_math::fixed_to_vec2(weapon.sprite_config.weapon_offset).extend(0.)).with_rotation(Quat::IDENTITY);
+    let transform = Transform::from_translation(
+        fixed_math::fixed_to_vec2(weapon.sprite_config.weapon_offset).extend(0.),
+    )
+    .with_rotation(Quat::IDENTITY);
     let ggrs_transform = fixed_math::FixedTransform3D::from_bevy_transform(&transform);
 
-    let entity = commands.spawn((
-        transform,
-        ggrs_transform,
-        weapon_state,
-        weapon_modes_state,
-        weapon.clone(),
-        animation_bundle,
-        id_factory.next(weapon.config.name.clone()),
-    )).add_rollback().id();
+    let entity = commands
+        .spawn((
+            transform,
+            ggrs_transform,
+            weapon_state,
+            weapon_modes_state,
+            weapon.clone(),
+            animation_bundle,
+            id_factory.next(weapon.config.name.clone()),
+        ))
+        .add_rollback()
+        .id();
 
-
-    let spritesheet_config = sprint_sheet_assets.get(map_layers.get("body").unwrap()).unwrap();
+    let spritesheet_config = sprint_sheet_assets
+        .get(map_layers.get("body").unwrap())
+        .unwrap();
     create_child_sprite(
         commands,
-        &asset_server,
+        asset_server,
         texture_atlas_layouts,
-        entity.clone(), &spritesheet_config, 0);
+        entity,
+        spritesheet_config,
+        0,
+    );
 
-    inventory.weapons.push((entity.clone(), weapon));
+    inventory.weapons.push((entity, weapon));
 
     if active {
-        commands.entity(entity).insert((ActiveWeapon{}, Visibility::Inherited));
+        commands
+            .entity(entity)
+            .insert((ActiveWeapon {}, Visibility::Inherited));
         inventory.active_weapon_index = inventory.weapons.len() - 1;
     } else {
         commands.entity(entity).insert(Visibility::Hidden);
@@ -385,7 +412,6 @@ pub fn spawn_weapon_for_player(
 
     entity
 }
-
 
 fn spawn_bullet_rollback(
     commands: &mut Commands,
@@ -398,20 +424,40 @@ fn spawn_bullet_rollback(
     range: fixed_math::Fixed,
     player_handle: PlayerHandle,
     current_frame: u32,
-    collision_settings: &Res<CollisionSettings>,
+    _collision_settings: &Res<CollisionSettings>,
     parent_layer: &CollisionLayer,
-    id_factory: &mut ResMut<GgrsNetIdFactory> 
+    id_factory: &mut ResMut<GgrsNetIdFactory>,
 ) -> Entity {
     let (velocity, damage, range, radius) = match &bullet_type {
-        BulletType::Standard { speed, damage: damage_bullet } => {
-            (direction * (*speed / *GAME_SPEED ), *damage_bullet, range, fixed_math::new(5.0))
-        },
-        BulletType::Explosive { speed, damage: damage_bullet, blast_radius, explosive_damage_multiplier } => {
-            (direction * (*speed / *GAME_SPEED ), *damage_bullet, range, fixed_math::new(8.0))
-        },
-        BulletType::Piercing { speed, damage: damage_bullet, penetration } => {
-            (direction * (*speed / *GAME_SPEED ), *damage_bullet, range, fixed_math::new(5.0))
-        }
+        BulletType::Standard {
+            speed,
+            damage: damage_bullet,
+        } => (
+            direction * (*speed / *GAME_SPEED),
+            *damage_bullet,
+            range,
+            fixed_math::new(5.0),
+        ),
+        BulletType::Explosive {
+            speed,
+            damage: damage_bullet,
+            ..
+        } => (
+            direction * (*speed / *GAME_SPEED),
+            *damage_bullet,
+            range,
+            fixed_math::new(8.0),
+        ),
+        BulletType::Piercing {
+            speed,
+            damage: damage_bullet,
+            ..
+        } => (
+            direction * (*speed / *GAME_SPEED),
+            *damage_bullet,
+            range,
+            fixed_math::new(5.0),
+        ),
     };
 
     let color = match &bullet_type {
@@ -420,7 +466,7 @@ fn spawn_bullet_rollback(
         BulletType::Piercing { .. } => Color::BLACK,
     };
 
-     let local_muzzle_offset_v2 = if matches!(facing_direction, FacingDirection::Right) {
+    let local_muzzle_offset_v2 = if matches!(facing_direction, FacingDirection::Right) {
         weapon.sprite_config.bullet_offset_right
     } else {
         weapon.sprite_config.bullet_offset_left
@@ -439,17 +485,20 @@ fn spawn_bullet_rollback(
     let weapon_local_rotation_mat3: fixed_math::FixedMat3 = weapon_transform.rotation.clone();
     let weapon_local_translation_v3: fixed_math::FixedVec3 = weapon_transform.translation;
 
-    let muzzle_pos_in_player_space = weapon_local_rotation_mat3.mul_vec3(local_muzzle_offset_v3) + weapon_local_translation_v3;
+    let muzzle_pos_in_player_space =
+        weapon_local_rotation_mat3.mul_vec3(local_muzzle_offset_v3) + weapon_local_translation_v3;
 
     // 3. Transform muzzle position from player's local space to world space.
     let player_world_rotation_mat3: fixed_math::FixedMat3 = player_transform.rotation.clone();
     let player_world_translation_v3: fixed_math::FixedVec3 = player_transform.translation;
 
-    let world_firing_position = player_world_rotation_mat3.mul_vec3(muzzle_pos_in_player_space) + player_world_translation_v3;
+    let world_firing_position = player_world_rotation_mat3.mul_vec3(muzzle_pos_in_player_space)
+        + player_world_translation_v3;
 
     // 4. Calculate projectile's world rotation.
     // This is player's world rotation combined with weapon's local rotation.
-    let projectile_world_rotation = player_world_rotation_mat3.mul_mat3(&weapon_local_rotation_mat3); // Ensure mul_mat3 is the correct operation
+    let projectile_world_rotation =
+        player_world_rotation_mat3.mul_mat3(&weapon_local_rotation_mat3); // Ensure mul_mat3 is the correct operation
 
     // 5. Create the projectile's transform.
     let new_projectile_fixed_transform = fixed_math::FixedTransform3D::new(
@@ -459,8 +508,11 @@ fn spawn_bullet_rollback(
     );
 
     let g_id = id_factory.next(format!("{}", bullet_type));
-    
-    info!("{} spawn at {} by {}", g_id, new_projectile_fixed_transform.translation, player_handle);
+
+    info!(
+        "{} spawn at {} by {}",
+        g_id, new_projectile_fixed_transform.translation, player_handle
+    );
 
     let mut entity_commands = commands.spawn((
         Sprite::from_color(color, Vec2::new(10.0, 10.0)),
@@ -471,12 +523,7 @@ fn spawn_bullet_rollback(
             range,
             distance_traveled: fixed_math::Fixed::ZERO,
             player_handle,
-            created_at: current_frame
-        },
-        BulletRollbackState {
-            spawn_frame: current_frame,
-            initial_position: new_projectile_fixed_transform.translation.truncate(),
-            direction,
+            created_at: current_frame,
         },
         Collider {
             offset: fixed_math::FixedVec3::ZERO,
@@ -489,15 +536,17 @@ fn spawn_bullet_rollback(
     ));
 
     match bullet_type {
-        BulletType::Explosive { .. } =>  { entity_commands.insert(ExplosiveTag); },
-        BulletType::Piercing { .. } => { entity_commands.insert(PiercingTag); },
+        BulletType::Explosive { .. } => {
+            entity_commands.insert(ExplosiveTag);
+        }
+        BulletType::Piercing { .. } => {
+            entity_commands.insert(PiercingTag);
+        }
         _ => {}
     };
 
     entity_commands.add_rollback().id()
-
 }
-
 
 // SYSTEMS
 
@@ -505,15 +554,22 @@ fn spawn_bullet_rollback(
 pub fn system_weapon_position(
     query: Query<(&Children, &CursorPosition, &FacingDirection), With<Rollback>>,
     mut query_weapon: Query<&mut fixed_math::FixedTransform3D, With<ActiveWeapon>>,
-
 ) {
-    for (childs, cursor_position, direction) in query.iter() {
+    for (childs, cursor_position, _direction) in query.iter() {
         for child in childs.iter() {
             if let Ok(mut transform) = query_weapon.get_mut(*child) {
-                let cursor_game_world_pos = fixed_math::FixedVec3::new(fixed_math::new(cursor_position.x as f32), fixed_math::new(cursor_position.y as f32), fixed_math::new(0.0));
-                let direction_to_target_fixed = (cursor_game_world_pos - transform.translation).normalize();
-                let angle_radians_fixed = fixed_math::atan2_fixed(direction_to_target_fixed.y, direction_to_target_fixed.x);
-                        
+                let cursor_game_world_pos = fixed_math::FixedVec3::new(
+                    fixed_math::new(cursor_position.x as f32),
+                    fixed_math::new(cursor_position.y as f32),
+                    fixed_math::new(0.0),
+                );
+                let direction_to_target_fixed =
+                    (cursor_game_world_pos - transform.translation).normalize();
+                let angle_radians_fixed = fixed_math::atan2_fixed(
+                    direction_to_target_fixed.y,
+                    direction_to_target_fixed.x,
+                );
+
                 transform.rotation = fixed_math::FixedMat3::from_rotation_z(angle_radians_fixed);
             }
         }
@@ -527,20 +583,36 @@ pub fn weapon_rollback_system(
     inputs: Res<PlayerInputs<PeerConfig>>,
     frame: Res<FrameCount>,
 
-    mut inventory_query: Query<(Entity, &mut WeaponInventory, &SprintState, &DashState, &CollisionLayer, &fixed_math::FixedTransform3D, &Player)>,
-    mut weapon_query: Query<(&mut Weapon, &mut WeaponState, &mut WeaponModesState, &fixed_math::FixedTransform3D, &Parent)>,
+    mut inventory_query: Query<(
+        Entity,
+        &mut WeaponInventory,
+        &SprintState,
+        &DashState,
+        &CollisionLayer,
+        &fixed_math::FixedTransform3D,
+        &Player,
+    )>,
+    mut weapon_query: Query<(
+        &mut Weapon,
+        &mut WeaponState,
+        &mut WeaponModesState,
+        &fixed_math::FixedTransform3D,
+        &Parent,
+    )>,
 
     player_query: Query<(&fixed_math::FixedTransform3D, &FacingDirection, &Player)>,
 
     collision_settings: Res<CollisionSettings>,
 
-    mut id_factory: ResMut<GgrsNetIdFactory>
+    mut id_factory: ResMut<GgrsNetIdFactory>,
 ) {
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "weapon");
     let _enter = system_span.enter(); // Enter the span
 
     // Process weapon firing for all players
-    for (entity,  mut inventory, sprint_state, dash_state , collision_layer, transform, player) in inventory_query.iter_mut() {
+    for (_entity, mut inventory, sprint_state, dash_state, collision_layer, transform, player) in
+        inventory_query.iter_mut()
+    {
         let (input, _input_status) = inputs[player.handle];
 
         // Do nothing if no weapons
@@ -548,37 +620,44 @@ pub fn weapon_rollback_system(
             continue;
         }
 
-        if sprint_state.is_sprinting || dash_state.is_dashing || input.buttons & INPUT_SPRINT != 0 || input.buttons & INPUT_DASH != 0 {
-
+        if sprint_state.is_sprinting
+            || dash_state.is_dashing
+            || input.buttons & INPUT_SPRINT != 0
+            || input.buttons & INPUT_DASH != 0
+        {
             continue;
         }
 
-
         // Nothing to do for weapon if we are sprinting
-        
+
         // Get active weapon
         let (weapon_entity, _) = inventory.weapons[inventory.active_weapon_index];
 
-
         // Get the entity for the active weapon
-        if let Ok((mut weapon, mut weapon_state, mut weapon_modes_state, weapon_transform, parent)) = weapon_query.get_mut(weapon_entity) {
+        if let Ok((weapon, mut weapon_state, mut weapon_modes_state, weapon_transform, parent)) =
+            weapon_query.get_mut(weapon_entity)
+        {
             let active_mode = weapon_state.active_mode.clone();
             let weapon_config = weapon.config.firing_modes.get(&active_mode).unwrap();
 
             if input.buttons & INPUT_SWITCH_WEAPON_MODE != 0 {
-                if let Some(new_mode) = weapon_modes_state.modes.keys().find(|&x| *x != weapon_state.active_mode) {
-                    if inventory.frame_switched_mode + 20 < frame.frame && inventory.frame_switched + 20 < frame.frame {
+                if let Some(new_mode) = weapon_modes_state
+                    .modes
+                    .keys()
+                    .find(|&x| *x != weapon_state.active_mode)
+                {
+                    if inventory.frame_switched_mode + 20 < frame.frame
+                        && inventory.frame_switched + 20 < frame.frame
+                    {
                         inventory.frame_switched_mode = frame.frame;
                         weapon_state.active_mode = new_mode.clone();
 
                         continue;
                     }
-
                 }
             }
 
             let weapon_mode_state = weapon_modes_state.modes.get_mut(&active_mode).unwrap();
-
 
             // Check if reloading and update progress,
             if inventory.is_reloading() {
@@ -588,19 +667,19 @@ pub fn weapon_rollback_system(
                 } else {
                     continue;
                 }
-            } else if input.buttons & INPUT_RELOAD != 0  && !weapon_mode_state.is_mag_full() {
+            } else if input.buttons & INPUT_RELOAD != 0 && !weapon_mode_state.is_mag_full() {
                 inventory.start_reload(frame.frame, weapon_config.reload_time_seconds);
                 continue;
             }
 
             // Handle switching of weapons, will start firing on the next frame
-            if input.switch_weapon && !inventory.weapons.is_empty(){
+            if input.switch_weapon && !inventory.weapons.is_empty() {
                 let new_index = (inventory.active_weapon_index + 1) % inventory.weapons.len();
 
-                if new_index != inventory.active_weapon_index &&
-                    inventory.frame_switched + 20 < frame.frame &&
-                    inventory.frame_switched_mode + 20 < frame.frame  {
-
+                if new_index != inventory.active_weapon_index
+                    && inventory.frame_switched + 20 < frame.frame
+                    && inventory.frame_switched_mode + 20 < frame.frame
+                {
                     inventory.active_weapon_index = new_index;
                     inventory.frame_switched = frame.frame;
 
@@ -611,30 +690,42 @@ pub fn weapon_rollback_system(
             // TODO: fix only support two mode, take the first that is not the current
             if input.fire {
                 // Calculate fire rate in frames (60 FPS assumed) , need to be configure via ressource instead
-                let frame_per_shot = ((bevy_fixed::fixed_math::new(60.) / weapon_config.firing_rate)).to_num::<u32>();
+                let frame_per_shot =
+                    (bevy_fixed::fixed_math::new(60.) / weapon_config.firing_rate).to_num::<u32>();
                 let current_frame = frame.frame;
                 let frames_since_last_shot = current_frame - weapon_state.last_fire_frame;
 
-               let (can_fire, empty) = match weapon_config.firing_mode {
-                    FiringMode::Automatic { .. } => {
-                        (frames_since_last_shot >= frame_per_shot, weapon_mode_state.mag_ammo == 0)
-                    },
-                    
-                    FiringMode::Manual { .. } => {
-                        (!weapon_state.is_firing && frames_since_last_shot >= frame_per_shot,
-                        weapon_mode_state.mag_ammo == 0)
-                    },
-                    
-                    FiringMode::Burst { pellets_per_shot, cooldown_frames } => {
-                        if weapon_mode_state.burst_shots_left > 0 && frames_since_last_shot >= frame_per_shot {
+                let (can_fire, empty) = match weapon_config.firing_mode {
+                    FiringMode::Automatic { .. } => (
+                        frames_since_last_shot >= frame_per_shot,
+                        weapon_mode_state.mag_ammo == 0,
+                    ),
+
+                    FiringMode::Manual { .. } => (
+                        !weapon_state.is_firing && frames_since_last_shot >= frame_per_shot,
+                        weapon_mode_state.mag_ammo == 0,
+                    ),
+
+                    FiringMode::Burst {
+                        pellets_per_shot,
+                        cooldown_frames,
+                    } => {
+                        if weapon_mode_state.burst_shots_left > 0
+                            && frames_since_last_shot >= frame_per_shot
+                        {
                             // Continue ongoing burst
                             (true, weapon_mode_state.mag_ammo == 0)
                         } else if weapon_mode_state.burst_shots_left == 0 {
-                            if !weapon_state.is_firing && !weapon_mode_state.burst_cooldown && frames_since_last_shot >= cooldown_frames {
+                            if !weapon_state.is_firing
+                                && !weapon_mode_state.burst_cooldown
+                                && frames_since_last_shot >= cooldown_frames
+                            {
                                 // Start new burst when trigger is pulled
                                 weapon_mode_state.burst_shots_left = pellets_per_shot;
                                 (true, weapon_mode_state.mag_ammo == 0)
-                            } else if weapon_mode_state.burst_cooldown && frames_since_last_shot >= cooldown_frames {
+                            } else if weapon_mode_state.burst_cooldown
+                                && frames_since_last_shot >= cooldown_frames
+                            {
                                 // Reset cooldown
                                 weapon_mode_state.burst_cooldown = false;
                                 (false, false)
@@ -644,9 +735,9 @@ pub fn weapon_rollback_system(
                         } else {
                             (false, false)
                         }
-                    },
-                    
-                    FiringMode::Shotgun { pellet_count, spread_angle } => {
+                    }
+
+                    FiringMode::Shotgun { .. } => {
                         if !weapon_state.is_firing && frames_since_last_shot >= frame_per_shot {
                             // Shotgun fires all pellets at once, so we don't need burst_shots_left
                             (true, weapon_mode_state.mag_ammo == 0)
@@ -654,8 +745,7 @@ pub fn weapon_rollback_system(
                             (false, false)
                         }
                     }
-                }; 
-
+                };
 
                 if empty {
                     inventory.start_reload(frame.frame, weapon_config.reload_time_seconds);
@@ -670,80 +760,92 @@ pub fn weapon_rollback_system(
                             fixed_math::Fixed::from_num(input.pan_x),
                             fixed_math::Fixed::from_num(input.pan_y),
                         );
-                        aim_dir.x = aim_dir.x / fixed_math::new(127.0);
-                        aim_dir.y = aim_dir.y / fixed_math::new(127.0);
+                        aim_dir.x /= fixed_math::new(127.0);
+                        aim_dir.y /= fixed_math::new(127.0);
                         aim_dir = aim_dir.normalize();
 
-                               match weapon_config.firing_mode {
-                                    FiringMode::Shotgun { pellet_count, spread_angle } => {
-                                        // Fire multiple pellets in a spread pattern
-                                        for _ in 0..pellet_count {
-                                            // Calculate a random angle within the spread range
-                                            let random_fixed_val = rng.next_fixed();
-                                            let offset_from_center = random_fixed_val.saturating_sub(fixed_math::FIXED_HALF);
-                                            let pellet_angle_fixed = offset_from_center.saturating_mul(spread_angle);
+                        match weapon_config.firing_mode {
+                            FiringMode::Shotgun {
+                                pellet_count,
+                                spread_angle,
+                            } => {
+                                // Fire multiple pellets in a spread pattern
+                                for _ in 0..pellet_count {
+                                    // Calculate a random angle within the spread range
+                                    let random_fixed_val = rng.next_fixed();
+                                    let offset_from_center =
+                                        random_fixed_val.saturating_sub(fixed_math::FIXED_HALF);
+                                    let pellet_angle_fixed =
+                                        offset_from_center.saturating_mul(spread_angle);
 
-                                            // Create the fixed-point 2D rotation matrix
-                                            let fixed_spread_rotation = fixed_math::FixedMat2::from_angle(pellet_angle_fixed);
+                                    // Create the fixed-point 2D rotation matrix
+                                    let fixed_spread_rotation =
+                                        fixed_math::FixedMat2::from_angle(pellet_angle_fixed);
 
-                                            // Apply the rotation to the fixed-point aim direction
-                                            let direction = fixed_spread_rotation.mul_vec2(aim_dir);
+                                    // Apply the rotation to the fixed-point aim direction
+                                    let direction = fixed_spread_rotation.mul_vec2(aim_dir);
 
-                                            spawn_bullet_rollback(
-                                                &mut commands,
-                                                &weapon,
-                                                transform,
-                                                weapon_transform,
-                                                facing_direction,
-                                                direction,
-                                                weapon_config.bullet_type.clone(),
-                                                weapon_config.range,
-                                                player.handle,
-                                                frame.frame,
-                                                &collision_settings,
-                                                collision_layer,
-                                                &mut id_factory
-                                            );
-                                        }
-                                        weapon_mode_state.mag_ammo -= 1; // Shotgun uses one ammo for all pellets
-                                        inventory.start_reload(frame.frame, weapon_config.reload_time_seconds);
-                                    },
-                                    _ => {
-                                        let random_fixed_val = rng.next_fixed();
-                                        let offset_from_center = random_fixed_val.saturating_sub(fixed_math::FIXED_HALF);
-                                        let pellet_angle_fixed = offset_from_center.saturating_mul(fixed_math::FIXED_ONE);
+                                    spawn_bullet_rollback(
+                                        &mut commands,
+                                        &weapon,
+                                        transform,
+                                        weapon_transform,
+                                        facing_direction,
+                                        direction,
+                                        weapon_config.bullet_type,
+                                        weapon_config.range,
+                                        player.handle,
+                                        frame.frame,
+                                        &collision_settings,
+                                        collision_layer,
+                                        &mut id_factory,
+                                    );
+                                }
+                                weapon_mode_state.mag_ammo -= 1; // Shotgun uses one ammo for all pellets
+                                inventory
+                                    .start_reload(frame.frame, weapon_config.reload_time_seconds);
+                            }
+                            _ => {
+                                let random_fixed_val = rng.next_fixed();
+                                let offset_from_center =
+                                    random_fixed_val.saturating_sub(fixed_math::FIXED_HALF);
+                                let pellet_angle_fixed =
+                                    offset_from_center.saturating_mul(fixed_math::FIXED_ONE);
 
-                                        let fixed_spread_rotation = fixed_math::FixedMat2::from_angle(pellet_angle_fixed);
-                                        let direction = fixed_spread_rotation.mul_vec2(aim_dir);
+                                let fixed_spread_rotation =
+                                    fixed_math::FixedMat2::from_angle(pellet_angle_fixed);
+                                let direction = fixed_spread_rotation.mul_vec2(aim_dir);
 
-                                        spawn_bullet_rollback(
-                                            &mut commands,
-                                            &weapon,
-                                            transform,
-                                            weapon_transform,
-                                            facing_direction,
-                                            direction,
-                                            weapon_config.bullet_type.clone(),
-                                            weapon_config.range,
-                                            player.handle,
-                                            frame.frame,
-                                            &collision_settings,
-                                            collision_layer,
-                                            &mut id_factory
-                                        );
-                                        weapon_mode_state.mag_ammo -= 1;
+                                spawn_bullet_rollback(
+                                    &mut commands,
+                                    &weapon,
+                                    transform,
+                                    weapon_transform,
+                                    facing_direction,
+                                    direction,
+                                    weapon_config.bullet_type,
+                                    weapon_config.range,
+                                    player.handle,
+                                    frame.frame,
+                                    &collision_settings,
+                                    collision_layer,
+                                    &mut id_factory,
+                                );
+                                weapon_mode_state.mag_ammo -= 1;
 
-                                        if matches!(weapon_config.firing_mode, FiringMode::Burst { .. }) && weapon_mode_state.burst_shots_left > 0 {
-                                            weapon_mode_state.burst_shots_left -= 1;
-                                            
-                                            // Set cooldown when burst finishes
-                                            if weapon_mode_state.burst_shots_left == 0 {
-                                                weapon_mode_state.burst_cooldown = true;
-                                            }
-                                        }
+                                if matches!(weapon_config.firing_mode, FiringMode::Burst { .. })
+                                    && weapon_mode_state.burst_shots_left > 0
+                                {
+                                    weapon_mode_state.burst_shots_left -= 1;
+
+                                    // Set cooldown when burst finishes
+                                    if weapon_mode_state.burst_shots_left == 0 {
+                                        weapon_mode_state.burst_cooldown = true;
                                     }
                                 }
-                                weapon_state.last_fire_frame = frame.frame;
+                            }
+                        }
+                        weapon_state.last_fire_frame = frame.frame;
                     }
                 }
             } else {
@@ -753,17 +855,20 @@ pub fn weapon_rollback_system(
     }
 }
 
-
-
 pub fn bullet_rollback_system(
     mut commands: Commands,
     frame: Res<FrameCount>,
-    mut bullet_query: Query<(Entity, &GgrsNetId, &mut fixed_math::FixedTransform3D, &mut Bullet, &BulletRollbackState)>,
+    mut bullet_query: Query<(
+        Entity,
+        &GgrsNetId,
+        &mut fixed_math::FixedTransform3D,
+        &mut Bullet,
+    )>,
 ) {
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "bullet_movement");
     let _enter = system_span.enter();
 
-    for (entity, g_id, mut transform, mut bullet, bullet_state) in bullet_query.iter_mut() {
+    for (entity, g_id, mut transform, mut bullet) in bullet_query.iter_mut() {
         // Move bullet based on velocity (fixed timestep)
         let delta = bullet.velocity; // Assume bullet.velocity is already deterministic for this frame
 
@@ -771,11 +876,13 @@ pub fn bullet_rollback_system(
         transform.translation.x += delta.x;
         transform.translation.y += delta.y;
 
-
         bullet.distance_traveled += delta.length();
 
         if bullet.distance_traveled >= bullet.range {
-            info!("{} despawn after travelleing {}", g_id, bullet.distance_traveled);
+            info!(
+                "{} despawn after travelleing {}",
+                g_id, bullet.distance_traveled
+            );
             commands.entity(entity).despawn();
         }
     }
@@ -784,20 +891,48 @@ pub fn bullet_rollback_collision_system(
     frame: Res<FrameCount>,
     mut commands: Commands,
     settings: Res<CollisionSettings>,
-    bullet_query: Query<(Entity, &fixed_math::FixedTransform3D, &Bullet, &Collider, &CollisionLayer, &GgrsNetId), With<Rollback>>,
+    bullet_query: Query<
+        (
+            Entity,
+            &fixed_math::FixedTransform3D,
+            &Bullet,
+            &Collider,
+            &CollisionLayer,
+            &GgrsNetId,
+        ),
+        With<Rollback>,
+    >,
     // Query for colliders. We'll need mutable access to DamageAccumulator later.
-    mut collider_query: Query<(Entity, &fixed_math::FixedTransform3D, &Collider, &CollisionLayer, &GgrsNetId, Option<&Wall>, Option<&Health>, Option<&mut DamageAccumulator>), (Without<Bullet>, With<Rollback>)>,
+    mut collider_query: Query<
+        (
+            Entity,
+            &fixed_math::FixedTransform3D,
+            &Collider,
+            &CollisionLayer,
+            &GgrsNetId,
+            Option<&Wall>,
+            Option<&Health>,
+            Option<&mut DamageAccumulator>,
+        ),
+        (Without<Bullet>, With<Rollback>),
+    >,
 ) {
-    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "bullet_collissions");
+    let system_span = span!(
+        Level::INFO,
+        "ggrs",
+        f = frame.frame,
+        s = "bullet_collissions"
+    );
     let _enter = system_span.enter();
 
     let mut bullets_to_despawn_set = HashSet::new();
 
     let mut deterministic_bullet: Vec<_> = bullet_query.iter().collect();
-    deterministic_bullet.sort_unstable_by_key(|(_, _, _, _, _,  id)| id.0);
+    deterministic_bullet.sort_unstable_by_key(|(_, _, _, _, _, id)| id.0);
 
-
-    for (bullet_entity, bullet_transform, bullet, bullet_collider, bullet_layer, ggrs_net_id) in deterministic_bullet {
+    for (bullet_entity, bullet_transform, bullet, bullet_collider, bullet_layer, ggrs_net_id) in
+        deterministic_bullet
+    {
         if bullets_to_despawn_set.contains(&bullet_entity) {
             continue;
         }
@@ -805,11 +940,26 @@ pub fn bullet_rollback_collision_system(
         let mut actual_collided_target_entities: Vec<(Entity, GgrsNetId)> = Vec::new();
 
         // Phase 1: Identify ALL entities this bullet is colliding with (immutable pass first)
-        for (target_entity, target_transform, target_collider, target_layer, collider_net_id, _opt_wall, _opt_health, /* no mut here */ _) in collider_query.iter() {
-            if !settings.layer_matrix[bullet_layer.0 as usize][target_layer.0 as usize] {
+        for (
+            target_entity,
+            target_transform,
+            target_collider,
+            target_layer,
+            collider_net_id,
+            _opt_wall,
+            _opt_health,
+            /* no mut here */ _,
+        ) in collider_query.iter()
+        {
+            if !settings.layer_matrix[bullet_layer.0][target_layer.0] {
                 continue;
             }
-            if is_colliding(&bullet_transform.translation, bullet_collider, &target_transform.translation, target_collider) {
+            if is_colliding(
+                &bullet_transform.translation,
+                bullet_collider,
+                &target_transform.translation,
+                target_collider,
+            ) {
                 actual_collided_target_entities.push((target_entity, collider_net_id.clone()));
             }
         }
@@ -819,44 +969,65 @@ pub fn bullet_rollback_collision_system(
         }
 
         // Sort the collided entities to pick the "first" one deterministically
-        actual_collided_target_entities.sort_unstable_by_key(|(e, g_id) | g_id.0);
-
+        actual_collided_target_entities.sort_unstable_by_key(|(_, g_id)| g_id.0);
 
         // The bullet will interact with the first entity in this sorted list.
-        let (deterministic_target_entity, deterministic_target_g_id) = actual_collided_target_entities[0].clone();
+        let (deterministic_target_entity, deterministic_target_g_id) =
+            actual_collided_target_entities[0].clone();
 
-        info!("bullet {} collissions with {:?}", ggrs_net_id, deterministic_target_g_id);
+        info!(
+            "bullet {} collissions with {:?}",
+            ggrs_net_id, deterministic_target_g_id
+        );
         // Now get mutable components for this specific, deterministically chosen target
-        if let Ok((_target_entity_refetch, _target_transform, _target_collider, _target_layer, _, opt_wall, opt_health, opt_accumulator_mut)) = collider_query.get_mut(deterministic_target_entity) {
+        if let Ok((
+            _target_entity_refetch,
+            _target_transform,
+            _target_collider,
+            _target_layer,
+            _,
+            opt_wall,
+            opt_health,
+            opt_accumulator_mut,
+        )) = collider_query.get_mut(deterministic_target_entity)
+        {
             if opt_health.is_some() {
                 let last_hit_by = Some(vec![
                     HitBy::Player(bullet.player_handle),
                     HitBy::Entity(ggrs_net_id.clone()),
                 ]);
                 if let Some(mut accumulator) = opt_accumulator_mut {
-                    accumulator.total_damage = accumulator.total_damage.saturating_add(bullet.damage);
+                    accumulator.total_damage =
+                        accumulator.total_damage.saturating_add(bullet.damage);
                     accumulator.hit_count += 1;
                     accumulator.last_hit_by = last_hit_by;
                 } else {
-                    commands.entity(deterministic_target_entity).insert(DamageAccumulator {
-                        hit_count: 1,
-                        total_damage: bullet.damage,
-                        last_hit_by: last_hit_by,
-                    });
+                    commands
+                        .entity(deterministic_target_entity)
+                        .insert(DamageAccumulator {
+                            hit_count: 1,
+                            total_damage: bullet.damage,
+                            last_hit_by,
+                        });
                 }
             }
 
             let mut should_bullet_despawn_now = false;
             match bullet.bullet_type {
-                BulletType::Standard { .. } => { should_bullet_despawn_now = true; },
-                BulletType::Explosive { .. } => { should_bullet_despawn_now = true; },
+                BulletType::Standard { .. } => {
+                    should_bullet_despawn_now = true;
+                }
+                BulletType::Explosive { .. } => {
+                    should_bullet_despawn_now = true;
+                }
                 BulletType::Piercing { .. } => {
-                    if opt_wall.is_some() { // Piercing bullets despawn on walls
+                    if opt_wall.is_some() {
+                        // Piercing bullets despawn on walls
                         should_bullet_despawn_now = true;
                     }
                     // If piercing bullets should continue through enemies, this logic is fine.
                     // They would only despawn if they hit a wall (or run out of pierce, etc.)
-                },
+                }
             }
 
             if should_bullet_despawn_now {
@@ -879,7 +1050,7 @@ pub fn bullet_rollback_collision_system(
 pub fn weapon_inventory_system(
     mut commands: Commands,
     query: Query<(Entity, &mut WeaponInventory)>,
-    mut weapon_entities: Query<(Entity, &mut Visibility),  With<Weapon>>,
+    mut weapon_entities: Query<(Entity, &mut Visibility), With<Weapon>>,
 ) {
     for (_player_entity, inventory) in query.iter() {
         if inventory.weapons.is_empty() {
@@ -890,38 +1061,31 @@ pub fn weapon_inventory_system(
         for (i, (weapon_entity, _)) in inventory.weapons.iter().enumerate() {
             let is_active = i == inventory.active_weapon_index;
 
-            
             // For simplicity, we're using commands to add/remove components
             // In a real implementation, you might want to use a Visibility component
             if let Ok((_, mut visibility)) = weapon_entities.get_mut(*weapon_entity) {
                 if is_active {
-                    commands.entity(*weapon_entity)
-                        .insert(ActiveWeapon);
+                    commands.entity(*weapon_entity).insert(ActiveWeapon);
                     *visibility = Visibility::Visible;
                 } else {
-                    commands.entity(*weapon_entity)
-                        .remove::<ActiveWeapon>();
+                    commands.entity(*weapon_entity).remove::<ActiveWeapon>();
                     *visibility = Visibility::Hidden;
                 }
             }
-
         }
     }
 }
 
-
-
 pub fn update_weapon_sprite_direction(
-    mut query_sprite: Query<(&mut Sprite)>,
+    mut query_sprite: Query<&mut Sprite>,
     query_players: Query<(&Children, &FacingDirection)>,
-    query_weapons: Query<(&Children), With<ActiveWeapon>>
+    query_weapons: Query<&Children, With<ActiveWeapon>>,
 ) {
-
-    for (childs,  direction) in query_players.iter() {
+    for (childs, direction) in query_players.iter() {
         for child in childs.iter() {
             if let Ok(childs) = query_weapons.get(*child) {
                 for child in childs.iter() {
-                    if let Ok((mut sprite)) = query_sprite.get_mut(*child) {
+                    if let Ok(mut sprite) = query_sprite.get_mut(*child) {
                         match direction {
                             FacingDirection::Left => {
                                 sprite.flip_y = true;
@@ -935,34 +1099,62 @@ pub fn update_weapon_sprite_direction(
             }
         }
     }
-
 }
-
 
 pub fn weapons_config_update_system(
     _asset_server: Res<AssetServer>,
-    
+
     weapons_config: Res<Assets<WeaponsConfig>>,
 
     mut ev_asset: EventReader<AssetEvent<WeaponsConfig>>,
 
     mut query_weapons: Query<(&Children, Entity, &mut Weapon)>,
 ) {
-
     for event in ev_asset.read() {
         if let AssetEvent::Modified { id } = event {
-
             if let Some(weapons_config) = weapons_config.get(*id) {
                 for (_childs, _entity, mut weapon) in query_weapons.iter_mut() {
                     if let Some(config) = weapons_config.0.get(&weapon.config.name) {
                         weapon.config = config.config.clone();
                         weapon.sprite_config = config.sprite_config.clone();
                     }
-                
                 }
             }
-
         }
     }
+}
 
+pub struct BaseWeaponGamePlugin {}
+
+impl Plugin for BaseWeaponGamePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(self::ui::WeaponDebugUIPlugin);
+
+        app.add_plugins(RonAssetPlugin::<WeaponsConfig>::new(&["ron"]));
+
+        app.rollback_component_with_clone::<WeaponInventory>()
+            .rollback_component_with_clone::<WeaponModesState>()
+            .rollback_component_with_clone::<WeaponState>()
+            .rollback_component_with_clone::<Bullet>();
+
+        app.add_systems(
+            Update,
+            (
+                update_weapon_sprite_direction,
+                weapon_inventory_system,
+                weapons_config_update_system,
+            ),
+        );
+
+        app.add_systems(
+            GgrsSchedule,
+            (
+                system_weapon_position,
+                weapon_rollback_system.after(system_weapon_position),
+                bullet_rollback_system.after(weapon_rollback_system),
+                bullet_rollback_collision_system.after(bullet_rollback_system),
+            )
+                .in_set(RollbackSystemSet::Weapon),
+        );
+    }
 }

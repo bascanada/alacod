@@ -1,14 +1,14 @@
-use animation::FacingDirection;
-use bevy::prelude::*;
-use bevy_fixed::fixed_math;
-use bevy_fixed::rng::RollbackRng;
-use std::collections::VecDeque;
 use crate::character::config::{CharacterConfig, CharacterConfigHandles};
 use crate::character::enemy::Enemy;
 use crate::character::movement::Velocity;
 use crate::character::player::input::FIXED_TIMESTEP;
 use crate::character::player::Player;
-use crate::collider::{Collider, is_colliding, Wall};
+use crate::collider::{is_colliding, Collider, Wall};
+use animation::FacingDirection;
+use bevy::prelude::*;
+use bevy_fixed::fixed_math;
+use bevy_fixed::rng::RollbackRng;
+use std::collections::VecDeque;
 use utils::frame::FrameCount;
 
 #[derive(Component, Debug, Clone, Default)]
@@ -17,7 +17,7 @@ pub struct EnemyPath {
     pub target_position: fixed_math::FixedVec2,
     // Queue of waypoints (if using pathfinding)
     pub waypoints: VecDeque<fixed_math::FixedVec2>,
-    // Path recalculation timer 
+    // Path recalculation timer
     pub recalculate_ticks: u32,
     // Path status
     pub path_status: PathStatus,
@@ -33,7 +33,7 @@ pub enum PathStatus {
     Blocked,
 }
 
-#[derive(Resource,Clone)]
+#[derive(Resource, Clone)]
 pub struct PathfindingConfig {
     // How often to recalculate paths (in frames)
     pub recalculation_interval: u32,
@@ -69,10 +69,10 @@ impl Default for PathfindingConfig {
             node_size: fixed_math::new(20.0),
             movement_speed: fixed_math::new(20.0),
             waypoint_reach_distance: fixed_math::new(10.0),
-            optimal_attack_distance: fixed_math::new(100.0),     // Keep this distance from players
-            slow_down_distance: fixed_math::new(150.0),          // Start slowing down at this distance
-            enemy_separation_force: fixed_math::new(2.0),        // Much stronger separation force
-            enemy_separation_distance: fixed_math::new(80.0),    // Larger separation distance
+            optimal_attack_distance: fixed_math::new(100.0), // Keep this distance from players
+            slow_down_distance: fixed_math::new(150.0),      // Start slowing down at this distance
+            enemy_separation_force: fixed_math::new(2.0),    // Much stronger separation force
+            enemy_separation_distance: fixed_math::new(80.0), // Larger separation distance
         }
     }
 }
@@ -107,7 +107,8 @@ pub fn update_enemy_targets(
         let mut closest_player_pos_v2 = player_positions[0];
         let mut closest_distance_sq = enemy_pos_v2.distance_squared(&closest_player_pos_v2); // Use distance_squared for comparison
 
-        for player_pos_v2 in player_positions.iter().skip(1) { // Iterate from the second element
+        for player_pos_v2 in player_positions.iter().skip(1) {
+            // Iterate from the second element
             let distance_sq = enemy_pos_v2.distance_squared(player_pos_v2);
             if distance_sq < closest_distance_sq {
                 closest_distance_sq = distance_sq;
@@ -120,12 +121,11 @@ pub fn update_enemy_targets(
 
         // Mark for path recalculation
         path.recalculate_ticks = frame.frame; // This seems to be setting it to current frame, not a timer
-                                             // Consider if you want path.path_status = PathStatus::CalculatingPath; here
-                                             // or if recalculate_ticks is used differently.
-                                             // For now, matching original logic.
+                                              // Consider if you want path.path_status = PathStatus::CalculatingPath; here
+                                              // or if recalculate_ticks is used differently.
+                                              // For now, matching original logic.
     }
 }
-
 
 // System to check if direct path is clear
 pub fn check_direct_paths(
@@ -150,22 +150,32 @@ pub fn check_direct_paths(
 
             // Define a step distance for checking collisions along the path
             let check_step_distance = fixed_math::new(10.0); // How far each step check is (e.g., half collider radius)
-            let num_steps = (distance / check_step_distance).ceil().to_num::<i32>().max(1) as usize; // Fixed.ceil() then convert
+            let num_steps = (distance / check_step_distance)
+                .ceil()
+                .to_num::<i32>()
+                .max(1) as usize; // Fixed.ceil() then convert
 
             let mut path_is_blocked = false;
 
             // Virtual collider for checking along the path
             // Ensure Collider struct and ColliderShape are updated for fixed-point
             let test_collider = Collider {
-                shape: crate::collider::ColliderShape::Circle { radius: fixed_math::new(15.0) }, // Example radius
+                shape: crate::collider::ColliderShape::Circle {
+                    radius: fixed_math::new(15.0),
+                }, // Example radius
                 offset: fixed_math::FixedVec3::ZERO,
             };
 
-            for i in 1..=num_steps { // Iterate up to and including the target (or num_steps)
+            for i in 1..=num_steps {
+                // Iterate up to and including the target (or num_steps)
                 let step_dist = check_step_distance * fixed_math::Fixed::from_num(i);
-                let current_check_dist = if step_dist > distance { distance } else { step_dist };
+                let current_check_dist = if step_dist > distance {
+                    distance
+                } else {
+                    step_dist
+                };
                 let test_pos_v2 = enemy_pos_v2 + direction_v2 * current_check_dist;
-                
+
                 // Create a FixedTransform3D for the test position
                 // Assuming Z is 0 for 2D path checking
                 let test_fixed_transform = fixed_math::FixedTransform3D {
@@ -176,7 +186,12 @@ pub fn check_direct_paths(
 
                 for (wall_fixed_transform, wall_collider) in wall_query.iter() {
                     // is_colliding must take (&FixedTransform3D, &Collider, &FixedTransform3D, &Collider)
-                    if is_colliding(&test_fixed_transform.translation, &test_collider, &wall_fixed_transform.translation, wall_collider) {
+                    if is_colliding(
+                        &test_fixed_transform.translation,
+                        &test_collider,
+                        &wall_fixed_transform.translation,
+                        wall_collider,
+                    ) {
                         path_is_blocked = true;
                         break;
                     }
@@ -189,21 +204,26 @@ pub fn check_direct_paths(
             if !path_is_blocked {
                 path.waypoints.clear();
                 path.path_status = PathStatus::DirectPath;
-            } else { // Path is blocked
+            } else {
+                // Path is blocked
                 // If not already following a calculated path, mark for calculation
-                if path.path_status != PathStatus::FollowingPath && path.path_status != PathStatus::CalculatingPath {
-                     path.path_status = PathStatus::CalculatingPath;
+                if path.path_status != PathStatus::FollowingPath
+                    && path.path_status != PathStatus::CalculatingPath
+                {
+                    path.path_status = PathStatus::CalculatingPath;
                 }
             }
-        } else { // Target is far, needs pathfinding
-             // If not already following a calculated path, mark for calculation
-            if path.path_status != PathStatus::FollowingPath && path.path_status != PathStatus::CalculatingPath {
+        } else {
+            // Target is far, needs pathfinding
+            // If not already following a calculated path, mark for calculation
+            if path.path_status != PathStatus::FollowingPath
+                && path.path_status != PathStatus::CalculatingPath
+            {
                 path.path_status = PathStatus::CalculatingPath;
             }
         }
     }
 }
-
 
 // System to calculate paths around obstacles when needed
 pub fn calculate_paths(
@@ -213,7 +233,11 @@ pub fn calculate_paths(
     config: Res<PathfindingConfig>,
 ) {
     // --- Step 1: Collect entities and categorize them ---
-    let mut entities_needing_path_calculation_data: Vec<(Entity, fixed_math::FixedVec2, fixed_math::FixedVec2)> = Vec::new();
+    let mut entities_needing_path_calculation_data: Vec<(
+        Entity,
+        fixed_math::FixedVec2,
+        fixed_math::FixedVec2,
+    )> = Vec::new();
     let mut entities_to_set_direct: Vec<Entity> = Vec::new();
 
     // Initial immutable iteration to categorize
@@ -247,7 +271,8 @@ pub fn calculate_paths(
     // --- Step 4: Iterate sorted entities and perform path calculation logic (including RNG) ---
     for (entity_id, enemy_pos_v2, target_v2) in entities_needing_path_calculation_data {
         // Get mutable access to the path component for the current entity
-        if let Ok((_fetched_entity, _fetched_transform, mut path)) = enemy_query.get_mut(entity_id) {
+        if let Ok((_fetched_entity, _fetched_transform, mut path)) = enemy_query.get_mut(entity_id)
+        {
             // The entity should still be in PathStatus::CalculatingPath because we filtered
             // and processed the "already at target" cases separately. A defensive check can be added if necessary.
             // if path.path_status != PathStatus::CalculatingPath { continue; }
@@ -265,9 +290,13 @@ pub fn calculate_paths(
             }
 
             let base_angle_offsets: [fixed_math::Fixed; 7] = [
-                fixed_math::FIXED_ZERO, fixed_math::new(0.5), -fixed_math::new(0.5),
-                fixed_math::FIXED_ONE, -fixed_math::FIXED_ONE,
-                fixed_math::new(1.5), -fixed_math::new(1.5)
+                fixed_math::FIXED_ZERO,
+                fixed_math::new(0.5),
+                -fixed_math::new(0.5),
+                fixed_math::FIXED_ONE,
+                -fixed_math::FIXED_ONE,
+                fixed_math::new(1.5),
+                -fixed_math::new(1.5),
             ];
 
             let mut best_angle_fixed = fixed_math::FIXED_ZERO;
@@ -281,22 +310,24 @@ pub fn calculate_paths(
                 let current_angle_fixed = initial_angle_fixed + *angle_offset_fixed;
                 let test_dir_v2 = fixed_math::FixedVec2::new(
                     fixed_math::cos_fixed(current_angle_fixed),
-                    fixed_math::sin_fixed(current_angle_fixed)
+                    fixed_math::sin_fixed(current_angle_fixed),
                 );
 
                 let step_check_distance = config.node_size;
-                let max_check_steps = 10; 
+                let max_check_steps = 10;
 
                 let test_collider = Collider {
-                    shape: crate::collider::ColliderShape::Circle { radius: fixed_math::new(15.0) },
+                    shape: crate::collider::ColliderShape::Circle {
+                        radius: fixed_math::new(15.0),
+                    },
                     offset: fixed_math::FixedVec3::ZERO, // Assuming Collider.offset is FixedVec2
                 };
-                
+
                 let mut max_clear_distance = fixed_math::FIXED_ZERO;
                 for i in 1..=max_check_steps {
                     let test_dist_along_dir = fixed_math::Fixed::from_num(i) * step_check_distance;
                     let test_pos_v2 = enemy_pos_v2 + test_dir_v2 * test_dist_along_dir;
-                    
+
                     let test_fixed_transform = fixed_math::FixedTransform3D {
                         translation: test_pos_v2.extend(),
                         rotation: fixed_math::FixedMat3::IDENTITY,
@@ -305,7 +336,12 @@ pub fn calculate_paths(
 
                     let mut collides = false;
                     for (wall_fixed_transform, wall_collider) in wall_query.iter() {
-                        if is_colliding(&test_fixed_transform.translation, &test_collider, &wall_fixed_transform.translation, wall_collider) {
+                        if is_colliding(
+                            &test_fixed_transform.translation,
+                            &test_collider,
+                            &wall_fixed_transform.translation,
+                            wall_collider,
+                        ) {
                             collides = true;
                             break;
                         }
@@ -322,26 +358,27 @@ pub fn calculate_paths(
 
                 let alignment_factor = fixed_math::FIXED_ONE + test_dir_v2.dot(&direct_dir_v2);
                 let current_score = max_clear_distance * alignment_factor;
-                
+
                 if current_score > best_clearance_score {
                     best_clearance_score = current_score;
                     best_angle_fixed = current_angle_fixed;
                 }
             }
 
-            if best_clearance_score > fixed_math::Fixed::MIN { // Check against initial value
+            if best_clearance_score > fixed_math::Fixed::MIN {
+                // Check against initial value
                 let waypoint_distance = config.node_size * fixed_math::new(2.0);
                 // Calculate remaining distance to target to avoid overshooting massively with waypoint
                 let distance_to_target = enemy_pos_v2.distance(&target_v2);
-                let waypoint_dist_clamped = waypoint_distance.min(distance_to_target * fixed_math::FIXED_HALF);
-
+                let waypoint_dist_clamped =
+                    waypoint_distance.min(distance_to_target * fixed_math::FIXED_HALF);
 
                 // *** RNG consumed in deterministic order ***
-                let jitter_angle_offset = rng.next_fixed_symmetric() * fixed_math::new(0.1); 
+                let jitter_angle_offset = rng.next_fixed_symmetric() * fixed_math::new(0.1);
                 let final_waypoint_angle = best_angle_fixed + jitter_angle_offset;
                 let final_waypoint_dir = fixed_math::FixedVec2::new(
                     fixed_math::cos_fixed(final_waypoint_angle),
-                    fixed_math::sin_fixed(final_waypoint_angle)
+                    fixed_math::sin_fixed(final_waypoint_angle),
                 );
 
                 // Ensure waypoint_dist_clamped is positive before creating waypoint
@@ -351,12 +388,12 @@ pub fn calculate_paths(
                 }
             }
 
-            if waypoints.len() < config.max_path_length {
-                 if waypoints.is_empty() || waypoints.back() != Some(&target_v2) {
-                    waypoints.push_back(target_v2);
-                 }
+            if waypoints.len() < config.max_path_length
+                && (waypoints.is_empty() || waypoints.back() != Some(&target_v2))
+            {
+                waypoints.push_back(target_v2);
             }
-            
+
             if !waypoints.is_empty() {
                 path.waypoints = waypoints;
                 path.path_status = PathStatus::FollowingPath;
@@ -365,21 +402,24 @@ pub fn calculate_paths(
                 // Revert to direct path, or mark as blocked if direct path isn't viable.
                 // For simplicity here, let's assume if no waypoints, it becomes blocked,
                 // allowing check_direct_paths to potentially resolve it next frame or it remains blocked.
-                path.path_status = PathStatus::Blocked; 
+                path.path_status = PathStatus::Blocked;
             }
         }
     }
 }
 
 pub fn move_enemies(
-    mut enemy_query: Query<(
-        Entity,
-        &mut fixed_math::FixedTransform3D,
-        &mut Velocity, // Assuming Velocity.0 is FixedVec2
-        &mut EnemyPath,
-        &mut FacingDirection,
-        &CharacterConfigHandles
-    ), With<Enemy>>,
+    mut enemy_query: Query<
+        (
+            Entity,
+            &mut fixed_math::FixedTransform3D,
+            &mut Velocity, // Assuming Velocity.0 is FixedVec2
+            &mut EnemyPath,
+            &mut FacingDirection,
+            &CharacterConfigHandles,
+        ),
+        With<Enemy>,
+    >,
     // Assuming Player also uses FixedTransform3D for its logical position
     player_query: Query<&fixed_math::FixedTransform3D, (With<Player>, Without<Enemy>)>,
     character_configs: Res<Assets<CharacterConfig>>, // Assuming max_speed is Fixed
@@ -392,16 +432,24 @@ pub fn move_enemies(
         .collect();
 
     // Second pass - calculate and apply movement
-    for (entity, mut fixed_transform, mut velocity_component, mut path, mut facing_direction, config_handles) 
-        in enemy_query.iter_mut() {
+    for (
+        entity,
+        mut fixed_transform,
+        mut velocity_component,
+        mut path,
+        mut facing_direction,
+        config_handles,
+    ) in enemy_query.iter_mut()
+    {
         let enemy_pos_v2 = fixed_transform.translation.truncate();
 
         // Get character movement config
-        let movement_speed = if let Some(char_config) = character_configs.get(&config_handles.config) {
-            char_config.movement.max_speed // This should be fixed_math::Fixed
-        } else {
-            config.movement_speed // Fallback is also Fixed
-        };
+        let movement_speed =
+            if let Some(char_config) = character_configs.get(&config_handles.config) {
+                char_config.movement.max_speed // This should be fixed_math::Fixed
+            } else {
+                config.movement_speed // Fallback is also Fixed
+            };
 
         let current_target_v2 = if let Some(waypoint_v2) = path.waypoints.front() {
             *waypoint_v2
@@ -411,16 +459,15 @@ pub fn move_enemies(
 
         let direction_to_target_v2 = (current_target_v2 - enemy_pos_v2).normalize_or_zero();
 
-
         // Calculate distance to nearest player (for attack range check)
         // Initialize with FixedWide::MAX because distance_squared now returns FixedWide
-        let mut min_dist_sq_to_player_fw = fixed_math::FixedWide::MAX; 
+        let mut min_dist_sq_to_player_fw = fixed_math::FixedWide::MAX;
 
         for player_fixed_transform in player_query.iter() {
             let player_pos_v2 = player_fixed_transform.translation.truncate();
             // enemy_pos_v2.distance_squared(&player_pos_v2) returns FixedWide
             let current_dist_sq_fw = enemy_pos_v2.distance_squared(&player_pos_v2);
-            
+
             // Compare FixedWide with FixedWide
             if current_dist_sq_fw < min_dist_sq_to_player_fw {
                 min_dist_sq_to_player_fw = current_dist_sq_fw;
@@ -430,17 +477,18 @@ pub fn move_enemies(
         // Now min_dist_sq_to_player_fw holds the minimum squared distance as FixedWide.
         // Calculate the actual distance (as Fixed) if a player was found.
         let distance_to_nearest_player: fixed_math::Fixed;
-        if min_dist_sq_to_player_fw < fixed_math::FixedWide::MAX { // Check against FixedWide::MAX
+        if min_dist_sq_to_player_fw < fixed_math::FixedWide::MAX {
+            // Check against FixedWide::MAX
             // .sqrt() on FixedWide returns FixedWide (assuming FixedSqrt is implemented for FixedWide)
-            let dist_fw = min_dist_sq_to_player_fw.sqrt(); 
-            
+            let dist_fw = min_dist_sq_to_player_fw.sqrt();
+
             // Convert the FixedWide result of sqrt back to Fixed for use in subsequent game logic
             // This relies on your Fixed::from_num and FixedWide::to_num methods.
             distance_to_nearest_player = fixed_math::Fixed::from_num(dist_fw.to_num::<f32>());
         } else {
             // No players found, or distance was effectively infinite.
             // Set to a very large Fixed value that your game logic can handle.
-            distance_to_nearest_player = fixed_math::Fixed::MAX; 
+            distance_to_nearest_player = fixed_math::Fixed::MAX;
         }
 
         // Calculate separation force (avoid other enemies)
@@ -454,8 +502,11 @@ pub fn move_enemies(
 
             let dist_to_other = enemy_pos_v2.distance(other_pos_v2);
             // Use small epsilon for distance > 0 check
-            if dist_to_other < config.enemy_separation_distance && dist_to_other > fixed_math::new(0.1) {
-                let repulsion_v2 = (enemy_pos_v2 - *other_pos_v2).normalize_or_zero() / dist_to_other.max(fixed_math::FIXED_ONE);
+            if dist_to_other < config.enemy_separation_distance
+                && dist_to_other > fixed_math::new(0.1)
+            {
+                let repulsion_v2 = (enemy_pos_v2 - *other_pos_v2).normalize_or_zero()
+                    / dist_to_other.max(fixed_math::FIXED_ONE);
                 separation_v2 += repulsion_v2;
                 separation_count += 1;
             }
@@ -463,7 +514,8 @@ pub fn move_enemies(
 
         if separation_count > 0 {
             // Convert count to Fixed for division
-            separation_v2 = (separation_v2 / fixed_math::Fixed::from_num(separation_count)) * config.enemy_separation_force;
+            separation_v2 = (separation_v2 / fixed_math::Fixed::from_num(separation_count))
+                * config.enemy_separation_force;
         }
 
         let mut desired_move_velocity_v2 = fixed_math::FixedVec2::ZERO;
@@ -471,21 +523,24 @@ pub fn move_enemies(
         match path.path_status {
             PathStatus::DirectPath | PathStatus::FollowingPath => {
                 let base_velocity_v2 = direction_to_target_v2 * movement_speed;
-                
-                let speed_factor_fixed = if distance_to_nearest_player < config.optimal_attack_distance {
-                    fixed_math::new(-0.3) // Back up slightly
-                } else if distance_to_nearest_player < config.slow_down_distance {
-                    let range = config.slow_down_distance - config.optimal_attack_distance;
-                    if range > fixed_math::FIXED_ZERO { // Avoid division by zero
-                        let t = (distance_to_nearest_player - config.optimal_attack_distance) / range;
-                        t.clamp(fixed_math::FIXED_ZERO, fixed_math::FIXED_ONE)
+
+                let speed_factor_fixed =
+                    if distance_to_nearest_player < config.optimal_attack_distance {
+                        fixed_math::new(-0.3) // Back up slightly
+                    } else if distance_to_nearest_player < config.slow_down_distance {
+                        let range = config.slow_down_distance - config.optimal_attack_distance;
+                        if range > fixed_math::FIXED_ZERO {
+                            // Avoid division by zero
+                            let t = (distance_to_nearest_player - config.optimal_attack_distance)
+                                / range;
+                            t.clamp(fixed_math::FIXED_ZERO, fixed_math::FIXED_ONE)
+                        } else {
+                            fixed_math::FIXED_ONE // At optimal or closer than slow_down, but range is zero
+                        }
                     } else {
-                        fixed_math::FIXED_ONE // At optimal or closer than slow_down, but range is zero
-                    }
-                } else {
-                    fixed_math::FIXED_ONE // Full speed
-                };
-                
+                        fixed_math::FIXED_ONE // Full speed
+                    };
+
                 desired_move_velocity_v2 = base_velocity_v2 * speed_factor_fixed;
 
                 if let PathStatus::FollowingPath = path.path_status {
@@ -496,11 +551,12 @@ pub fn move_enemies(
                                 path.path_status = PathStatus::DirectPath; // Reached end of waypoint list
                             }
                         }
-                    } else { // Should not happen if FollowingPath, means waypoints became empty
+                    } else {
+                        // Should not happen if FollowingPath, means waypoints became empty
                         path.path_status = PathStatus::DirectPath;
                     }
                 }
-            },
+            }
             _ => { /* Idle, CalculatingPath, Blocked - no target-based movement */ }
         }
 
@@ -511,8 +567,14 @@ pub fn move_enemies(
         // Apply movement using FIXED_TIMESTEP (must be Fixed)
         // Check against a small epsilon for length_squared
         if velocity_component.0.length_squared() > fixed_math::new(0.01) {
-            fixed_transform.translation.x = fixed_transform.translation.x.saturating_add(velocity_component.0.x * fixed_math::new(FIXED_TIMESTEP));
-            fixed_transform.translation.y = fixed_transform.translation.y.saturating_add(velocity_component.0.y * fixed_math::new(FIXED_TIMESTEP));
+            fixed_transform.translation.x = fixed_transform
+                .translation
+                .x
+                .saturating_add(velocity_component.0.x * fixed_math::new(FIXED_TIMESTEP));
+            fixed_transform.translation.y = fixed_transform
+                .translation
+                .y
+                .saturating_add(velocity_component.0.y * fixed_math::new(FIXED_TIMESTEP));
             // Z remains unchanged for 2D movement
 
             // Update facing direction

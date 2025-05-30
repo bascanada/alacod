@@ -23,4 +23,3 @@ macro_rules! bmap(
         }
      };
 );
-

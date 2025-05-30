@@ -1,15 +1,14 @@
 use bevy::{prelude::*, reflect::TypePath, utils::HashMap};
-use serde::Deserialize;
 use bevy_fixed::fixed_math;
+use serde::Deserialize;
 
-use crate::{character::movement::MovementConfig, collider::{Collider, ColliderConfig}};
+use crate::{character::movement::MovementConfig, collider::ColliderConfig};
 
 use super::health::HealthConfig;
 
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct CharacterSkin {
-    pub layers: HashMap<String, String>
+    pub layers: HashMap<String, String>,
 }
 
 #[derive(Asset, TypePath, Deserialize, Debug, Clone)]
@@ -25,10 +24,10 @@ pub struct CharacterConfig {
     pub scale: fixed_math::Fixed,
 
     pub starting_skin: String,
-    pub skins: HashMap<String, CharacterSkin>
+    pub skins: HashMap<String, CharacterSkin>,
 }
 
 #[derive(Component)]
 pub struct CharacterConfigHandles {
-    pub config: Handle<CharacterConfig>
+    pub config: Handle<CharacterConfig>,
 }

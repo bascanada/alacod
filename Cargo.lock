@@ -154,27 +154,14 @@ dependencies = [
 name = "alacod"
 version = "0.0.1"
 dependencies = [
- "animation",
  "bevy",
- "bevy-inspector-egui",
  "bevy_ecs_ldtk",
  "bevy_ecs_tilemap",
- "bevy_ggrs",
- "bevy_kira_audio",
- "bevy_matchbox",
- "clap",
- "derive-getters",
  "game",
- "leafwing-input-manager",
  "map",
- "pathfinding",
- "rand",
- "regex",
- "serde",
+ "map_ldtk",
  "serde_json",
  "utils",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -1168,7 +1155,6 @@ dependencies = [
  "bevy",
  "disqualified",
  "ggrs",
- "instant",
  "log",
  "seahash",
  "serde",
@@ -3397,6 +3383,7 @@ dependencies = [
  "bevy_ggrs",
  "bevy_kira_audio",
  "bevy_matchbox",
+ "clap",
  "ggrs",
  "lazy_static",
  "leafwing-input-manager",
@@ -3407,6 +3394,8 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "utils",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -4487,6 +4476,21 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.12",
+ "utils",
+ "uuid",
+]
+
+[[package]]
+name = "map_ldtk"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+ "bevy-inspector-egui",
+ "bevy_ecs_ldtk",
+ "map",
+ "once_cell",
+ "serde",
+ "serde_json",
  "utils",
  "uuid",
 ]
@@ -7101,6 +7105,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-web"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9e6a141feebd51f8d91ebfd785af50fca223c570b86852166caa3b141defe7c"
+dependencies = [
+ "js-sys",
+ "tracing-core",
+ "tracing-subscriber",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "triple_buffer"
 version = "8.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7307,10 +7324,13 @@ dependencies = [
  "bevy_ggrs",
  "chrono",
  "console_error_panic_hook",
+ "getrandom 0.2.15",
+ "rand",
  "serde",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "tracing-web",
  "wasm-bindgen",
  "web-sys",
 ]

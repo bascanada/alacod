@@ -8,14 +8,13 @@ use bevy_ecs_ldtk::{
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    generation::{
-        entity::location::EntityLocation,
-        room::{Room, RoomConnection},
-        IMapGenerator,
-    },
-    ldtk::map_const::{self, FIELD_ELECTRIFY_NAME, FIELD_PRICE_NAME, LAYER_ENTITY},
+use map::generation::{
+    entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
+    room::{Room, RoomConnection},
+    IMapGenerator,
 };
+
+use crate::map_const::{self, LAYER_ENTITY};
 
 #[derive(Debug, Clone)]
 pub struct GeneratedRoom {
@@ -106,7 +105,7 @@ pub fn get_new_entity(
                 .field_defs
                 .iter()
                 .find(|fd| fd.identifier == x.0)
-                .expect(format!("failed to get field for entity {}", x.0).as_str());
+                .unwrap_or_else(|| panic!("failed to get field for entity {}", x.0));
 
             let real_editor_value = match x.1.clone() {
                 FieldValue::Int(v) => Some(("V_Int", serde_json::to_value(v).unwrap())),
@@ -186,7 +185,7 @@ impl GeneratedMap {
             .unwrap();
 
         let new_entity = get_new_entity(
-            &level,
+            level,
             entity_type,
             location,
             (
@@ -255,34 +254,31 @@ impl IMapGenerator for GeneratedMap {
             })
         }
 
-        println!("");
+        println!();
 
         self.generated_rooms.push(generated_room);
     }
 
-    fn add_doors(
-        &mut self,
-        doors: &Vec<(EntityLocation, crate::generation::entity::door::DoorConfig)>,
-    ) {
+    fn add_doors(&mut self, doors: &Vec<(EntityLocation, DoorConfig)>) {
         for (location, door) in doors.iter() {
             self.add_entity_to_level(
                 location,
                 map_const::ENTITY_DOOR_LOCATION,
                 vec![
-                    (FIELD_PRICE_NAME, FieldValue::Int(Some(door.cost))),
-                    (FIELD_ELECTRIFY_NAME, FieldValue::Bool(door.electrify)),
+                    (
+                        map_const::FIELD_PRICE_NAME,
+                        FieldValue::Int(Some(door.cost)),
+                    ),
+                    (
+                        map_const::FIELD_ELECTRIFY_NAME,
+                        FieldValue::Bool(door.electrify),
+                    ),
                 ],
             );
         }
     }
 
-    fn add_windows(
-        &mut self,
-        windows: &Vec<(
-            EntityLocation,
-            crate::generation::entity::window::WindowConfig,
-        )>,
-    ) {
+    fn add_windows(&mut self, windows: &Vec<(EntityLocation, WindowConfig)>) {
         for (location, _) in windows.iter() {
             self.add_entity_to_level(location, map_const::ENTITY_WINDOW_LOCATION, vec![]);
         }

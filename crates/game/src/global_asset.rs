@@ -2,14 +2,20 @@ use animation::{AnimationMapConfig, SpriteSheetConfig};
 use bevy::{prelude::*, utils::HashMap};
 use utils::bmap;
 
-use crate::{camera::CameraSettingsAsset, character::config::CharacterConfig, plugins::AppState, weapons::WeaponsConfig};
+use crate::{
+    camera::CameraSettingsAsset,
+    character::config::CharacterConfig,
+    core::{AppState, OnlineState},
+    weapons::WeaponsConfig,
+};
 
 const PLAYER_SPRITESHEET_CONFIG_PATH: &str = "ZombieShooter/Sprites/Character/player_sheet.ron";
-const PLAYER_SHIRT_SPRITESHEET_CONFIG_PATH: &str = "ZombieShooter/Sprites/Character/shirt_1_sheet.ron";
-const PLAYER_HAIR_SPRITESHEET_CONFIG_PATH: &str = "ZombieShooter/Sprites/Character/hair_1_sheet.ron";
+const PLAYER_SHIRT_SPRITESHEET_CONFIG_PATH: &str =
+    "ZombieShooter/Sprites/Character/shirt_1_sheet.ron";
+const PLAYER_HAIR_SPRITESHEET_CONFIG_PATH: &str =
+    "ZombieShooter/Sprites/Character/hair_1_sheet.ron";
 const PLAYER_ANIMATIONS_CONFIG_PATH: &str = "ZombieShooter/Sprites/Character/player_animation.ron";
 const PLAYER_CONFIG_PATH: &str = "ZombieShooter/Sprites/Character/player_config.ron";
-
 
 #[derive(Resource)]
 pub struct GlobalAsset {
@@ -75,12 +81,12 @@ pub fn add_global_asset(mut commands: Commands, asset_server: Res<AssetServer>) 
 
 pub fn loading_asset_system(
     mut app_state: ResMut<NextState<AppState>>,
+    online: Res<OnlineState>,
     global_assets: Res<GlobalAsset>,
     asset_server: Res<AssetServer>,
 ) {
-
     for (_, v) in global_assets.spritesheets.iter() {
-        for (_ ,handle) in v.iter() {
+        for (_, handle) in v.iter() {
             if !asset_server.load_state(handle).is_loaded() {
                 return;
             }
@@ -106,6 +112,10 @@ pub fn loading_asset_system(
         return;
     }
 
-    app_state.set(AppState::Lobby);
+    if matches!(*online, OnlineState::Online) {
+        app_state.set(AppState::LobbyOnline);
+    } else {
+        app_state.set(AppState::LobbyLocal);
+    }
     info!("loading of asset is done , now entering lobby");
 }
