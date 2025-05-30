@@ -1,7 +1,7 @@
 use animation::AnimationState;
 use animation::{ActiveLayers, FacingDirection};
 use bevy::window::PrimaryWindow;
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{prelude::*, platform::collections::hash_map::HashMap};
 use bevy_fixed::fixed_math;
 use bevy_ggrs::prelude::*;
 use bevy_ggrs::LocalInputs;

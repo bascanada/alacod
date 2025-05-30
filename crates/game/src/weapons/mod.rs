@@ -1,15 +1,12 @@
 pub mod ui;
 
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
-use bevy::{
-    log::Level,
-    prelude::*,
-    utils::{tracing::span, HashMap, HashSet},
-};
+use bevy::{log::{tracing::span, Level}, platform::collections::{HashMap, HashSet}, prelude::*};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_fixed::{fixed_math, rng::RollbackRng};
-use bevy_ggrs::{AddRollbackCommandExtension, GgrsSchedule, PlayerInputs, Rollback};
+use bevy_ggrs::{AddRollbackCommandExtension, GgrsSchedule, PlayerInputs, Rollback, RollbackApp};
 use ggrs::PlayerHandle;
+
 use serde::{Deserialize, Serialize};
 use utils::{
     bmap,
@@ -36,8 +33,6 @@ use crate::{
 };
 use std::fmt;
 use utils::frame::FrameCount;
-
-use bevy_ggrs::GgrsApp;
 
 // COMPONENTS
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -557,7 +552,7 @@ pub fn system_weapon_position(
 ) {
     for (childs, cursor_position, _direction) in query.iter() {
         for child in childs.iter() {
-            if let Ok(mut transform) = query_weapon.get_mut(*child) {
+            if let Ok(mut transform) = query_weapon.get_mut(child.clone()) {
                 let cursor_game_world_pos = fixed_math::FixedVec3::new(
                     fixed_math::new(cursor_position.x as f32),
                     fixed_math::new(cursor_position.y as f32),
@@ -597,7 +592,7 @@ pub fn weapon_rollback_system(
         &mut WeaponState,
         &mut WeaponModesState,
         &fixed_math::FixedTransform3D,
-        &Parent,
+        &ChildOf,
     )>,
 
     player_query: Query<(&fixed_math::FixedTransform3D, &FacingDirection, &Player)>,
@@ -634,7 +629,7 @@ pub fn weapon_rollback_system(
         let (weapon_entity, _) = inventory.weapons[inventory.active_weapon_index];
 
         // Get the entity for the active weapon
-        if let Ok((weapon, mut weapon_state, mut weapon_modes_state, weapon_transform, parent)) =
+        if let Ok((weapon, mut weapon_state, mut weapon_modes_state, weapon_transform, child_of)) =
             weapon_query.get_mut(weapon_entity)
         {
             let active_mode = weapon_state.active_mode.clone();
@@ -755,7 +750,7 @@ pub fn weapon_rollback_system(
                 weapon_state.is_firing = true;
 
                 if can_fire {
-                    if let Ok((_, facing_direction, _)) = player_query.get(**parent) {
+                    if let Ok((_, facing_direction, _)) = player_query.get(child_of.parent()) {
                         let mut aim_dir = fixed_math::FixedVec2::new(
                             fixed_math::Fixed::from_num(input.pan_x),
                             fixed_math::Fixed::from_num(input.pan_y),
@@ -1083,9 +1078,9 @@ pub fn update_weapon_sprite_direction(
 ) {
     for (childs, direction) in query_players.iter() {
         for child in childs.iter() {
-            if let Ok(childs) = query_weapons.get(*child) {
+            if let Ok(childs) = query_weapons.get(child.clone()) {
                 for child in childs.iter() {
-                    if let Ok(mut sprite) = query_sprite.get_mut(*child) {
+                    if let Ok(mut sprite) = query_sprite.get_mut(child.clone()) {
                         match direction {
                             FacingDirection::Left => {
                                 sprite.flip_y = true;

@@ -255,7 +255,7 @@ fn spawn_test_map(
         Vec3::new(500.0, 250.0, 0.0),
         Vec2::new(125.0, 500.0),
         collision_settings,
-        Color::rgb(0.6, 0.3, 0.3), // Reddish color
+        Color::srgb(0.6, 0.3, 0.3), // Reddish color
         id_provider.next("wall".into()),
     );
     spawn_test_wall(
@@ -263,7 +263,7 @@ fn spawn_test_map(
         Vec3::new(-500.0, 250.0, 0.0),
         Vec2::new(125.0, 500.0),
         collision_settings,
-        Color::rgb(0.6, 0.3, 0.3), // Reddish color
+        Color::srgb(0.6, 0.3, 0.3), // Reddish color
         id_provider.next("wall".into()),
     );
 

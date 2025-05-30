@@ -1,6 +1,6 @@
 pub mod ui;
 
-use bevy::{log::Level, prelude::*, utils::tracing::span};
+use bevy::{log::{tracing::span, Level}, prelude::*};
 use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;
 use ggrs::PlayerHandle;
@@ -131,6 +131,6 @@ pub fn rollback_apply_death(
 
     for (entity, id, death_info) in entities_to_despawn {
         info!("{} entity {} killed by {}", frame.as_ref(), id, death_info); // Use cloned death_info
-        commands.entity(entity).try_despawn_recursive();
+        commands.entity(entity).despawn();
     }
 }

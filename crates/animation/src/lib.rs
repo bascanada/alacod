@@ -1,4 +1,6 @@
-use bevy::{prelude::*, reflect::TypePath, sprite::Anchor, utils::HashMap};
+use std::time::Duration;
+
+use bevy::{platform::collections::HashMap, prelude::*, reflect::TypePath, sprite::Anchor};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_ggrs::prelude::*;
 use serde::Deserialize;
@@ -172,7 +174,7 @@ fn animate_sprite_system(
             timer.frame_timer.tick(time.delta());
             if timer.frame_timer.just_finished() {
                 for child in childs.iter() {
-                    if let Ok((mut sprite, _)) = query_sprites.get_mut(*child) {
+                    if let Ok((mut sprite, _)) = query_sprites.get_mut(child.clone()) {
                         if let Some(atlas) = &mut sprite.texture_atlas {
                             if let Some(indices) = anim_config.animations.get(&state.0) {
                                 let start_index = indices.start;
@@ -224,7 +226,7 @@ fn check_animation_config_reload_system(
         if let Some(new_duration) = updates_needed.get(&config_handles.animations.id()) {
             anim_timer
                 .frame_timer
-                .set_duration(bevy::utils::Duration::from_millis(*new_duration));
+                .set_duration(Duration::from_millis(*new_duration));
             anim_timer.frame_timer.reset();
         }
         // Apply initial duration after startup load (if needed)
@@ -237,7 +239,7 @@ fn check_animation_config_reload_system(
                 if let Some(config) = animation_configs.get(&config_handles.animations) {
                     anim_timer
                         .frame_timer
-                        .set_duration(bevy::utils::Duration::from_millis(config.frame_duration));
+                        .set_duration(Duration::from_millis(config.frame_duration));
                     anim_timer.frame_timer.reset();
                 }
             }
@@ -271,7 +273,7 @@ fn character_visuals_update_system(
 
                             for child in childs.iter() {
                                 if let Ok((mut sprite, mut transform, layer_name)) =
-                                    query_sprite.get_mut(*child)
+                                    query_sprite.get_mut(child.clone())
                                 {
                                     if layer_name.name == new_config.name {
                                         sprite.texture_atlas = Some(TextureAtlas {
@@ -303,7 +305,7 @@ pub fn set_sprite_flip(
 ) {
     for (childrens, direction) in query.iter() {
         for child in childrens.iter() {
-            if let Ok(mut sprite) = sprite_query.get_mut(*child) {
+            if let Ok(mut sprite) = sprite_query.get_mut(child.clone()) {
                 match direction {
                     FacingDirection::Left => {
                         sprite.flip_x = true;

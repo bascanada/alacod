@@ -1,4 +1,4 @@
-use bevy::{prelude::*, reflect::TypePath, utils::HashMap};
+use bevy::{prelude::*, reflect::TypePath, platform::collections::hash_map::HashMap};
 use bevy_fixed::fixed_math;
 use serde::Deserialize;
 

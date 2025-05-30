@@ -15,7 +15,7 @@ macro_rules! map(
 macro_rules! bmap(
     { $($key:expr => $value:expr),+ } => {
         {
-            let mut m = ::bevy::utils::HashMap::new();
+            let mut m = ::bevy::platform::collections::hash_map::HashMap::new();
             $(
                 m.insert($key.to_string(), $value);
             )+
