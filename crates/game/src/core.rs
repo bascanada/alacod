@@ -17,15 +17,7 @@ use utils::{
 };
 
 use crate::{
-    audio::ZAudioPlugin,
-    camera::CameraControlPlugin,
-    character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin},
-    collider::BaseColliderGamePlugin,
-    frame::{increase_frame_system, FrameDebugUIPlugin},
-    global_asset::{add_global_asset, loading_asset_system},
-    jjrs::{log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players},
-    system_set::RollbackSystemSet,
-    weapons::BaseWeaponGamePlugin,
+    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::BaseColliderGamePlugin, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
 };
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -68,6 +60,7 @@ pub struct CoreSetupPlugin(pub CoreSetupConfig);
 
 impl Plugin for CoreSetupPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(ZLightPlugin);
         app.add_plugins(ZAudioPlugin);
         app.add_plugins(WebPlugin);
         app.add_plugins(FrameDebugUIPlugin);

@@ -1,8 +1,9 @@
 pub mod ui;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, scene::ron::de};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::SpatialAudioReceiver;
+use bevy_light_2d::light::AmbientLight2d;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 use ui::CameraDebugUIPlugin;
@@ -512,6 +513,10 @@ pub fn setup_camera(mut commands: Commands, settings: Res<CameraSettings>) {
     commands.spawn((
         Camera2d::default(),
         SpatialAudioReceiver,
+        AmbientLight2d{
+            brightness: 0.001,
+            ..Default::default()
+        },
         GameCamera {
             mode: CameraMode::PlayerLock,
             target_player_id: None,

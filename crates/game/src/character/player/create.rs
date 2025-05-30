@@ -1,5 +1,6 @@
 use animation::SpriteSheetConfig;
 use bevy::prelude::*;
+use bevy_light_2d::light::{AmbientLight2d, PointLight2d};
 use leafwing_input_manager::{prelude::ActionState, InputManagerBundle};
 use utils::net_id::GgrsNetIdFactory;
 
@@ -94,6 +95,12 @@ pub fn create_player(
         Player {
             handle,
             color: PLAYER_COLORS[handle].into(),
+        },
+        PointLight2d {
+            radius: 200.,
+            cast_shadows: false,
+            falloff: 4.,
+            ..default()
         },
     ));
 }
