@@ -28,3 +28,23 @@ impl GgrsNetIdFactory {
         GgrsNetId(self.counter, name)
     }
 }
+
+#[macro_export]
+macro_rules! order_iter {
+    ($query:expr) => {{
+        let mut items: Vec<_> = $query.iter().collect();
+        items.sort_unstable_by_key(|item| item.0.0); // Sort by GgrsNetId.0 (StableIdType)
+        items
+    }};
+}
+
+/// Macro for deterministic iteration over mutable queries  
+/// Assumes the first component in the query tuple is GgrsNetId
+#[macro_export]
+macro_rules! order_mut_iter {
+    ($query:expr) => {{
+        let mut items: Vec<_> = $query.iter_mut().collect();
+        items.sort_unstable_by_key(|item| item.0.0); // Sort by GgrsNetId.0 (StableIdType)
+        items
+    }};
+}

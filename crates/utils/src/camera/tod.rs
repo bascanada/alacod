@@ -24,7 +24,11 @@ pub fn move_camera(
 }
 
 pub fn setup_camera(mut commands: Commands) {
-    let mut camera = Camera2dBundle::default();
-    camera.projection.scale = 1.3;
-    commands.spawn(camera);
+    commands.spawn((
+        Camera2d::default(),
+        Projection::Orthographic(OrthographicProjection { 
+            scale: 1.3,
+            ..OrthographicProjection::default_2d()
+        })
+    ));
 }

@@ -1,5 +1,4 @@
-use bevy::ecs::system::Resource;
-
+use bevy::prelude::Resource;
 use crate::fixed_math;
 
 #[derive(Debug, Resource, Clone, Copy, PartialEq, Eq, Hash)]

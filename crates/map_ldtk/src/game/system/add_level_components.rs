@@ -16,7 +16,7 @@ pub fn add_room_component_to_ldtk_level(
         if matches!(level_event, LevelEvent::Spawned(_)) {
             for (entity, level_iid) in levels.iter() {
                 let level_data = project_assets
-                    .get(projects.single())
+                    .get(projects.single().unwrap())
                     .expect("project asset should be loaded if levels are spawned")
                     .get_raw_level_by_iid(&level_iid.to_string())
                     .expect("spawned level should exist in the loaded project");

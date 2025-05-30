@@ -5,13 +5,13 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.15"
-ggrs = "0.11.0"
-bevy_ggrs = "0.17.0"
-bevy_kira_audio ={ version = "0.22" }
-bevy_matchbox = { version = "0.11", features = ["ggrs"] }
-leafwing-input-manager = "0.16.0"
-bevy_common_assets = { version = "0.12", features = ["ron"]}
+bevy = "0.16"
+ggrs = "0.11.1"
+bevy_ggrs = "0.18.0"
+bevy_kira_audio ={ version = "0.23" }
+bevy_matchbox = { version = "0.12", features = ["ggrs"] }
+leafwing-input-manager = "0.17.0"
+bevy_common_assets = { version = "0.13", features = ["ron"]}
 
 bevy_fixed = { path = "../bevy_fixed"}
 utils = { path = "../utils"}
@@ -31,7 +31,7 @@ wasm-bindgen = "0.2"
 clap = { version = "4.4", features = ["derive"] }
 
 [dev-dependencies]
-bevy-inspector-egui = "0.30.0"
+bevy-inspector-egui = "0.31.0"
 
 
 [dependencies.web-sys]

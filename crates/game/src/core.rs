@@ -8,7 +8,7 @@ use bevy_fixed::{
     fixed_math::{self, sync_bevy_transforms_from_fixed},
     rng::RollbackRng,
 };
-use bevy_ggrs::{GgrsApp, GgrsPlugin, GgrsSchedule};
+use bevy_ggrs::{GgrsApp, GgrsPlugin, GgrsSchedule, RollbackApp};
 use serde::{Deserialize, Serialize};
 use utils::{
     frame::FrameCount,

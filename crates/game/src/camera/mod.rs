@@ -165,13 +165,13 @@ fn camera_control_system(
     windows: Query<&Window>,
     action_query: Query<&ActionState<PlayerAction>>,
     mut camera_query: Query<
-        (&mut GameCamera, &mut Transform, &mut OrthographicProjection),
+        (&mut GameCamera, &mut Transform, &mut Projection),
         Without<Player>,
     >,
     player_query: Query<(Entity, &Transform, &Player, Option<&LocalPlayer>), Without<GameCamera>>,
 ) {
     // Get the primary window for dimensions
-    let window = windows.get_single().unwrap();
+    let window = windows.single().unwrap();
     let window_size = Vec2::new(window.width(), window.height());
 
     // Get mouse position normalized to -1.0 to 1.0 range
@@ -184,7 +184,7 @@ fn camera_control_system(
         Vec2::ZERO
     };
 
-    let action_state = if let Ok(state) = action_query.get_single() {
+    let action_state = if let Ok(state) = action_query.single() {
         state
     } else {
         return;
@@ -327,9 +327,14 @@ fn camera_control_system(
 
     // Apply zoom by updating the orthographic projection scale
     // This is what controls how much of the world is visible
-    let current_zoom = projection.scale;
-    let new_zoom = current_zoom + (camera.target_zoom - current_zoom) * lerp_factor;
-    projection.scale = new_zoom;
+    match projection.as_mut() {
+        Projection::Orthographic(orth) => {
+            let current_zoom = orth.scale;
+            let new_zoom = current_zoom + (camera.target_zoom - current_zoom) * lerp_factor;
+            orth.scale = new_zoom;
+        },
+        _ => {}
+    };
 }
 
 // System to handle player indicators for off-screen players
@@ -337,7 +342,7 @@ fn player_indicator_system(
     mut commands: Commands,
     settings: Res<CameraSettings>,
     windows: Query<&Window>,
-    camera_query: Query<(&GameCamera, &Transform, &OrthographicProjection)>,
+    camera_query: Query<(&GameCamera, &Transform, &Projection)>,
     player_query: Query<(Entity, &Transform, &Player)>,
     indicator_query: Query<Entity, With<PlayerIndicator>>,
 ) {
@@ -346,11 +351,18 @@ fn player_indicator_system(
         commands.entity(entity).despawn();
     }
 
-    let window = windows.get_single().unwrap();
-    let (camera, camera_transform, projection) = if let Ok(cam) = camera_query.get_single() {
+    let window = windows.single().unwrap();
+    let (camera, camera_transform, projection) = if let Ok(cam) = camera_query.single() {
         cam
     } else {
         return;
+    };
+
+    let projection = match projection {
+        Projection::Orthographic(o) => o,
+        _ => {
+            return;
+        }
     };
 
     // Calculate visible screen rectangle in world space
@@ -462,7 +474,7 @@ fn character_visuals_update_system(
     camera_asset: Res<Assets<CameraSettingsAsset>>,
     mut r_camera: ResMut<CameraSettings>,
     _asset_server: Res<AssetServer>,
-    _camera_query: Query<(&mut GameCamera, &mut Transform, &mut OrthographicProjection)>,
+    _camera_query: Query<(&mut GameCamera, &mut Transform, &mut Projection)>,
 ) {
     for event in ev_asset.read() {
         if let AssetEvent::Added { id } = event {
@@ -498,7 +510,7 @@ impl Rect {
 pub fn setup_camera(mut commands: Commands, settings: Res<CameraSettings>) {
     // Spawn the camera itself
     commands.spawn((
-        Camera2dBundle::default(),
+        Camera2d::default(),
         SpatialAudioReceiver,
         GameCamera {
             mode: CameraMode::PlayerLock,
@@ -516,7 +528,7 @@ fn setup_simple_background(mut commands: Commands) {
 
     // Create a parent entity for all background tiles
     commands
-        .spawn(SpatialBundle::default())
+        .spawn_empty()
         .insert(Name::new("Background"))
         .with_children(|parent| {
             // Create a simple checkered pattern
@@ -525,9 +537,9 @@ fn setup_simple_background(mut commands: Commands) {
                     // Alternate colors in a checkered pattern
                     let is_dark = (i + j) % 2 == 0;
                     let color = if is_dark {
-                        Color::rgb(0.2, 0.2, 0.25) // Dark blue-gray
+                        Color::srgb(0.2, 0.2, 0.25) // Dark blue-gray
                     } else {
-                        Color::rgb(0.3, 0.3, 0.35) // Lighter blue-gray
+                        Color::srgb(0.3, 0.3, 0.35) // Lighter blue-gray
                     };
 
                     // Spawn a square sprite

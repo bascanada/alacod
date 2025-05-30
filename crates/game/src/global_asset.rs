@@ -1,5 +1,5 @@
 use animation::{AnimationMapConfig, SpriteSheetConfig};
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{prelude::*, platform::collections::hash_map::HashMap};
 use utils::bmap;
 
 use crate::{

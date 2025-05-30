@@ -30,13 +30,13 @@ fn setup_camera_debug_ui(mut commands: Commands, asset_server: Res<AssetServer>)
 
 // Update system for camera debug text
 fn update_camera_debug_text(
-    camera_query: Query<(&GameCamera, &OrthographicProjection)>,
+    camera_query: Query<(&GameCamera, &Projection)>,
     mut text_query: Query<&mut Text, With<CameraDebugText>>,
 ) {
     // Get camera component and projection
-    if let Ok((camera, projection)) = camera_query.get_single() {
+    if let Ok((camera, projection)) = camera_query.single() {
         // Get the text component
-        if let Ok(mut text) = text_query.get_single_mut() {
+        if let Ok(mut text) = text_query.single_mut() {
             // Format mode as a string
             let mode_str = match camera.mode {
                 CameraMode::PlayerLock => "PlayerLock",
@@ -48,7 +48,7 @@ fn update_camera_debug_text(
             text.0 = format!(
                 "Camera: {} | Zoom: {:.2} | Target: {:.2} | Pos: ({:.1}, {:.1})",
                 mode_str,
-                projection.scale,
+                match projection { Projection::Orthographic(o) => o.scale, _ => 0. },
                 camera.target_zoom,
                 camera.target_position.x,
                 camera.target_position.y

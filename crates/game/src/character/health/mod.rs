@@ -1,12 +1,12 @@
 pub mod ui;
 
-use bevy::{log::Level, prelude::*, utils::tracing::span};
+use bevy::{log::{tracing::span, Level}, prelude::*};
 use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;
 use ggrs::PlayerHandle;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use utils::{frame::FrameCount, net_id::GgrsNetId};
+use utils::{frame::FrameCount, net_id::GgrsNetId, order_iter};
 
 #[derive(Component, Reflect, Debug, Clone, Serialize, Deserialize)]
 pub enum HitBy {
@@ -115,22 +115,13 @@ pub fn rollback_apply_accumulated_damage(
 pub fn rollback_apply_death(
     frame: Res<FrameCount>,
     mut commands: Commands,
-    query: Query<(Entity, &GgrsNetId, &Death), With<Rollback>>,
+    query: Query<(&GgrsNetId, Entity, &Death), With<Rollback>>,
 ) {
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "apply_death");
     let _enter = system_span.enter();
 
-    let mut entities_to_despawn: Vec<(Entity, GgrsNetId, Death)> = query
-        .iter()
-        .map(|(entity, id, death_component)| (entity, id.clone(), death_component.clone())) // Clone Death if needed for logging
-        .collect();
-
-    // Sort by a stable identifier, like Entity's bits.
-    // This step is optional but adds robustness against non-deterministic iteration order if it were to affect anything.
-    entities_to_despawn.sort_unstable_by_key(|(e, _, _)| e.to_bits());
-
-    for (entity, id, death_info) in entities_to_despawn {
+    for (id, entity, death_info) in order_iter!(query) {
         info!("{} entity {} killed by {}", frame.as_ref(), id, death_info); // Use cloned death_info
-        commands.entity(entity).try_despawn_recursive();
+        commands.entity(entity).despawn();
     }
 }

@@ -9,7 +9,7 @@ pub mod player;
 use animation::set_sprite_flip;
 use bevy::prelude::*;
 use bevy_common_assets::ron::RonAssetPlugin;
-use bevy_ggrs::{GgrsApp, GgrsSchedule, ReadInputs};
+use bevy_ggrs::{RollbackApp, GgrsSchedule, ReadInputs};
 use leafwing_input_manager::plugin::InputManagerPlugin;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 

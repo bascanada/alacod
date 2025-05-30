@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::AddRollbackCommandExtension;
-use bevy_ggrs::GgrsApp;
+use bevy_ggrs::RollbackApp;
 use serde::{Deserialize, Serialize};
 use utils::net_id::GgrsNetId;
 
