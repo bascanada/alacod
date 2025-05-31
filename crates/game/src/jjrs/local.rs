@@ -1,0 +1,90 @@
+
+
+use std::{net::SocketAddr};
+
+use animation::SpriteSheetConfig;
+use bevy::{color::palettes::{css::TURQUOISE, tailwind::{ORANGE_300, PURPLE_300}}, prelude::*};
+use bevy_fixed::{fixed_math, rng::RollbackRng};
+use bevy_ggrs::{ggrs::PlayerType, prelude::*};
+use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
+use ggrs::UdpNonBlockingSocket;
+use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
+use utils::net_id::GgrsNetIdFactory;
+
+
+use crate::{
+    character::{
+        config::CharacterConfig,
+        enemy::spawning::EnemySpawnerState,
+        player::{create::create_player, jjrs::PeerConfig},
+    }, collider::{spawn_test_wall, CollisionSettings}, core::AppState, global_asset::GlobalAsset, jjrs::GggrsSessionConfiguration, weapons::WeaponsConfig
+};
+
+
+
+// For local connection
+pub fn setup_ggrs_local(
+    mut app_state: ResMut<NextState<AppState>>,
+    mut commands: Commands,
+    collision_settings: Res<CollisionSettings>,
+    global_assets: Res<GlobalAsset>,
+    character_asset: Res<Assets<CharacterConfig>>,
+    weapons_asset: Res<Assets<WeaponsConfig>>,
+
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    sprint_sheet_assets: Res<Assets<SpriteSheetConfig>>,
+    session_config: Res<GggrsSessionConfiguration>,
+
+    ggrs_config: Res<GggrsSessionConfiguration>,
+
+    mut id_provider: ResMut<GgrsNetIdFactory>,
+) {
+    info!("start local connection with CID={}", ggrs_config.cid);
+
+    let mut sess_build = SessionBuilder::<PeerConfig>::new()
+        .with_num_players(session_config.connection.max_player)
+        .with_desync_detection_mode(ggrs::DesyncDetection::On {
+            interval: session_config.connection.desync_interval,
+        })
+        .with_input_delay(session_config.connection.input_delay);
+
+    for (i, addr) in session_config.players.iter().enumerate() {
+        let local = addr == "localhost";
+        if local {
+            sess_build = sess_build
+                .add_player(PlayerType::Local, i)
+                .expect("Failed to add player");
+        } else {
+            let _remote_addr: SocketAddr = addr.parse().unwrap();
+            //sess_build = sess_build.add_player(PlayerType::Remote(remote_addr), i).expect("Failed to add player");
+        }
+    }
+
+    // Start a synctest session
+    let sess = if !session_config.connection.socket {
+        let sess = sess_build
+            .start_synctest_session()
+            .expect("Failed to start synctest session");
+
+        Session::SyncTest(sess)
+    } else {
+        let _socket = UdpNonBlockingSocket::bind_to_port(session_config.connection.udp_port)
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Failed to bind udp to {}",
+                    session_config.connection.udp_port
+                )
+            });
+        panic!("");
+        //let sess = sess_build.start_p2p_session(socket).expect("failed to start p2p session");
+
+        //Session::P2P(sess)
+    };
+
+    // Insert the GGRS session resource
+    commands.insert_resource(RollbackRng::new(12345));
+    commands.insert_resource(sess);
+
+    app_state.set(AppState::InGame);
+}
