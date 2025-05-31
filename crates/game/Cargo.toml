@@ -10,6 +10,7 @@ ggrs = "0.11.1"
 bevy_ggrs = "0.18.0"
 bevy_kira_audio ={ version = "0.23" }
 bevy_matchbox = { version = "0.12", features = ["ggrs"] }
+bevy_light_2d = "0.6"
 leafwing-input-manager = "0.17.0"
 bevy_common_assets = { version = "0.13", features = ["ron"]}
 

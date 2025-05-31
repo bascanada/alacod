@@ -22,3 +22,4 @@ Alacod is a engine (set of bevy plugins) to build a 2D rogue like shooter with p
 * [matchbox](https://github.com/johanhelsing/matchbox)
 * [bevy_kira_audio](https://github.com/NiklasEi/bevy_kira_audio)
 * [leafwing-input-manager](https://github.com/Leafwing-Studios/leafwing-input-manager)
+* [bevy_light_2d](https://github.com/jgayfer/bevy_light_2d)

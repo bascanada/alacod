@@ -1,7 +1,9 @@
+use bevy::color::palettes::css::YELLOW;
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::AddRollbackCommandExtension;
 use bevy_ggrs::RollbackApp;
+use bevy_light_2d::light::PointLight2d;
 use serde::{Deserialize, Serialize};
 use utils::net_id::GgrsNetId;
 
@@ -222,13 +224,20 @@ pub fn spawn_test_wall(
         fixed_math::FixedVec3::ONE,
     );
 
+    let width = size.x;
+    let height = size.y;
+
+    let diagonal = (width.powi(2) + height.powi(2)).sqrt();
+    let desired_light_radius = diagonal * 1.5;
+
+
     commands
         .spawn((
             Wall,
             transform.to_bevy_transform(),
             transform,
             Sprite {
-                color,
+                color: color.clone(),
                 custom_size: Some(size),
                 ..Default::default()
             },
@@ -238,6 +247,13 @@ pub fn spawn_test_wall(
                     height: fixed_math::Fixed::from_num(size.y),
                 },
                 offset: fixed_math::FixedVec3::ZERO,
+            },
+            PointLight2d {
+                radius: desired_light_radius,
+                color: color,
+                intensity: 5.0,
+                falloff: 1.0,
+                ..default()
             },
             CollisionLayer(collision_settings.wall_layer),
             g_id,

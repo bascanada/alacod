@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr};
 
 use animation::SpriteSheetConfig;
-use bevy::prelude::*;
+use bevy::{color::palettes::{css::TURQUOISE, tailwind::{ORANGE_300, PURPLE_300}}, prelude::*};
 use bevy_fixed::{fixed_math, rng::RollbackRng};
 use bevy_ggrs::{ggrs::PlayerType, prelude::*};
 use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
@@ -252,20 +252,41 @@ fn spawn_test_map(
 ) {
     spawn_test_wall(
         commands,
+        Vec3::new(-1500.0, 650.0, 0.0),
+        Vec2::new(125.0, 500.0),
+        collision_settings,
+        Color::Srgba(ORANGE_300),
+        id_provider.next("wall".into()),
+    );
+
+    spawn_test_wall(
+        commands,
         Vec3::new(500.0, 250.0, 0.0),
         Vec2::new(125.0, 500.0),
         collision_settings,
-        Color::srgb(0.6, 0.3, 0.3), // Reddish color
+        Color::Srgba(PURPLE_300),
         id_provider.next("wall".into()),
     );
+
     spawn_test_wall(
         commands,
-        Vec3::new(-500.0, 250.0, 0.0),
-        Vec2::new(125.0, 500.0),
+        Vec3::new(400.0, 1450.0, 0.0),
+        Vec2::new(500.0, 125.0),
         collision_settings,
-        Color::srgb(0.6, 0.3, 0.3), // Reddish color
+        Color::Srgba(TURQUOISE),
         id_provider.next("wall".into()),
     );
+
+    spawn_test_wall(
+        commands,
+        Vec3::new(700.0, -1350.0, 0.0),
+        Vec2::new(500.0, 125.0),
+        collision_settings,
+        Color::Srgba(TURQUOISE),
+        id_provider.next("wall".into()),
+    );
+
+
 
     let spawn_positions = [
         Vec3::new(-1000., -1000., 0.0),

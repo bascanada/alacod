@@ -9,6 +9,7 @@ pub mod global_asset;
 pub mod jjrs;
 pub mod system_set;
 pub mod weapons;
+pub mod light;
 
 use lazy_static::lazy_static;
 
