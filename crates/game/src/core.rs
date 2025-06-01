@@ -17,7 +17,7 @@ use utils::{
 };
 
 use crate::{
-    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::BaseColliderGamePlugin, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{local::setup_ggrs_local, log_ggrs_events, p2p::{start_matchbox_socket, system_after_map_loaded, wait_for_players}}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
+    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::BaseColliderGamePlugin, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{local::{setup_ggrs_local, system_after_map_loaded_local}, log_ggrs_events, p2p::{start_matchbox_socket, system_after_map_loaded, wait_for_players}}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
 };
 
 
@@ -112,6 +112,7 @@ impl Plugin for CoreSetupPlugin {
                 .chain(),
         );
 
+        // First step is to load the global asset
         app.add_systems(Startup, add_global_asset);
 
         app.add_systems(
@@ -122,14 +123,19 @@ impl Plugin for CoreSetupPlugin {
             ),
         );
 
+
         app.add_systems(OnEnter(AppState::LobbyOnline), start_matchbox_socket);
+        app.add_systems(OnEnter(AppState::LobbyLocal), setup_ggrs_local);
+
+
         app.add_systems(
             Update,
             wait_for_players.run_if(in_state(AppState::LobbyOnline)),
         );
-        app.add_systems(OnEnter(AppState::GameStarting), (system_after_map_loaded));
+        // System for ggrs that register the session when the map is correctly loaded
+        app.add_systems(OnEnter(AppState::GameStarting), (system_after_map_loaded, system_after_map_loaded_local));
 
-        app.add_systems(OnEnter(AppState::LobbyLocal), setup_ggrs_local);
+
 
         app.add_systems(Update, log_ggrs_events.run_if(in_state(AppState::InGame)));
 

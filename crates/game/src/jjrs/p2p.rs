@@ -16,7 +16,7 @@ use crate::{
         config::CharacterConfig,
         enemy::spawning::EnemySpawnerState,
         player::{create::create_player, jjrs::PeerConfig},
-    }, collider::{spawn_test_wall, CollisionSettings}, core::AppState, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
+    }, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, OnlineState}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
 };
 
 
@@ -37,7 +37,12 @@ pub fn wait_for_players(
     mut app_state: ResMut<NextState<AppState>>,
     mut socket: ResMut<MatchboxSocket>,
     ggrs_config: Res<GggrsSessionConfiguration>,
+    online_state: Res<OnlineState>,
 ) {
+    if !matches!(online_state.as_ref(), OnlineState::Online) {
+        return;
+    }
+
     // regularly call update_peers to update the list of connected peers
     let Ok(peer_changes) = socket.try_update_peers() else {
         warn!("socket dropped");
@@ -74,9 +79,16 @@ pub fn system_after_map_loaded(
     mut commands: Commands,
 
     mut app_state: ResMut<NextState<AppState>>,
-    mut socket: ResMut<MatchboxSocket>,
+    mut socket: Option<ResMut<MatchboxSocket>>,
     ggrs_config: Res<GggrsSessionConfiguration>,
+    online_state: Res<OnlineState>,
 ) {
+    if !matches!(online_state.as_ref(), OnlineState::Online) {
+        return;
+    }
+
+    let socket = socket.as_mut().unwrap();
+
     let channel = socket.take_channel(0).unwrap();
     let num_players = ggrs_config.connection.max_player;
 

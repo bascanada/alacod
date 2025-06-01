@@ -17,29 +17,52 @@ use crate::{
         config::CharacterConfig,
         enemy::spawning::EnemySpawnerState,
         player::{create::create_player, jjrs::PeerConfig},
-    }, collider::{spawn_test_wall, CollisionSettings}, core::AppState, global_asset::GlobalAsset, jjrs::GggrsSessionConfiguration, weapons::WeaponsConfig
+    }, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, OnlineState}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
 };
 
 
+pub fn setup_ggrs_local(
+    mut commands: Commands,
+    mut app_state: ResMut<NextState<AppState>>,
+    session_config: Res<GggrsSessionConfiguration>,
+    online_state: Res<OnlineState>,
+) {
+
+    if !matches!(online_state.as_ref(), OnlineState::Offline) {
+        return;
+    }
+
+    let mut ggrs_player = vec![];
+
+    for (i, addr) in session_config.players.iter().enumerate() {
+        let local = addr == "localhost";
+        ggrs_player.push(GgrsPlayer{
+            handle: i,
+            is_local: local,
+        });
+    }
+    commands.insert_resource(GgrsSessionBuilding{
+        players: ggrs_player,
+    });
+
+    app_state.set(AppState::GameLoading);
+}
+
 
 // For local connection
-pub fn setup_ggrs_local(
+pub fn system_after_map_loaded_local(
     mut app_state: ResMut<NextState<AppState>>,
     mut commands: Commands,
-    collision_settings: Res<CollisionSettings>,
-    global_assets: Res<GlobalAsset>,
-    character_asset: Res<Assets<CharacterConfig>>,
-    weapons_asset: Res<Assets<WeaponsConfig>>,
 
-    asset_server: Res<AssetServer>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    sprint_sheet_assets: Res<Assets<SpriteSheetConfig>>,
     session_config: Res<GggrsSessionConfiguration>,
 
     ggrs_config: Res<GggrsSessionConfiguration>,
-
-    mut id_provider: ResMut<GgrsNetIdFactory>,
+    online_state: Res<OnlineState>,
 ) {
+    if !matches!(online_state.as_ref(), OnlineState::Offline) {
+        return;
+    }
+
     info!("start local connection with CID={}", ggrs_config.cid);
 
     let mut sess_build = SessionBuilder::<PeerConfig>::new()
@@ -48,6 +71,7 @@ pub fn setup_ggrs_local(
             interval: session_config.connection.desync_interval,
         })
         .with_input_delay(session_config.connection.input_delay);
+
 
     for (i, addr) in session_config.players.iter().enumerate() {
         let local = addr == "localhost";
@@ -59,6 +83,7 @@ pub fn setup_ggrs_local(
             let _remote_addr: SocketAddr = addr.parse().unwrap();
             //sess_build = sess_build.add_player(PlayerType::Remote(remote_addr), i).expect("Failed to add player");
         }
+
     }
 
     // Start a synctest session

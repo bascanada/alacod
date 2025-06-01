@@ -514,7 +514,7 @@ pub fn setup_camera(mut commands: Commands, settings: Res<CameraSettings>) {
         Camera2d::default(),
         SpatialAudioReceiver,
         AmbientLight2d{
-            brightness: 0.1,
+            brightness: 0.4,
             ..Default::default()
         },
         GameCamera {
