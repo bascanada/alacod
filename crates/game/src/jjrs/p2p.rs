@@ -16,7 +16,7 @@ use crate::{
         config::CharacterConfig,
         enemy::spawning::EnemySpawnerState,
         player::{create::create_player, jjrs::PeerConfig},
-    }, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, OnlineState}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
+    }, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, OnlineState}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
 };
 
 
@@ -38,6 +38,7 @@ pub fn wait_for_players(
     mut socket: ResMut<MatchboxSocket>,
     ggrs_config: Res<GggrsSessionConfiguration>,
     online_state: Res<OnlineState>,
+    session_state: Res<GggrsSessionConfigurationState>,
 ) {
     if !matches!(online_state.as_ref(), OnlineState::Online) {
         return;
@@ -62,6 +63,12 @@ pub fn wait_for_players(
     let num_players = ggrs_config.connection.max_player;
     if players.len() < num_players {
         return; // wait for more players
+    }
+
+
+    if !session_state.ready {
+        info!("missing extra configuration");
+        return;
     }
 
     info!("all players are ready, loading the game");

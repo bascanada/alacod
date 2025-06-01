@@ -17,7 +17,7 @@ use utils::{
 };
 
 use crate::{
-    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::BaseColliderGamePlugin, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{local::{setup_ggrs_local, system_after_map_loaded_local}, log_ggrs_events, p2p::{start_matchbox_socket, system_after_map_loaded, wait_for_players}}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
+    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::BaseColliderGamePlugin, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{local::{setup_ggrs_local, system_after_map_loaded_local}, log_ggrs_events, p2p::{start_matchbox_socket, system_after_map_loaded, wait_for_players}, GggrsSessionConfigurationState}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
 };
 
 
@@ -84,6 +84,7 @@ impl Plugin for CoreSetupPlugin {
         app.add_plugins(BaseCharacterGamePlugin {});
 
         app.init_resource::<GameInfo>();
+        app.init_resource::<GggrsSessionConfigurationState>();
         app.init_resource::<GgrsNetIdFactory>();
         app.init_resource::<FrameCount>();
 
@@ -125,17 +126,16 @@ impl Plugin for CoreSetupPlugin {
 
 
         app.add_systems(OnEnter(AppState::LobbyOnline), start_matchbox_socket);
-        app.add_systems(OnEnter(AppState::LobbyLocal), setup_ggrs_local);
-
 
         app.add_systems(
             Update,
-            wait_for_players.run_if(in_state(AppState::LobbyOnline)),
+            (
+                    wait_for_players.run_if(in_state(AppState::LobbyOnline)),
+                    setup_ggrs_local.run_if(in_state(AppState::LobbyLocal)
+                )),
         );
         // System for ggrs that register the session when the map is correctly loaded
         app.add_systems(OnEnter(AppState::GameStarting), (system_after_map_loaded, system_after_map_loaded_local));
-
-
 
         app.add_systems(Update, log_ggrs_events.run_if(in_state(AppState::InGame)));
 

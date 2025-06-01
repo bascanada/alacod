@@ -21,7 +21,7 @@ impl Plugin for CameraControlPlugin {
         app.init_resource::<CameraSettings>()
             .add_plugins(CameraDebugUIPlugin)
             .add_plugins(RonAssetPlugin::<CameraSettingsAsset>::new(&[".ron"]))
-            .add_systems(Startup, (setup_camera, setup_simple_background))
+            .add_systems(Startup, setup_camera)
             .add_systems(
                 Update,
                 (
@@ -524,43 +524,4 @@ pub fn setup_camera(mut commands: Commands, settings: Res<CameraSettings>) {
             target_zoom: settings.default_player_zoom, // Use the default player zoom
         },
     ));
-}
-
-fn setup_simple_background(mut commands: Commands) {
-    // Background parameters
-    let tile_size = 400.0;
-    let grid_size = 20; // This creates a 20x20 grid of tiles
-
-    // Create a parent entity for all background tiles
-    commands
-        .spawn_empty()
-        .insert(Name::new("Background"))
-        .with_children(|parent| {
-            // Create a simple checkered pattern
-            for i in -grid_size / 2..grid_size / 2 {
-                for j in -grid_size / 2..grid_size / 2 {
-                    // Alternate colors in a checkered pattern
-                    let is_dark = (i + j) % 2 == 0;
-                    let color = if is_dark {
-                        Color::srgb(0.2, 0.2, 0.25) // Dark blue-gray
-                    } else {
-                        Color::srgb(0.3, 0.3, 0.35) // Lighter blue-gray
-                    };
-
-                    // Spawn a square sprite
-                    parent.spawn((
-                        Sprite {
-                            color,
-                            custom_size: Some(Vec2::new(tile_size, tile_size)),
-                            ..default()
-                        },
-                        Transform::from_translation(Vec3::new(
-                            i as f32 * tile_size,
-                            j as f32 * tile_size,
-                            -10.0, // Behind everything else
-                        )),
-                    ));
-                }
-            }
-        });
 }

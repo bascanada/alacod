@@ -17,7 +17,7 @@ use crate::{
         config::CharacterConfig,
         enemy::spawning::EnemySpawnerState,
         player::{create::create_player, jjrs::PeerConfig},
-    }, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, OnlineState}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
+    }, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, OnlineState}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
 };
 
 
@@ -26,9 +26,15 @@ pub fn setup_ggrs_local(
     mut app_state: ResMut<NextState<AppState>>,
     session_config: Res<GggrsSessionConfiguration>,
     online_state: Res<OnlineState>,
+    session_state: Res<GggrsSessionConfigurationState>,
 ) {
 
     if !matches!(online_state.as_ref(), OnlineState::Offline) {
+        return;
+    }
+
+    if !session_state.ready {
+        println!("NOT READY");
         return;
     }
 

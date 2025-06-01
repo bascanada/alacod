@@ -8,6 +8,7 @@ bevy = "0.16"
 bevy_ecs_ldtk = { version = "0.12", default-features = true }
 
 map = { path = "../map"}
+game = { path = "../game"}
 utils = { path = "../utils"}
 
 serde = { version = "1.0", features = ["derive"] }

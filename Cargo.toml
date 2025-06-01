@@ -41,6 +41,10 @@ name = "map_preview"
 path = "examples/map_preview.rs"
 
 [[example]]
+name = "map_explorer"
+path = "examples/map_explorer.rs"
+
+[[example]]
 name = "map_generation"
 path = "examples/map_generation.rs"
 

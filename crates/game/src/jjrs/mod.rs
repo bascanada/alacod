@@ -2,7 +2,7 @@ pub mod p2p;
 pub mod local;
 
 
-use std::{net::SocketAddr};
+use std::{default, net::SocketAddr};
 
 use animation::SpriteSheetConfig;
 use bevy::{color::palettes::{css::TURQUOISE, tailwind::{ORANGE_300, PURPLE_300}}, prelude::*};
@@ -44,6 +44,20 @@ pub struct GggrsSessionConfiguration {
     pub lobby: String,
     pub connection: GggrsConnectionConfiguration,
     pub players: Vec<String>,
+}
+
+// This state is used to mark if extra external settings need to be configure
+// the ggrs system will wait for this to be true before Loading the map
+// if you need to have extra ui to configure your game
+#[derive(Resource, Default)]
+pub struct GggrsSessionConfigurationState {
+    pub ready: bool
+}
+
+impl GggrsSessionConfigurationState {
+    pub fn ready() -> Self {
+        Self { ready: true }
+    }
 }
 
 

@@ -1,10 +1,10 @@
 use bevy::{asset::AssetMetaCheck, prelude::*, window::WindowResolution};
 use bevy_ecs_ldtk::prelude::*;
 
+use game::core::AppState;
 use map::{game::entity::map::door::DoorComponent, generation::config::MapGenerationConfig};
 use map_ldtk::{
-    loader::{get_asset_loader_generation, reload_map, setup_generated_map},
-    plugins::LdtkRoguePlugin,
+    game::utility::load_levels_if_not_present, loader::{get_asset_loader_generation, reload_map, setup_generated_map}, plugins::LdtkRoguePlugin
 };
 use utils::{
     camera::tod::{move_camera, setup_camera},
@@ -15,8 +15,6 @@ use std::env;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
-    let level_loader = get_asset_loader_generation();
-
     let map_generation_config = get_config();
     let window_plugin = WindowPlugin {
         primary_window: Some(Window {
@@ -43,14 +41,14 @@ fn main() {
                 .set(ImagePlugin::default_nearest())
                 .set(window_plugin),
         )
-        .add_systems(Startup, (setup_generated_map, setup_camera))
+        .init_state::<AppState>()
+        .insert_state(AppState::GameLoading)
+        .add_systems(Startup, (setup_camera))
         .add_plugins(LdtkRoguePlugin)
         .insert_resource(map_generation_config)
-        .register_asset_loader(level_loader)
         .add_systems(
             Update,
             (
-                load_levels_if_not_present,
                 move_camera,
                 keyinput,
                 toggle_door_visibility,
@@ -76,43 +74,6 @@ fn toggle_door_visibility(
             };
         }
     }
-}
-
-// should be a step before the game part
-fn load_levels_if_not_present(
-    ldtk_project: Res<Assets<LdtkProject>>,
-    mut level_set: Query<&mut LevelSet>,
-) {
-    if ldtk_project.is_empty() {
-        return;
-    }
-    let ids: Vec<_> = ldtk_project.ids().collect();
-    let id = ids.first().unwrap();
-
-    let ldtk_project = ldtk_project.get(*id).unwrap();
-    let level_iids: Vec<_> = ldtk_project
-        .data()
-        .iter_raw_levels()
-        .map(|l| l.iid.clone())
-        .collect();
-
-    let mut level_set = level_set.iter_mut().last().unwrap();
-    if !level_set.iids.is_empty() {
-        let mut clear = false;
-        for iid in level_set.iids.iter() {
-            if !level_iids.iter().any(|x| iid.to_string() == *x) {
-                clear = true;
-                break;
-            }
-        }
-        if clear {
-            level_set.iids.clear();
-        }
-    }
-
-    level_iids.iter().for_each(|id| {
-        level_set.iids.insert(LevelIid::new(id));
-    });
 }
 
 fn keyinput(

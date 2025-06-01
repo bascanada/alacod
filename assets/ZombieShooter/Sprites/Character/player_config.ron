@@ -22,7 +22,7 @@
         offset: ( x: "0.0", y: "-20.0", z: "0.0" )
     ),
 
-    scale: "6.0",
+    scale: "1.0",
 
     base_health: (
         max: "10.0"

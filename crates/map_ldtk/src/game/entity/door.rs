@@ -6,7 +6,6 @@ use map::game::entity::map::door::DoorComponent;
 use map::generation::entity::door::DoorConfig;
 
 pub fn door_component_from_field(entity_instance: &EntityInstance) -> DoorComponent {
-    println!("FROM FIELD {:?}", entity_instance);
     DoorComponent {
         config: DoorConfig {
             electrify: *entity_instance

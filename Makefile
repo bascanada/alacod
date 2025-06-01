@@ -96,15 +96,17 @@ map_preview:
 map_generation:
 	cargo run --example map_generation $(ARGS)
 
-map_explorer:
-	cargo run --example map_explorer $(ARGS) --features native
-
-
 character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
 
 character_tester_matchbox:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
+
+ldtk_map_explorer:
+	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --local-port 7000 --players localhost
+
+ldtk_map_explorer_matchbox:
+	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
 
 host_website:
 	cd website && APP_VERSION=$(VERSION) npm run dev

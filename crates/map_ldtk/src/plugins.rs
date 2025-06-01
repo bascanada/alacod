@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 
+use crate::game::plugin::LdtkMapLoadingPlugin;
+
 use super::{
     game::{
         entity::{door::DoorBundle, player_spawn::PlayerSpawnBundle, window::WindowBundle},
@@ -28,6 +30,7 @@ pub struct LdtkRoguePlugin;
 impl Plugin for LdtkRoguePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(LdtkPlugin)
+            .add_plugins(LdtkMapLoadingPlugin)
             .insert_resource(LdtkSettings {
                 level_spawn_behavior: LevelSpawnBehavior::UseWorldTranslation {
                     load_level_neighbors: false,

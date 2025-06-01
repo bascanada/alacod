@@ -4609,6 +4609,7 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bevy_ecs_ldtk",
+ "game",
  "map",
  "once_cell",
  "serde",
