@@ -6,8 +6,8 @@ use bevy_fixed::fixed_math;
 use game::{
     args::BaseArgsPlugin, character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::create::create_player}, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, CoreSetupConfig, CoreSetupPlugin}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsSessionBuilding}, weapons::WeaponsConfig
 };
-use map::{game::entity::map::{enemy_spawn::EnemySpawnerComponent, player_spawn::PlayerSpawnComponent}, generation::{config::MapGenerationConfig, position}};
-use map_ldtk::plugins::LdtkRoguePlugin;
+use map::{game::entity::map::{enemy_spawn::EnemySpawnerComponent, player_spawn::PlayerSpawnConfig}, generation::{config::MapGenerationConfig, position}};
+use map_ldtk::{game::plugin::LdtkMapLoadingEvent, plugins::LdtkRoguePlugin};
 use utils::net_id::GgrsNetIdFactory;
 use bevy_ggrs::AddRollbackCommandExtension;
 
@@ -31,7 +31,7 @@ fn main() {
         .add_systems(OnEnter(AppState::LobbyLocal), system_configure_map)
         .add_systems(OnEnter(AppState::LobbyOnline), system_configure_map)
         .add_systems(Update, (
-            system_wait_for_map_loaded.run_if(in_state(AppState::GameLoading)),
+            system_wait_for_map_loaded.run_if(on_event::<LdtkMapLoadingEvent>),
         ))
         .run();
 }
@@ -66,12 +66,13 @@ fn system_wait_for_map_loaded(
     // Get my players
     ggrs_session_building: Res<GgrsSessionBuilding>,
 
-    player_spawn: Query<(Entity, &GlobalTransform, &PlayerSpawnComponent)>,
+    player_spawn: Query<(Entity, &GlobalTransform, &PlayerSpawnConfig)>,
 ) {
+
 
     let spawn: HashMap<usize, _> = player_spawn.iter().map(|s| (s.2.index, s) ).collect();
 
-
+    info!("Map is loaded with all rollback entity {}", spawn.len());
 
     if spawn.len() == 0 {
         return;

@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use crate::generation::{
+use crate::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::{
     context::{AvailableLevel, LevelType, MapGenerationContext, MapGenerationData},
     entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
     position::Position,
     room::{ConnectionTo, RoomConnection},
     IMapGeneration, Room, LEVEL_PROPERTIES_SPAWN_NAME,
-};
+}};
 
 use serde_json::Value;
 use utils::map;
@@ -311,7 +311,7 @@ impl IMapGeneration for BasicMapGeneration {
             .collect()
     }
 
-    fn get_player_spawn(&mut self) -> Vec<(EntityLocation, ())> {
+    fn get_player_spawn(&mut self) -> Vec<(EntityLocation, PlayerSpawnConfig)> {
         self.map
             .rooms
             .iter()
@@ -328,17 +328,20 @@ impl IMapGeneration for BasicMapGeneration {
                 roor.entity_locations
                     .player_spawns
                     .iter()
-                    .map(|y| {
+                    .enumerate()
+                    .map(|(i, y)| {
                         (
                             EntityLocation {
                                 position: y.position,
                                 size: y.size,
                                 level_iid: roor.level_iid.clone(),
                             },
-                            (),
+                            PlayerSpawnConfig {
+                                index: i,
+                            },
                         )
                     })
-                    .collect::<Vec<(EntityLocation, ())>>()
+                    .collect::<Vec<(EntityLocation, PlayerSpawnConfig)>>()
             })
             .collect()
     }

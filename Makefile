@@ -96,6 +96,11 @@ map_preview:
 map_generation:
 	cargo run --example map_generation $(ARGS)
 
+map_generation_test:
+	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated.ldtk
+
+
+
 character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
 

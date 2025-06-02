@@ -8,11 +8,11 @@ use bevy_ecs_ldtk::{
 use serde_json::Value;
 use uuid::Uuid;
 
-use map::generation::{
+use map::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::{
     entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
     room::{Room, RoomConnection},
     IMapGenerator,
-};
+}};
 
 use crate::map_const::{self, LAYER_ENTITY};
 
@@ -284,9 +284,14 @@ impl IMapGenerator for GeneratedMap {
         }
     }
 
-    fn add_player_spawns(&mut self, player_spawns: &Vec<(EntityLocation, ())>) {
-        for (location, _) in player_spawns.iter() {
-            self.add_entity_to_level(location, map_const::ENTITY_PLAYER_SPAWN_LOCATION, vec![]);
+    fn add_player_spawns(&mut self, player_spawns: &Vec<(EntityLocation, PlayerSpawnConfig)>) {
+        for (location, spawn) in player_spawns.iter() {
+            self.add_entity_to_level(location, map_const::ENTITY_PLAYER_SPAWN_LOCATION, vec![
+                (
+                    map_const::FIELD_PLAYER_SPAWN_INDEX_NAME,
+                    FieldValue::Int(Some(spawn.index as i32))
+                )
+            ]);
         }
     }
 }

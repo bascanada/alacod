@@ -6,7 +6,7 @@ pub mod entity;
 pub mod position;
 pub mod room;
 
-use crate::generation::imp::get_implementation;
+use crate::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::imp::get_implementation};
 
 use self::{
     context::MapGenerationContext,
@@ -25,7 +25,7 @@ trait IMapGeneration {
 
     fn get_doors(&mut self) -> Vec<(EntityLocation, DoorConfig)>;
     fn get_windows(&mut self) -> Vec<(EntityLocation, WindowConfig)>;
-    fn get_player_spawn(&mut self) -> Vec<(EntityLocation, ())>;
+    fn get_player_spawn(&mut self) -> Vec<(EntityLocation, PlayerSpawnConfig)>;
 }
 
 pub trait IMapGenerator {
@@ -37,7 +37,7 @@ pub trait IMapGenerator {
     );
     fn add_doors(&mut self, doors: &Vec<(EntityLocation, DoorConfig)>);
     fn add_windows(&mut self, windows: &Vec<(EntityLocation, WindowConfig)>);
-    fn add_player_spawns(&mut self, player_spawns: &Vec<(EntityLocation, ())>);
+    fn add_player_spawns(&mut self, player_spawns: &Vec<(EntityLocation, PlayerSpawnConfig)>);
 }
 
 pub fn map_generation(

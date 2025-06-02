@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
+use map::game::entity::map::map_rollback::MapRollbackMarker;
 
 use crate::map_const;
 use map::game::entity::map::door::DoorComponent;
 use map::generation::entity::door::DoorConfig;
 
 pub fn door_component_from_field(entity_instance: &EntityInstance) -> DoorComponent {
+    println!("door fields {:?}", entity_instance.field_instances);
     DoorComponent {
         config: DoorConfig {
             electrify: *entity_instance
@@ -25,5 +27,6 @@ pub struct DoorBundle {
     #[sprite_sheet]
     sprite_sheet: Sprite,
 
+    rollback_marker: MapRollbackMarker,
     visibility: Visibility,
 }
