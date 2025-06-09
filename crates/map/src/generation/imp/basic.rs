@@ -8,6 +8,7 @@ use crate::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::{
     IMapGeneration, Room, LEVEL_PROPERTIES_SPAWN_NAME,
 }};
 
+use bevy_fixed::rng::RollbackRng;
 use serde_json::Value;
 use utils::map;
 
@@ -24,14 +25,13 @@ struct Map {
 pub struct BasicMapGeneration {
     context: MapGenerationContext,
     data: MapGenerationData,
-
     map: Map,
 }
 
 impl BasicMapGeneration {
     pub fn create(context: MapGenerationContext) -> Self {
         BasicMapGeneration {
-            data: MapGenerationData::from_context(&context),
+            data: MapGenerationData::default(),
             context,
             map: Map {
                 last_generated_room_index: None,
@@ -153,6 +153,7 @@ impl BasicMapGeneration {
                     );
 
                     let mut new_room = Room::create(
+                        &mut self.data.rng,
                         compatible_level_def.clone(),
                         my_position,
                         map!(LEVEL_PROPERTIES_SPAWN_NAME => Value::Bool(false)),
@@ -230,6 +231,7 @@ impl IMapGeneration for BasicMapGeneration {
         );
 
         let spawning_room_def = Room::create(
+                &mut self.data.rng,
             spawning_room_def.clone(),
             Position(x, y),
             map!(LEVEL_PROPERTIES_SPAWN_NAME => Value::Bool(true)),

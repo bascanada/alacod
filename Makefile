@@ -6,6 +6,8 @@ NUMBER_PLAYER ?= 2
 CURRENT_TAG := $(shell git describe --tags --exact-match HEAD 2>/dev/null)
 
 
+RANDOM_SEED := $(echo $RANDOM)
+
 LOG_DIR := ./logs
 LOG_PREFFIX := game_run
 FILTERED_LOG_DIR := ./logs/filtered
@@ -97,9 +99,12 @@ map_generation:
 	cargo run --example map_generation $(ARGS)
 
 map_generation_test:
-	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated.ldtk
+	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated.ldtk $RANDOM_SEED
 
-
+map_generation_diff_test:
+	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated_1.ldtk $RANDOM_SEED
+	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated_2.ldtk $RANDOM_SEED
+	diff ./assets/exemples/test_map_generated_1.ldtk ./assets/exemples/test_map_generated_2.ldtk
 
 character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost

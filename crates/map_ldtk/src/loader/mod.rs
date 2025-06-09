@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy_ecs_ldtk::assets::{LdtkProjectLoader, LdtkProjectLoaderSettings};
 use bevy_ecs_ldtk::prelude::*;
 
+use bevy_fixed::rng::RollbackRng;
 use once_cell::sync::Lazy;
 
 use map::generation::config::MapGenerationConfig;
@@ -32,9 +33,10 @@ pub fn get_asset_loader_generation() -> LdtkProjectLoader {
                     .expect("Failed to convert value to struct");
 
             let context = from_map(&map_json, config);
+            let mut rng = RollbackRng::new(1);
             let mut generator = GeneratedMap::create(map_json);
 
-            map_generation(context, &mut generator).unwrap();
+            map_generation(context, &mut rng, &mut generator).unwrap();
 
             generator.get_generated_map()
         })),
