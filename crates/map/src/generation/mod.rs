@@ -49,7 +49,7 @@ pub fn map_generation(
 ) -> Result<(), ()> {
     //let mut generated_map = GeneratedMap::create(map_json.levels);
     let mut rng = RollbackRng::new(context.config.seed as u32);
-    let mut generator = get_implementation(&mut rng, context);
+    let mut generator = get_implementation(context);
 
     // select the spawning room
     let room = generator.get_spawning_room(&mut rng);

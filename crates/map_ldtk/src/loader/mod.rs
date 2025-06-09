@@ -33,10 +33,9 @@ pub fn get_asset_loader_generation() -> LdtkProjectLoader {
                     .expect("Failed to convert value to struct");
 
             let context = from_map(&map_json, config);
-            let mut rng = RollbackRng::new(1);
             let mut generator = GeneratedMap::create(map_json);
 
-            map_generation(context, &mut rng, &mut generator).unwrap();
+            map_generation(context, &mut generator).unwrap();
 
             generator.get_generated_map()
         })),

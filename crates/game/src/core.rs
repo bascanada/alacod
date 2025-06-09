@@ -18,7 +18,7 @@ use utils::{
 };
 
 use crate::{
-    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::BaseColliderGamePlugin, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{local::{setup_ggrs_local, system_after_map_loaded_local}, log_ggrs_events, p2p::{start_matchbox_socket, system_after_map_loaded, wait_for_players}, GggrsSessionConfigurationState}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
+    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::{debug::DebugColliderGamePlugin, BaseColliderGamePlugin}, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{local::{setup_ggrs_local, system_after_map_loaded_local}, log_ggrs_events, p2p::{start_matchbox_socket, system_after_map_loaded, wait_for_players}, GggrsSessionConfigurationState}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
 };
 
 
@@ -82,6 +82,7 @@ impl Plugin for CoreSetupPlugin {
 
         app.add_plugins(BaseWeaponGamePlugin {});
         app.add_plugins(BaseColliderGamePlugin {});
+        app.add_plugins(DebugColliderGamePlugin);
         app.add_plugins(BaseCharacterGamePlugin {});
 
 

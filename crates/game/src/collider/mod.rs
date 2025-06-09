@@ -7,6 +7,8 @@ use bevy_light_2d::light::PointLight2d;
 use serde::{Deserialize, Serialize};
 use utils::net_id::GgrsNetId;
 
+pub mod debug;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ColliderShape {
     Circle {
