@@ -18,3 +18,6 @@ pub const FIELD_PRICE_NAME: &str = "price";
 // pub const FIELD_PRICE_TYPE: &str = FIELD_INT_TYPE;
 pub const FIELD_ELECTRIFY_NAME: &str = "electrify";
 // pub const FIELD_ELECTRIFY_TYPE: &str = FIELD_BOOL_TYPE;
+
+
+pub const FIELD_PLAYER_SPAWN_INDEX_NAME: &str = "index";

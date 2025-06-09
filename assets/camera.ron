@@ -2,9 +2,9 @@
     free_move_speed: 500.0,
     edge_margin: 0.05,
     lerp_speed: 5.0,
-    max_zoom_out: 8.0,
-    min_zoom: 3.0,
-    default_player_zoom: 3.0, // Default zoom when in player mode
+    max_zoom_out: 3.0,
+    min_zoom: 1.0,
+    default_player_zoom: 1.0, // Default zoom when in player mode
     player_padding: 100.0,
     indicator_size: 20.0,
     indicator_edge_distance: 20.0,

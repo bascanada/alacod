@@ -5,14 +5,14 @@ use bevy_ecs_ldtk::{
     ldtk::{FieldInstance, FieldValue, LdtkJson, Level, NeighbourLevel, RealEditorValue},
     EntityInstance,
 };
+use bevy_fixed::rng::RollbackRng;
 use serde_json::Value;
-use uuid::Uuid;
 
-use map::generation::{
+use map::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::{
     entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
     room::{Room, RoomConnection},
     IMapGenerator,
-};
+}};
 
 use crate::map_const::{self, LAYER_ENTITY};
 
@@ -77,11 +77,11 @@ pub struct GeneratedMap {
 pub fn _add_property_entity() {}
 
 pub fn get_new_entity(
+    rng: &mut RollbackRng,
     room: &GeneratedRoom,
     original_entity_identifier: &str,
     location: &EntityLocation,
     tile_size: (i32, i32),
-    // identifier and value
     fields: Vec<(&str, FieldValue)>,
 ) -> EntityInstance {
     let entity = room
@@ -137,7 +137,7 @@ pub fn get_new_entity(
         tags: vec![],
         tile: entity.tile_rect,
         smart_color: entity.color,
-        iid: Uuid::new_v4().to_string(),
+        iid: rng.next_uuid(),
         width: location.size.0 * tile_size.0,
         height: location.size.1 * tile_size.1,
         field_instances: identifiers,
@@ -174,6 +174,7 @@ impl GeneratedMap {
 
     fn add_entity_to_level(
         &mut self,
+        rng: &mut RollbackRng,
         location: &EntityLocation,
         entity_type: &str,
         fields: Vec<(&str, FieldValue)>,
@@ -185,6 +186,7 @@ impl GeneratedMap {
             .unwrap();
 
         let new_entity = get_new_entity(
+            rng,
             level,
             entity_type,
             location,
@@ -211,6 +213,7 @@ impl GeneratedMap {
 impl IMapGenerator for GeneratedMap {
     fn add_room(
         &mut self,
+        _rng: &mut RollbackRng,
         room: &Room,
         connection_used: Option<&RoomConnection>,
         connected_to: Option<&RoomConnection>,
@@ -259,9 +262,10 @@ impl IMapGenerator for GeneratedMap {
         self.generated_rooms.push(generated_room);
     }
 
-    fn add_doors(&mut self, doors: &Vec<(EntityLocation, DoorConfig)>) {
+    fn add_doors(&mut self, rng: &mut RollbackRng, doors: &Vec<(EntityLocation, DoorConfig)>) {
         for (location, door) in doors.iter() {
             self.add_entity_to_level(
+                rng,
                 location,
                 map_const::ENTITY_DOOR_LOCATION,
                 vec![
@@ -278,15 +282,20 @@ impl IMapGenerator for GeneratedMap {
         }
     }
 
-    fn add_windows(&mut self, windows: &Vec<(EntityLocation, WindowConfig)>) {
+    fn add_windows(&mut self, rng: &mut RollbackRng, windows: &Vec<(EntityLocation, WindowConfig)>) {
         for (location, _) in windows.iter() {
-            self.add_entity_to_level(location, map_const::ENTITY_WINDOW_LOCATION, vec![]);
+            self.add_entity_to_level(rng, location, map_const::ENTITY_WINDOW_LOCATION, vec![]);
         }
     }
 
-    fn add_player_spawns(&mut self, player_spawns: &Vec<(EntityLocation, ())>) {
-        for (location, _) in player_spawns.iter() {
-            self.add_entity_to_level(location, map_const::ENTITY_PLAYER_SPAWN_LOCATION, vec![]);
+    fn add_player_spawns(&mut self, rng: &mut RollbackRng, player_spawns: &Vec<(EntityLocation, PlayerSpawnConfig)>) {
+        for (location, spawn) in player_spawns.iter() {
+            self.add_entity_to_level(rng, location, map_const::ENTITY_PLAYER_SPAWN_LOCATION, vec![
+                (
+                    map_const::FIELD_PLAYER_SPAWN_INDEX_NAME,
+                    FieldValue::Int(Some(spawn.index as i32))
+                )
+            ]);
         }
     }
 }

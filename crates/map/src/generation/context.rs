@@ -245,15 +245,7 @@ pub struct MapGenerationContext {
     pub config: MapGenerationConfig,
 }
 
+#[derive(Default)]
 pub struct MapGenerationData {
     // TODO change for trait to be able to replace for unit test
-    pub rng: RollbackRng,
-}
-
-impl MapGenerationData {
-    pub fn from_context(context: &MapGenerationContext) -> Self {
-        Self {
-            rng: RollbackRng::new(context.config.seed as u32),
-        }
-    }
 }
