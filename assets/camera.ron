@@ -3,7 +3,7 @@
     edge_margin: 0.05,
     lerp_speed: 5.0,
     max_zoom_out: 3.0,
-    min_zoom: 1.0,
+    min_zoom: 0.6,
     default_player_zoom: 1.0, // Default zoom when in player mode
     player_padding: 100.0,
     indicator_size: 20.0,

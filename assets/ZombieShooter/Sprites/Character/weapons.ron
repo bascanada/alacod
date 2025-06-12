@@ -7,11 +7,11 @@
                 "default": (
                     firing_rate: "2.0",
                     firing_mode: Manual(),
-                    spread: "0.05",
+                    spread:  "0.0005",
                     recoil: "3.0",
                     bullet_type: Standard(
                         damage: "15.0",
-                        speed: "900.0",
+                        speed: "400.0",
                     ),
                     range: "700.0",
                     reload_time_seconds: "1.0",
@@ -25,7 +25,7 @@
         sprite_config: (
             name: "pistol",
             index: 3,
-            bullet_offset_right: ( x: "-15.0", y: "2.0" ),
+            bullet_offset_right: ( x: "-5.0", y: "2.0" ),
             bullet_offset_left: ( x: "0.0", y: "-2.0" ),
             weapon_offset: ( x: "0.0", y: "-5.0" )
         ),
@@ -50,7 +50,7 @@
                     recoil: "1.5",
                     bullet_type: Standard(
                         damage: "8.0",
-                        speed: "1000.0",
+                        speed: "300.0",
                     ),
                     range: "900.0",
                     reload_time_seconds: "1.5",
@@ -62,11 +62,11 @@
                 "rafale": (
                     firing_rate: "10.0",
                     firing_mode: Burst(pellets_per_shot: 3, cooldown_frames: 1),
-                    spread: "0",
+                    spread: "1",
                     recoil: "1.5",
                     bullet_type: Standard(
                         damage: "8.0",
-                        speed: "1000.0",
+                        speed: "400.0",
                     ),
                     range: "900.0",
                     reload_time_seconds: "0.7",
@@ -80,8 +80,8 @@
         sprite_config: (
             name: "machine_gun",
             index: 1,
-            bullet_offset_right: ( x: "100.0", y: "-5.0" ),
-            bullet_offset_left: ( x: "100.0", y: "-0.0" ),
+            bullet_offset_right: ( x: "12.0", y: "0.0" ),
+            bullet_offset_left: ( x: "12.0", y: "-0.0" ),
             weapon_offset: ( x: "0.0", y: "-5.0" )
         ),
         audio_config: (
@@ -109,7 +109,7 @@
                     mag_size: 5000,
                     bullet_type: Standard(
                         damage: "30.0",
-                        speed: "1000.0",
+                        speed: "200.0",
                     ),
                     range: "400.0",
                     reload_time_seconds: "0.8",
@@ -142,8 +142,8 @@
         sprite_config: (
             name: "shotgun",
             index: 0,
-            bullet_offset_right: ( x: "100.0", y: "-12" ),
-            bullet_offset_left: ( x: "100.0", y: "12" ),
+            bullet_offset_right: ( x: "10.0", y: "-0" ),
+            bullet_offset_left: ( x: "10.0", y: "0" ),
             weapon_offset: ( x: "0.0", y: "-5." )
         ),
         audio_config: (

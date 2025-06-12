@@ -509,7 +509,7 @@ fn spawn_bullet_rollback(
     );
 
     let mut entity_commands = commands.spawn((
-        Sprite::from_color(color, Vec2::new(10.0, 10.0)),
+        Sprite::from_color(color, Vec2::new(3.5, 3.5)),
         Bullet {
             velocity,
             bullet_type,
