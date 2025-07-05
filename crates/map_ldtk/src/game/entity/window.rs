@@ -9,11 +9,18 @@ pub fn window_from_field(_: &EntityInstance) -> WindowComponent {
     }
 }
 
-#[derive(Default, Bundle, LdtkEntity)]
+#[derive(Bundle, LdtkEntity)]
 pub struct WindowBundle {
     #[with(window_from_field)]
-    door: WindowComponent,
+    window: WindowComponent,
     rollback_marker: MapRollbackMarker,
     #[sprite_sheet]
     sprite_sheet: Sprite,
+}
+
+
+impl Default for WindowBundle {
+    fn default() -> Self {
+        Self { rollback_marker: MapRollbackMarker("window".into()), window: WindowComponent::default(), sprite_sheet: Sprite::default()}
+    } 
 }

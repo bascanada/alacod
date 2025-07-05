@@ -20,13 +20,18 @@ pub fn door_component_from_field(entity_instance: &EntityInstance) -> DoorCompon
     }
 }
 
-#[derive(Default, Bundle, LdtkEntity)]
+#[derive(Bundle, LdtkEntity)]
 pub struct DoorBundle {
     #[with(door_component_from_field)]
     door: DoorComponent,
     #[sprite_sheet]
     sprite_sheet: Sprite,
-
     rollback_marker: MapRollbackMarker,
     visibility: Visibility,
+}
+
+impl Default for DoorBundle {
+    fn default() -> Self {
+        Self { rollback_marker: MapRollbackMarker("door".into()), door: DoorComponent::default(), sprite_sheet: Sprite::default(), visibility: Visibility::default()}
+    } 
 }

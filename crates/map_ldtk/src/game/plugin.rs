@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
-use game::core::AppState;
-use map::game::entity::map::map_rollback::MapRollbackMarker;
+use game::{collider::{Collider, CollisionLayer, CollisionSettings, Wall}, core::AppState};
+use map::game::entity::{map::map_rollback::MapRollbackMarker, MapRollbackItem};
 use bevy_ggrs::AddRollbackCommandExtension;
+use utils::net_id::GgrsNetIdFactory;
 
 use crate::{game::{collider::create_wall_colliders_from_ldtk, utility::load_levels_if_not_present}, loader::{get_asset_loader_generation, setup_generated_map}};
 
@@ -12,6 +13,7 @@ pub struct LdtkMapLoadingPlugin;
 #[derive(Clone)]
 pub struct LdtkMapEntityLoading {
     pub id: String,
+    pub kind: String,
     pub transform: Transform,
     pub entity: Entity,
 }
@@ -57,7 +59,11 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: EventWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &Transform), Added<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &Transform, &MapRollbackMarker), Added<MapRollbackMarker>>,
+
+    collision_settings: Res<CollisionSettings>,
+
+    mut id_factory: ResMut<GgrsNetIdFactory>,
 
     time: Res<Time>,
 ) {
@@ -69,8 +75,8 @@ fn wait_for_all_map_rollback_entity(
     let current_time = time.elapsed_secs();
     let previous_size = entity_registery.entities.len();
 
-    for (e, transform) in query_map_entity.iter() {
-        entity_registery.entities.push(LdtkMapEntityLoading { id: "".into(), entity: e.clone(), transform: *transform });
+    for (e, transform, rollback_marker) in query_map_entity.iter() {
+        entity_registery.entities.push(LdtkMapEntityLoading { id: rollback_marker.0.clone(), kind: rollback_marker.0.clone(), entity: e.clone(), transform: *transform });
     }
 
     let new_size = entity_registery.entities.len();
@@ -86,13 +92,39 @@ fn wait_for_all_map_rollback_entity(
     if !entity_registery.entities.is_empty() && 
        (current_time - entity_registery.last_update_time) >= entity_registery.timeout_duration {
 
-        /*
         for item in entity_registery.entities.iter() {
-            commands.entity(item.entity).insert(
-                fixed_math::FixedTransform3D::from_bevy_transform(&item.transform)
-            ).add_rollback();
+            let rollback_item = 
+                MapRollbackItem::new(item.entity.clone(), item.kind.clone());
+            let id = 
+                id_factory.next(item.id.clone());
+
+            info!("spawning rollback map item {} at {} for parent {}", id, item.transform.translation, item.entity);
+            let mut cmd = commands.spawn((
+                fixed_math::FixedTransform3D::from_bevy_transform(&item.transform),
+                rollback_item,
+                id,
+            ));
+
+
+            match item.kind.as_str() {
+                "door" => {
+                    cmd.insert((
+                        Wall,
+                        Collider {
+                            shape: game::collider::ColliderShape::Rectangle {
+                                width: fixed_math::Fixed::from_num(64.0), height: fixed_math::Fixed::from_num(32.0),
+                            },
+                            offset: fixed_math::FixedVec3::ZERO,
+                        },
+                        CollisionLayer(collision_settings.wall_layer),
+                    ));
+                    info!("adding collider to door entity");
+                },
+                _ => {}
+            }
+
+            let _ = cmd.add_rollback().id();
         }
-        */
 
         ev_loading_map.write_default();
         entity_registery.loading_complete = true;

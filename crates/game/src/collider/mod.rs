@@ -269,6 +269,7 @@ impl Plugin for BaseColliderGamePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CollisionSettings>();
 
+
         app.rollback_component_with_clone::<Collider>()
             .rollback_component_with_clone::<Wall>()
             .rollback_component_with_clone::<CollisionLayer>();
