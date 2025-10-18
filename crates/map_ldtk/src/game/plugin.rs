@@ -14,13 +14,21 @@ pub struct LdtkMapLoadingPlugin;
 pub struct LdtkMapEntityLoading {
     pub id: String,
     pub kind: String,
-    pub transform: Transform,
+    pub global_transform: GlobalTransform,
     pub entity: Entity,
+}
+
+impl LdtkMapEntityLoading {
+    fn is_valid(&self) -> bool {
+        let trans = self.global_transform.translation();
+        trans.x != 0.0 || trans.y != 0.0
+    }
 }
 
 #[derive(Resource, Clone)]
 pub struct LdtkMapEntityLoadingRegistry {
     pub entities: Vec<LdtkMapEntityLoading>,
+    pub registered_entities: std::collections::HashSet<Entity>,
     pub last_update_time: f32,
     pub timeout_duration: f32,
     pub loading_complete: bool,
@@ -28,7 +36,13 @@ pub struct LdtkMapEntityLoadingRegistry {
 
 impl Default for LdtkMapEntityLoadingRegistry {
     fn default() -> Self {
-        Self { entities: vec![], last_update_time: 0.0, timeout_duration: 0.5, loading_complete: false }
+        Self { 
+            entities: vec![], 
+            registered_entities: std::collections::HashSet::new(),
+            last_update_time: 0.0, 
+            timeout_duration: 0.5, 
+            loading_complete: false 
+        }
     }
 }
 
@@ -44,7 +58,7 @@ impl Plugin for LdtkMapLoadingPlugin {
         app.init_resource::<LdtkMapEntityLoadingRegistry>();
         app.add_event::<LdtkMapLoadingEvent>();
 
-        app.add_systems(OnEnter(AppState::GameLoading), (setup_generated_map));
+        app.add_systems(OnEnter(AppState::GameLoading), setup_generated_map);
         app.add_systems(Update, (
             load_levels_if_not_present,
             wait_for_all_map_rollback_entity,
@@ -59,7 +73,7 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: EventWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &Transform, &MapRollbackMarker), Added<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker), With<MapRollbackMarker>>,
 
     collision_settings: Res<CollisionSettings>,
 
@@ -75,8 +89,27 @@ fn wait_for_all_map_rollback_entity(
     let current_time = time.elapsed_secs();
     let previous_size = entity_registery.entities.len();
 
-    for (e, transform, rollback_marker) in query_map_entity.iter() {
-        entity_registery.entities.push(LdtkMapEntityLoading { id: rollback_marker.0.clone(), kind: rollback_marker.0.clone(), entity: e.clone(), transform: *transform });
+    for (e, global_transform, rollback_marker) in query_map_entity.iter() {
+        // Skip if already registered
+        if entity_registery.registered_entities.contains(&e) {
+            continue;
+        }
+        
+        let translation = global_transform.translation();
+        
+        // Only register entities with valid (non-zero) global transforms
+        // GlobalTransform gets updated by Bevy's transform propagation system
+        if translation.x != 0.0 || translation.y != 0.0 {
+            info!("Found {} entity {:?} at position {}", rollback_marker.0, e, translation);
+            
+            entity_registery.entities.push(LdtkMapEntityLoading { 
+                id: rollback_marker.0.clone(), 
+                kind: rollback_marker.0.clone(), 
+                entity: e.clone(), 
+                global_transform: *global_transform,
+            });
+            entity_registery.registered_entities.insert(e);
+        }
     }
 
     let new_size = entity_registery.entities.len();
@@ -98,9 +131,13 @@ fn wait_for_all_map_rollback_entity(
             let id = 
                 id_factory.next(item.id.clone());
 
-            info!("spawning rollback map item {} at {} for parent {}", id, item.transform.translation, item.entity);
+            // Convert GlobalTransform to Transform for positioning
+            let world_position = item.global_transform.translation();
+            let transform = Transform::from_translation(world_position);
+
+            info!("spawning rollback map item {} at {} for parent {}", id, world_position, item.entity);
             let mut cmd = commands.spawn((
-                fixed_math::FixedTransform3D::from_bevy_transform(&item.transform),
+                fixed_math::FixedTransform3D::from_bevy_transform(&transform),
                 rollback_item,
                 id,
             ));
