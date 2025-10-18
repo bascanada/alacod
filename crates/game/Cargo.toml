@@ -31,7 +31,7 @@ wasm-bindgen = "0.2"
 
 clap = { version = "4.4", features = ["derive"] }
 
-bevy-inspector-egui = "0.31.0"
+bevy-inspector-egui = { version = "0.31.0", optional = true }
 
 
 [dependencies.web-sys]
@@ -42,3 +42,7 @@ features = [
   'Location',
   'UrlSearchParams', # Provides easy parsing of query strings
 ]
+
+[features]
+# Enable debug UI (Egui / World Inspector) for development builds
+debug_ui = ["bevy-inspector-egui"]

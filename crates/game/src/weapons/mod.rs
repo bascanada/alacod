@@ -1,3 +1,4 @@
+#[cfg(feature = "debug_ui")]
 pub mod ui;
 
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
@@ -1115,6 +1116,9 @@ pub struct BaseWeaponGamePlugin {}
 
 impl Plugin for BaseWeaponGamePlugin {
     fn build(&self, app: &mut App) {
+        // Only include the debug UI plugin when the `debug_ui` feature is enabled.
+        // This keeps Egui / WorldInspector out of production builds unless explicitly requested.
+        #[cfg(feature = "debug_ui")]
         app.add_plugins(self::ui::WeaponDebugUIPlugin);
 
         app.add_plugins(RonAssetPlugin::<WeaponsConfig>::new(&["ron"]));

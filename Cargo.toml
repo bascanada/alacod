@@ -9,7 +9,8 @@ exclude = ["assets/*", "repo/*", "scripts/*"]
 default = []
 
 native = [
-  "bevy/file_watcher"
+  "bevy/file_watcher",
+  "game/debug_ui"
 ]
 
 [workspace]

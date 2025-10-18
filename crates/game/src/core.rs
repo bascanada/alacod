@@ -9,6 +9,7 @@ use bevy_fixed::{
     rng::RollbackRng,
 };
 use bevy_ggrs::{GgrsApp, GgrsPlugin, GgrsSchedule, RollbackApp};
+#[cfg(feature = "debug_ui")]
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use serde::{Deserialize, Serialize};
 use utils::{
@@ -86,8 +87,11 @@ impl Plugin for CoreSetupPlugin {
         app.add_plugins(BaseCharacterGamePlugin {});
 
 
-        app.add_plugins(EguiPlugin { enable_multipass_for_primary_context: true });
-        app.add_plugins(WorldInspectorPlugin::new());
+    #[cfg(feature = "debug_ui")]
+    app.add_plugins(EguiPlugin { enable_multipass_for_primary_context: true });
+
+    #[cfg(feature = "debug_ui")]
+    app.add_plugins(WorldInspectorPlugin::new());
 
         app.init_resource::<GameInfo>();
         app.init_resource::<GggrsSessionConfigurationState>();

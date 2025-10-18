@@ -26,6 +26,10 @@ pub struct LdtkMapEntityLoadingRegistry {
     pub last_update_time: f32,
     pub timeout_duration: f32,
     pub loading_complete: bool,
+    // Number of update ticks since we last saw a new entity registered.
+    pub frames_since_last_update: u32,
+    // How many consecutive frames with no new entities we consider "stable" (default a few frames).
+    pub required_stable_frames: u32,
 }
 
 impl Default for LdtkMapEntityLoadingRegistry {
@@ -36,6 +40,8 @@ impl Default for LdtkMapEntityLoadingRegistry {
             last_update_time: 0.0, 
             timeout_duration: 0.5, 
             loading_complete: false 
+            , frames_since_last_update: 0
+            , required_stable_frames: 3
         }
     }
 }
@@ -114,13 +120,21 @@ fn wait_for_all_map_rollback_entity(
     // If new entities were added, update the last update time
     if new_size > previous_size {
         entity_registery.last_update_time = current_time;
+        entity_registery.frames_since_last_update = 0;
         info!("Added {} new map entities, total: {}", new_size - previous_size, new_size);
         return;
     }
 
-    // If we have entities and enough time has passed since the last update, consider loading complete
-    if !entity_registery.entities.is_empty() && 
-       (current_time - entity_registery.last_update_time) >= entity_registery.timeout_duration {
+    // No new entities were added this frame: increment stable-frame counter
+    entity_registery.frames_since_last_update = entity_registery.frames_since_last_update.saturating_add(1);
+
+    // Consider loading complete when either:
+    //  - we've observed a few consecutive frames with no new entities (stable), or
+    //  - the original timeout has elapsed (fallback for unusual scheduling scenarios).
+    if !entity_registery.entities.is_empty()
+        && (entity_registery.frames_since_last_update >= entity_registery.required_stable_frames
+            || (current_time - entity_registery.last_update_time) >= entity_registery.timeout_duration)
+    {
 
         for item in entity_registery.entities.iter() {
             let rollback_item = 
