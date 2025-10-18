@@ -48,5 +48,3 @@ jobs:
         run:  make build_docker_website TARGET=web PROFILE=prod
       - name: Publish docker website
         run: make push_docker_website
-      - name: Update deployment
-        run: doctl apps create-deployment 12321cca-c9b1-4e19-9961-3d5ebc8ff12a

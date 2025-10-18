@@ -133,7 +133,12 @@ build_character_tester_web:
 	APP_VERSION=$(VERSION) cargo build --example character_tester --target wasm32-unknown-unknown $(RELEASE)
 	wasm-bindgen --out-dir ./website/static/$(VERSION)/character_tester --out-name wasm --target web $(CARGO_TARGET_DIR)/wasm32-unknown-unknown/$(MODE_DIR)/examples/character_tester.wasm
 
-build_wasm_apps: cp_asset build_map_preview_web build_character_tester_web
+build_ldtk_map_explorer_web:
+	APP_VERSION=$(VERSION) cargo build --example ldtk_map_explorer --target wasm32-unknown-unknown $(RELEASE)
+	wasm-bindgen --out-dir ./website/static/$(VERSION)/ldtk_map_explorer --out-name wasm --target web $(CARGO_TARGET_DIR)/wasm32-unknown-unknown/$(MODE_DIR)/examples/ldtk_map_explorer.wasm
+
+
+build_wasm_apps: cp_asset build_map_preview_web build_character_tester_web build_ldtk_map_explorer_web
 
 build_website: build_wasm_apps
 	cd website && npm ci && APP_VERSION=$(VERSION) npm run build
