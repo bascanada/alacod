@@ -8,8 +8,8 @@
         "content": "Preview app to generate random map and preview them from an overview"
     },
         {
-        "id": "ldtk_map_explorer",
-        "name": "LDTK Map Explorer",
+        "id": "map_explorer",
+        "name": "Map Explorer",
 
         "online": true,
 
@@ -20,7 +20,7 @@
         "name": "Character Tester",
 
         "online": true,
-
+        
         "content": "Preview app to test the characters and weapons"
     }
 
