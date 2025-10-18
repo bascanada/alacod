@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
-use game::{collider::{Collider, CollisionLayer, CollisionSettings, Wall}, core::AppState};
+use game::{collider::{Collider, CollisionLayer, CollisionSettings, Wall, Window}, core::AppState};
 use map::game::entity::{map::map_rollback::MapRollbackMarker, MapRollbackItem};
 use bevy_ggrs::AddRollbackCommandExtension;
 use utils::net_id::GgrsNetIdFactory;
 
-use crate::{game::{collider::create_wall_colliders_from_ldtk, utility::load_levels_if_not_present}, loader::{get_asset_loader_generation, setup_generated_map}};
+use crate::{game::{collider::create_wall_colliders_from_ldtk, entity::door::LdtkEntitySize, utility::load_levels_if_not_present}, loader::{get_asset_loader_generation, setup_generated_map}};
 
 pub struct LdtkMapLoadingPlugin;
 
@@ -16,13 +16,7 @@ pub struct LdtkMapEntityLoading {
     pub kind: String,
     pub global_transform: GlobalTransform,
     pub entity: Entity,
-}
-
-impl LdtkMapEntityLoading {
-    fn is_valid(&self) -> bool {
-        let trans = self.global_transform.translation();
-        trans.x != 0.0 || trans.y != 0.0
-    }
+    pub sprite_size: Option<Vec2>,
 }
 
 #[derive(Resource, Clone)]
@@ -73,7 +67,7 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: EventWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker), With<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>), With<MapRollbackMarker>>,
 
     collision_settings: Res<CollisionSettings>,
 
@@ -89,7 +83,7 @@ fn wait_for_all_map_rollback_entity(
     let current_time = time.elapsed_secs();
     let previous_size = entity_registery.entities.len();
 
-    for (e, global_transform, rollback_marker) in query_map_entity.iter() {
+    for (e, global_transform, rollback_marker, ldtk_size) in query_map_entity.iter() {
         // Skip if already registered
         if entity_registery.registered_entities.contains(&e) {
             continue;
@@ -100,13 +94,16 @@ fn wait_for_all_map_rollback_entity(
         // Only register entities with valid (non-zero) global transforms
         // GlobalTransform gets updated by Bevy's transform propagation system
         if translation.x != 0.0 || translation.y != 0.0 {
-            info!("Found {} entity {:?} at position {}", rollback_marker.0, e, translation);
+            let sprite_size = ldtk_size.map(|s| Vec2::new(s.width, s.height));
+            info!("Found {} entity {:?} at position {} with LDTK size {:?}", 
+                  rollback_marker.0, e, translation, sprite_size);
             
             entity_registery.entities.push(LdtkMapEntityLoading { 
                 id: rollback_marker.0.clone(), 
                 kind: rollback_marker.0.clone(), 
                 entity: e.clone(), 
                 global_transform: *global_transform,
+                sprite_size,
             });
             entity_registery.registered_entities.insert(e);
         }
@@ -145,17 +142,48 @@ fn wait_for_all_map_rollback_entity(
 
             match item.kind.as_str() {
                 "door" => {
+                    // Use sprite size if available, otherwise fall back to default size
+                    let (width, height) = if let Some(size) = item.sprite_size {
+                        (size.x, size.y)
+                    } else {
+                        info!("No sprite size for door, using default 64x32");
+                        (64.0, 32.0)
+                    };
+                    
                     cmd.insert((
                         Wall,
                         Collider {
                             shape: game::collider::ColliderShape::Rectangle {
-                                width: fixed_math::Fixed::from_num(64.0), height: fixed_math::Fixed::from_num(32.0),
+                                width: fixed_math::Fixed::from_num(width), 
+                                height: fixed_math::Fixed::from_num(height),
                             },
                             offset: fixed_math::FixedVec3::ZERO,
                         },
                         CollisionLayer(collision_settings.wall_layer),
                     ));
-                    info!("adding collider to door entity");
+                    info!("adding collider to door entity with size {}x{}", width, height);
+                },
+                "window" => {
+                    // Use sprite size if available, otherwise fall back to default size
+                    let (width, height) = if let Some(size) = item.sprite_size {
+                        (size.x, size.y)
+                    } else {
+                        info!("No sprite size for window, using default 16x16");
+                        (16.0, 16.0)
+                    };
+                    
+                    cmd.insert((
+                        Window,
+                        Collider {
+                            shape: game::collider::ColliderShape::Rectangle {
+                                width: fixed_math::Fixed::from_num(width), 
+                                height: fixed_math::Fixed::from_num(height),
+                            },
+                            offset: fixed_math::FixedVec3::ZERO,
+                        },
+                        CollisionLayer(collision_settings.window_layer),
+                    ));
+                    info!("adding collider to window entity with size {}x{}", width, height);
                 },
                 _ => {}
             }

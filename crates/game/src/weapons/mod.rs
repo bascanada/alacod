@@ -418,8 +418,7 @@ fn spawn_bullet_rollback(
     range: fixed_math::Fixed,
     player_handle: PlayerHandle,
     current_frame: u32,
-    _collision_settings: &Res<CollisionSettings>,
-    parent_layer: &CollisionLayer,
+    collision_settings: &Res<CollisionSettings>,
     id_factory: &mut ResMut<GgrsNetIdFactory>,
 ) -> Entity {
     let (velocity, damage, range, radius) = match &bullet_type {
@@ -523,7 +522,7 @@ fn spawn_bullet_rollback(
             offset: fixed_math::FixedVec3::ZERO,
             shape: ColliderShape::Circle { radius },
         },
-        CollisionLayer(parent_layer.0),
+        CollisionLayer(collision_settings.bullet_layer),
         new_projectile_fixed_transform.to_bevy_transform(),
         new_projectile_fixed_transform,
         g_id,
@@ -582,7 +581,6 @@ pub fn weapon_rollback_system(
         &mut WeaponInventory,
         &SprintState,
         &DashState,
-        &CollisionLayer,
         &fixed_math::FixedTransform3D,
         &Player,
     )>,
@@ -604,7 +602,7 @@ pub fn weapon_rollback_system(
     let _enter = system_span.enter(); // Enter the span
 
     // Process weapon firing for all players
-    for (_entity, mut inventory, sprint_state, dash_state, collision_layer, transform, player) in
+    for (_entity, mut inventory, sprint_state, dash_state, transform, player) in
         inventory_query.iter_mut()
     {
         let (input, _input_status) = inputs[player.handle];
@@ -791,7 +789,6 @@ pub fn weapon_rollback_system(
                                         player.handle,
                                         frame.frame,
                                         &collision_settings,
-                                        collision_layer,
                                         &mut id_factory,
                                     );
                                 }
@@ -822,7 +819,6 @@ pub fn weapon_rollback_system(
                                     player.handle,
                                     frame.frame,
                                     &collision_settings,
-                                    collision_layer,
                                     &mut id_factory,
                                 );
                                 weapon_mode_state.mag_ammo -= 1;
