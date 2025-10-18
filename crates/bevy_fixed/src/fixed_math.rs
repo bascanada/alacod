@@ -1,6 +1,6 @@
-use std::hash::{Hash, Hasher};
+use std::{hash::{Hash, Hasher}, ops::{Deref, DerefMut}};
 
-use bevy::{math::Affine3A, prelude::*};
+use bevy::{ecs::reflect, math::Affine3A, prelude::*};
 use fixed::{
     types::extra::{U16, U32},
     FixedI32, FixedI64,
@@ -38,6 +38,7 @@ pub struct FixedVec3 {
     pub z: Fixed,
 }
 
+// --- The Wrapper Type for Reflection ---
 impl std::fmt::Display for FixedVec2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "( {} {} )", self.x, self.y)

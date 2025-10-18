@@ -1,6 +1,9 @@
 use bevy::prelude::Resource;
 use crate::fixed_math;
 
+
+pub type UUID = String;
+
 #[derive(Debug, Resource, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RollbackRng {
     pub seed: u32,
@@ -82,6 +85,17 @@ impl RollbackRng {
         // Add 1 to make max inclusive
         let range = max - min + 1;
         min + (self.next_u32() % range)
+    }
+
+    pub fn next_uuid(&mut self) -> String {
+        format!(
+            "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+            self.next_u32(),
+            self.next_u32() & 0xFFFF,
+            self.next_u32() & 0xFFFF,
+            self.next_u32() & 0xFFFF,
+            ((self.next_u32() as u64) << 32) | (self.next_u32() as u64)
+        )
     }
 
     pub fn next_i32_range(&mut self, min: i32, max: i32) -> i32 {

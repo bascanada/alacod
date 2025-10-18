@@ -13,6 +13,7 @@ on:
 env: 
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  RUSTC_WRAPPER: "sccache"
 
 
 jobs:
@@ -21,16 +22,26 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            target_wasm/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          tool-cache: false
+          android: true
+      - name: Install sccache
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sccache
+
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-sccache-
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
       - name: Dependency
         run: sudo apt-get install g++ make pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libwayland-dev libxkbcommon-dev && rustup component add rustfmt
       - name: Dependencies

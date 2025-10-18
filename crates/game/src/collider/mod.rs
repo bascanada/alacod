@@ -7,6 +7,8 @@ use bevy_light_2d::light::PointLight2d;
 use serde::{Deserialize, Serialize};
 use utils::net_id::GgrsNetId;
 
+pub mod debug;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ColliderShape {
     Circle {
@@ -42,6 +44,9 @@ pub struct Collider {
 #[derive(Component, Clone)]
 pub struct Wall;
 
+#[derive(Component, Clone)]
+pub struct Window;
+
 #[derive(Component, Clone, Serialize, Deserialize)]
 pub struct CollisionLayer(pub usize);
 
@@ -51,6 +56,8 @@ pub struct CollisionSettings {
     pub environment_layer: usize,
     pub player_layer: usize,
     pub wall_layer: usize,
+    pub window_layer: usize,
+    pub bullet_layer: usize,
     pub layer_matrix: [[bool; 8]; 8], // Collision matrix for which layers collide
 }
 
@@ -64,23 +71,35 @@ impl Default for CollisionSettings {
         let environment_layer = 2;
         let player_layer = 3;
         let wall_layer = 4;
+        let window_layer = 5;
+        let bullet_layer = 6;
 
         // Set up collision relationships
-        layer_matrix[enemy_layer][wall_layer] = true; // Symmetric for simplicity
-        layer_matrix[enemy_layer][player_layer] = true; // Symmetric for simplicity
+        layer_matrix[enemy_layer][wall_layer] = true;
+        layer_matrix[enemy_layer][player_layer] = true;
         layer_matrix[player_layer][enemy_layer] = true;
 
         layer_matrix[wall_layer][enemy_layer] = true;
         layer_matrix[wall_layer][player_layer] = true;
         layer_matrix[player_layer][wall_layer] = true;
 
-        // Player bullets shouldn't hit players
+        // Window layer only collides with player bodies (not bullets or enemies)
+        layer_matrix[window_layer][player_layer] = true;
+        layer_matrix[player_layer][window_layer] = true;
+
+        // Bullets collide with walls and enemies, but not windows or players
+        layer_matrix[bullet_layer][wall_layer] = true;
+        layer_matrix[wall_layer][bullet_layer] = true;
+        layer_matrix[bullet_layer][enemy_layer] = true;
+        layer_matrix[enemy_layer][bullet_layer] = true;
 
         Self {
             enemy_layer,
             environment_layer,
             player_layer,
             wall_layer,
+            window_layer,
+            bullet_layer,
             layer_matrix,
         }
     }
@@ -267,8 +286,10 @@ impl Plugin for BaseColliderGamePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CollisionSettings>();
 
+
         app.rollback_component_with_clone::<Collider>()
             .rollback_component_with_clone::<Wall>()
+            .rollback_component_with_clone::<Window>()
             .rollback_component_with_clone::<CollisionLayer>();
     }
 }

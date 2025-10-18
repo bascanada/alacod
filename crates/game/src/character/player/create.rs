@@ -16,7 +16,7 @@ use super::{
     input::CursorPosition,
     LocalPlayer, Player,
 };
-use bevy_fixed::fixed_math;
+use bevy_fixed::fixed_math::{self, FixedVec3};
 
 const PLAYER_COLORS: &[LinearRgba] = &[
     LinearRgba::RED,
@@ -35,6 +35,8 @@ pub fn create_player(
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
     sprint_sheet_assets: &Res<Assets<SpriteSheetConfig>>,
 
+    position: FixedVec3,
+
     local: bool,
     handle: usize,
 
@@ -50,11 +52,7 @@ pub fn create_player(
         "player".into(),
         Some(if handle == 0 { "1" } else { "2" }.into()),
         (LinearRgba::GREEN).into(),
-        fixed_math::FixedVec3::new(
-            fixed_math::new(-50.0 * handle as f32),
-            fixed_math::new(0.0),
-            fixed_math::new(0.0),
-        ),
+       position, 
         CollisionLayer(collision_settings.player_layer),
         id_factory,
     );

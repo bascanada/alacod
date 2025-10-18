@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy_ecs_ldtk::assets::{LdtkProjectLoader, LdtkProjectLoaderSettings};
 use bevy_ecs_ldtk::prelude::*;
 
+use bevy_fixed::rng::RollbackRng;
 use once_cell::sync::Lazy;
 
 use map::generation::config::MapGenerationConfig;

@@ -157,9 +157,12 @@ dependencies = [
 name = "alacod"
 version = "0.0.1"
 dependencies = [
+ "animation",
  "bevy",
  "bevy_ecs_ldtk",
  "bevy_ecs_tilemap",
+ "bevy_fixed",
+ "bevy_ggrs",
  "game",
  "map",
  "map_ldtk",
@@ -4596,7 +4599,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "utils",
- "uuid",
 ]
 
 [[package]]
@@ -4606,12 +4608,14 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bevy_ecs_ldtk",
+ "bevy_fixed",
+ "bevy_ggrs",
+ "game",
  "map",
  "once_cell",
  "serde",
  "serde_json",
  "utils",
- "uuid",
 ]
 
 [[package]]

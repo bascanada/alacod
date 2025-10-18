@@ -8,6 +8,7 @@ pub use to::{get_new_entity, GeneratedMap, GeneratedRoom};
 mod tests {
 
     use bevy_ecs_ldtk::ldtk::LdtkJson;
+    use bevy_fixed::rng::RollbackRng;
     use utils::get_crate_root_path;
 
     use map::generation::{config::MapGenerationConfig, map_generation};

@@ -1,8 +1,8 @@
 (
     movement: (
-        acceleration: "400.0",
-        max_speed: "400.0",
-        friction: "100.0",
+        acceleration: "300.0",
+        max_speed: "300.0",
+        friction: "50.0",
 
         sprint_multiplier: "2.0",                // Double speed
         sprint_acceleration_per_frame: "0.1",    // Reach full sprint in 10 frames
@@ -17,10 +17,10 @@
 
     collider: (
         shape: Rectangle(
-            width: "60.",
-            height: "120.",
+            width: "20.",
+            height: "20.",
         ),
-        offset: ( x: "0.0", y: "-20.0", z: "0.0")
+        offset: ( x: "0.0", y: "-6.0", z: "0.0")
     ),
 
     base_health: (

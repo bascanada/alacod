@@ -6,6 +6,8 @@ NUMBER_PLAYER ?= 2
 CURRENT_TAG := $(shell git describe --tags --exact-match HEAD 2>/dev/null)
 
 
+RANDOM_SEED := $(echo $RANDOM)
+
 LOG_DIR := ./logs
 LOG_PREFFIX := game_run
 FILTERED_LOG_DIR := ./logs/filtered
@@ -80,7 +82,7 @@ test:
 
 dep_web:
 	rustup target add wasm32-unknown-unknown
-	cargo install wasm-bindgen-cli
+	cargo install -f wasm-bindgen-cli --version 0.2.100
 
 dep_format:
 	rustup component add rustfmt
@@ -96,15 +98,25 @@ map_preview:
 map_generation:
 	cargo run --example map_generation $(ARGS)
 
-map_explorer:
-	cargo run --example map_explorer $(ARGS) --features native
+map_generation_test:
+	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated.ldtk $RANDOM_SEED
 
+map_generation_diff_test:
+	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated_1.ldtk $RANDOM_SEED
+	cargo run --example map_generation -- ./assets/exemples/test_map.ldtk ./assets/exemples/test_map_generated_2.ldtk $RANDOM_SEED
+	diff ./assets/exemples/test_map_generated_1.ldtk ./assets/exemples/test_map_generated_2.ldtk
 
 character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
 
 character_tester_matchbox:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
+
+ldtk_map_explorer:
+	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --local-port 7000 --players localhost
+
+ldtk_map_explorer_matchbox:
+	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
 
 host_website:
 	cd website && APP_VERSION=$(VERSION) npm run dev
@@ -121,7 +133,12 @@ build_character_tester_web:
 	APP_VERSION=$(VERSION) cargo build --example character_tester --target wasm32-unknown-unknown $(RELEASE)
 	wasm-bindgen --out-dir ./website/static/$(VERSION)/character_tester --out-name wasm --target web $(CARGO_TARGET_DIR)/wasm32-unknown-unknown/$(MODE_DIR)/examples/character_tester.wasm
 
-build_wasm_apps: cp_asset build_map_preview_web build_character_tester_web
+build_ldtk_map_explorer_web:
+	APP_VERSION=$(VERSION) cargo build --example map_explorer --target wasm32-unknown-unknown $(RELEASE)
+	wasm-bindgen --out-dir ./website/static/$(VERSION)/map_explorer --out-name wasm --target web $(CARGO_TARGET_DIR)/wasm32-unknown-unknown/$(MODE_DIR)/examples/map_explorer.wasm
+
+
+build_wasm_apps: cp_asset build_map_preview_web build_character_tester_web build_ldtk_map_explorer_web
 
 build_website: build_wasm_apps
 	cd website && npm ci && APP_VERSION=$(VERSION) npm run build

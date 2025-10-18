@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
+use bevy_fixed::rng::RollbackRng;
 use serde_json::Value;
-use uuid::Uuid;
 
 use super::{
     config::MapGenerationConfig,
@@ -44,11 +44,12 @@ pub struct Room {
 
 impl Room {
     pub fn create(
+        rng: &mut RollbackRng,
         level: Rc<AvailableLevel>,
         position: Position,
         properties: HashMap<String, Value>,
     ) -> Self {
-        let level_iid: String = Uuid::new_v4().into();
+        let level_iid: String = rng.next_uuid();
 
         let connections: Vec<_> = level
             .connections

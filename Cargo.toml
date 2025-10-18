@@ -9,7 +9,8 @@ exclude = ["assets/*", "repo/*", "scripts/*"]
 default = []
 
 native = [
-  "bevy/file_watcher"
+  "bevy/file_watcher",
+  "game/debug_ui"
 ]
 
 [workspace]
@@ -21,6 +22,7 @@ bevy_ecs_ldtk = { version = "0.12", default-features = true }
 bevy = { version = "0.16", default-features = false, features = [
   "bevy_sprite", "bevy_render", "bevy_core_pipeline", "webgl2", "png", "multi_threaded"
 ]}
+bevy_ggrs = "0.18.0"
 
 serde_json = "1.0"
 
@@ -29,6 +31,8 @@ utils = { path = "./crates/utils" }
 map = { path = "./crates/map" }
 game = { path = "./crates/game" }
 map_ldtk = { path = "./crates/map_ldtk" }
+bevy_fixed = { path = "./crates/bevy_fixed" }
+animation = { path = "./crates/animation" }
 
 [package.metadata.docs.rs]
 all-features = true
@@ -36,6 +40,10 @@ all-features = true
 [[example]]
 name = "map_preview"
 path = "examples/map_preview.rs"
+
+[[example]]
+name = "map_explorer"
+path = "examples/map_explorer.rs"
 
 [[example]]
 name = "map_generation"

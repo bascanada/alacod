@@ -9,6 +9,8 @@ use bevy_fixed::{
     rng::RollbackRng,
 };
 use bevy_ggrs::{GgrsApp, GgrsPlugin, GgrsSchedule, RollbackApp};
+#[cfg(feature = "debug_ui")]
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use serde::{Deserialize, Serialize};
 use utils::{
     frame::FrameCount,
@@ -17,9 +19,11 @@ use utils::{
 };
 
 use crate::{
-    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::BaseColliderGamePlugin, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{log_ggrs_events, setup_ggrs_local, start_matchbox_socket, wait_for_players}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
+    audio::ZAudioPlugin, camera::CameraControlPlugin, character::{player::jjrs::PeerConfig, BaseCharacterGamePlugin}, collider::{debug::DebugColliderGamePlugin, BaseColliderGamePlugin}, frame::{increase_frame_system, FrameDebugUIPlugin}, global_asset::{add_global_asset, loading_asset_system}, jjrs::{local::{setup_ggrs_local, system_after_map_loaded_local}, log_ggrs_events, p2p::{start_matchbox_socket, system_after_map_loaded, wait_for_players}, GggrsSessionConfigurationState}, light::ZLightPlugin, system_set::RollbackSystemSet, weapons::BaseWeaponGamePlugin
 };
 
+
+// Configuration that is static and bundle with the game
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct CoreSetupConfig {
     pub app_name: String,
@@ -28,20 +32,25 @@ pub struct CoreSetupConfig {
 #[derive(Debug, Clone, Default, Eq, PartialEq, Hash, States)]
 pub enum AppState {
     #[default]
-    Loading,
-    LobbyLocal,
-    LobbyOnline,
-    InGame,
+    Loading, // Initial loading step for all the required global asset to be resolved
+    LobbyLocal, // Create a local lobby for lan UDP or SyncTest Session
+    LobbyOnline, // Create an online lobby with matchbox
+    GameLoading, // After the lobby as agree on the game parameters all required asset are loaded before the game can start
+    GameStarting, // To launch the session after the game is loaded
+    InGame, // When the game is played with the active ggrs session from local or online
 }
 
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum OnlineState {
     #[default]
-    Unset,
-    Online,
-    Offline,
+    Unset, // No ggrs system enable to start a game
+    Online, // For ggrs p2p system to be enable
+    Offline, // For ggrs synctest/lan system to be enabe
 }
 
+
+// Ressource to share information about the identity of this game instance ( game name , version , .... )
+// this is used between client to validate that their binary are compatible
 #[derive(Debug, Clone, Resource)]
 pub struct GameInfo {
     pub version: String,
@@ -55,6 +64,10 @@ impl Default for GameInfo {
     }
 }
 
+
+// Core plugin for alacod
+// Configure all infrastructure and game mechanics.
+// Add other plugins for game logics and world creation to make a full game
 #[derive(Default)]
 pub struct CoreSetupPlugin(pub CoreSetupConfig);
 
@@ -70,9 +83,18 @@ impl Plugin for CoreSetupPlugin {
 
         app.add_plugins(BaseWeaponGamePlugin {});
         app.add_plugins(BaseColliderGamePlugin {});
+        app.add_plugins(DebugColliderGamePlugin);
         app.add_plugins(BaseCharacterGamePlugin {});
 
+
+    #[cfg(feature = "debug_ui")]
+    app.add_plugins(EguiPlugin { enable_multipass_for_primary_context: true });
+
+    #[cfg(feature = "debug_ui")]
+    app.add_plugins(WorldInspectorPlugin::new());
+
         app.init_resource::<GameInfo>();
+        app.init_resource::<GggrsSessionConfigurationState>();
         app.init_resource::<GgrsNetIdFactory>();
         app.init_resource::<FrameCount>();
 
@@ -101,6 +123,7 @@ impl Plugin for CoreSetupPlugin {
                 .chain(),
         );
 
+        // First step is to load the global asset
         app.add_systems(Startup, add_global_asset);
 
         app.add_systems(
@@ -111,13 +134,18 @@ impl Plugin for CoreSetupPlugin {
             ),
         );
 
+
         app.add_systems(OnEnter(AppState::LobbyOnline), start_matchbox_socket);
+
         app.add_systems(
             Update,
-            wait_for_players.run_if(in_state(AppState::LobbyOnline)),
+            (
+                    wait_for_players.run_if(in_state(AppState::LobbyOnline)),
+                    setup_ggrs_local.run_if(in_state(AppState::LobbyLocal)
+                )),
         );
-
-        app.add_systems(OnEnter(AppState::LobbyLocal), setup_ggrs_local);
+        // System for ggrs that register the session when the map is correctly loaded
+        app.add_systems(OnEnter(AppState::GameStarting), (system_after_map_loaded, system_after_map_loaded_local));
 
         app.add_systems(Update, log_ggrs_events.run_if(in_state(AppState::InGame)));
 

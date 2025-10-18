@@ -11,7 +11,7 @@
 	"iid": "ab6b0200-b0a0-11ee-bca1-dd7a22611e78",
 	"jsonVersion": "1.5.3",
 	"appBuildId": 473703,
-	"nextUid": 39,
+	"nextUid": 40,
 	"identifierStyle": "Capitalize",
 	"toc": [],
 	"worldLayout": "Free",
@@ -512,7 +512,45 @@
 			"limitBehavior": "MoveLastOne",
 			"pivotX": 0,
 			"pivotY": 0,
-			"fieldDefs": []
+			"fieldDefs": [
+				{
+					"identifier": "index",
+					"doc": null,
+					"__type": "Int",
+					"uid": 39,
+					"type": "F_Int",
+					"isArray": false,
+					"canBeNull": false,
+					"arrayMinLength": null,
+					"arrayMaxLength": null,
+					"editorDisplayMode": "Hidden",
+					"editorDisplayScale": 1,
+					"editorDisplayPos": "Above",
+					"editorLinkStyle": "StraightArrow",
+					"editorDisplayColor": null,
+					"editorAlwaysShow": false,
+					"editorShowInWorld": true,
+					"editorCutLongValues": true,
+					"editorTextSuffix": null,
+					"editorTextPrefix": null,
+					"useForSmartColor": false,
+					"exportToToc": false,
+					"searchable": false,
+					"min": null,
+					"max": null,
+					"regex": null,
+					"acceptFileTypes": null,
+					"defaultOverride": { "id": "V_Int", "params": [0] },
+					"textLanguageMode": null,
+					"symmetricalRef": false,
+					"autoChainRef": true,
+					"allowOutOfLevelRef": true,
+					"allowedRefs": "OnlySame",
+					"allowedRefsEntityUid": null,
+					"allowedRefTags": [],
+					"tilesetUid": null
+				}
+			]
 		},
 		{
 			"identifier": "ZombieSpawn",
@@ -869,7 +907,7 @@
 							"height": 16,
 							"defUid": 29,
 							"px": [160,80],
-							"fieldInstances": [],
+							"fieldInstances": [{ "__identifier": "index", "__type": "Int", "__value": 0, "__tile": null, "defUid": 39, "realEditorValues": [] }],
 							"__worldX": 160,
 							"__worldY": 80
 						},
@@ -885,7 +923,7 @@
 							"height": 16,
 							"defUid": 29,
 							"px": [160,112],
-							"fieldInstances": [],
+							"fieldInstances": [{ "__identifier": "index", "__type": "Int", "__value": 2, "__tile": null, "defUid": 39, "realEditorValues": [{ "id": "V_Int", "params": [2] }] }],
 							"__worldX": 160,
 							"__worldY": 112
 						},
@@ -901,7 +939,7 @@
 							"height": 16,
 							"defUid": 29,
 							"px": [224,112],
-							"fieldInstances": [],
+							"fieldInstances": [{ "__identifier": "index", "__type": "Int", "__value": 3, "__tile": null, "defUid": 39, "realEditorValues": [{ "id": "V_Int", "params": [3] }] }],
 							"__worldX": 224,
 							"__worldY": 112
 						},
@@ -917,7 +955,7 @@
 							"height": 16,
 							"defUid": 29,
 							"px": [224,80],
-							"fieldInstances": [],
+							"fieldInstances": [{ "__identifier": "index", "__type": "Int", "__value": 1, "__tile": null, "defUid": 39, "realEditorValues": [{ "id": "V_Int", "params": [1] }] }],
 							"__worldX": 224,
 							"__worldY": 80
 						},
@@ -1121,12 +1159,12 @@
 						0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,
 						0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,
-						0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+						0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
 						0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
 						0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,1,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
-						0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+						0,0,0,0,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -1259,6 +1297,7 @@
 						{ "px": [0,96], "src": [320,272], "f": 0, "t": 411, "d": [5,156], "a": 1 },
 						{ "px": [16,96], "src": [320,272], "f": 0, "t": 411, "d": [5,157], "a": 1 },
 						{ "px": [32,96], "src": [320,272], "f": 0, "t": 411, "d": [5,158], "a": 1 },
+						{ "px": [48,96], "src": [320,272], "f": 0, "t": 411, "d": [5,159], "a": 1 },
 						{ "px": [64,96], "src": [320,272], "f": 0, "t": 411, "d": [5,160], "a": 1 },
 						{ "px": [80,96], "src": [320,272], "f": 0, "t": 411, "d": [5,161], "a": 1 },
 						{ "px": [96,96], "src": [320,272], "f": 0, "t": 411, "d": [5,162], "a": 1 },
@@ -1402,6 +1441,8 @@
 						{ "px": [80,192], "src": [320,272], "f": 0, "t": 411, "d": [5,317], "a": 1 },
 						{ "px": [96,192], "src": [320,272], "f": 0, "t": 411, "d": [5,318], "a": 1 },
 						{ "px": [112,192], "src": [320,272], "f": 0, "t": 411, "d": [5,319], "a": 1 },
+						{ "px": [208,192], "src": [320,272], "f": 0, "t": 411, "d": [5,325], "a": 1 },
+						{ "px": [272,192], "src": [320,272], "f": 0, "t": 411, "d": [5,329], "a": 1 },
 						{ "px": [352,192], "src": [320,272], "f": 0, "t": 411, "d": [5,334], "a": 1 },
 						{ "px": [368,192], "src": [320,272], "f": 0, "t": 411, "d": [5,335], "a": 1 },
 						{ "px": [384,192], "src": [320,272], "f": 0, "t": 411, "d": [5,336], "a": 1 },
@@ -1567,10 +1608,7 @@
 						{ "px": [320,32], "src": [224,128], "f": 0, "t": 198, "d": [8,72], "a": 1 },
 						{ "px": [48,48], "src": [224,128], "f": 0, "t": 198, "d": [8,81], "a": 1 },
 						{ "px": [48,64], "src": [224,128], "f": 0, "t": 198, "d": [8,107], "a": 1 },
-						{ "px": [48,80], "src": [224,128], "f": 0, "t": 198, "d": [8,133], "a": 1 },
-						{ "px": [48,96], "src": [224,128], "f": 0, "t": 198, "d": [8,159], "a": 1 },
 						{ "px": [320,96], "src": [224,128], "f": 0, "t": 198, "d": [8,176], "a": 1 },
-						{ "px": [48,112], "src": [224,128], "f": 0, "t": 198, "d": [8,185], "a": 1 },
 						{ "px": [320,112], "src": [224,128], "f": 0, "t": 198, "d": [8,202], "a": 1 },
 						{ "px": [48,128], "src": [224,128], "f": 0, "t": 198, "d": [8,211], "a": 1 },
 						{ "px": [320,128], "src": [224,128], "f": 0, "t": 198, "d": [8,228], "a": 1 },
@@ -1605,17 +1643,17 @@
 						{ "px": [144,192], "src": [256,96], "f": 0, "t": 154, "d": [9,321], "a": 1 },
 						{ "px": [160,192], "src": [256,96], "f": 0, "t": 154, "d": [9,322], "a": 1 },
 						{ "px": [176,192], "src": [256,96], "f": 0, "t": 154, "d": [9,323], "a": 1 },
-						{ "px": [192,192], "src": [256,96], "f": 0, "t": 154, "d": [9,324], "a": 1 },
-						{ "px": [208,192], "src": [256,96], "f": 0, "t": 154, "d": [9,325], "a": 1 },
-						{ "px": [224,192], "src": [256,96], "f": 0, "t": 154, "d": [9,326], "a": 1 },
 						{ "px": [240,192], "src": [256,96], "f": 0, "t": 154, "d": [9,327], "a": 1 },
-						{ "px": [256,192], "src": [256,96], "f": 0, "t": 154, "d": [9,328], "a": 1 },
-						{ "px": [272,192], "src": [256,96], "f": 0, "t": 154, "d": [9,329], "a": 1 },
-						{ "px": [288,192], "src": [256,96], "f": 0, "t": 154, "d": [9,330], "a": 1 },
 						{ "px": [304,192], "src": [256,96], "f": 0, "t": 154, "d": [9,331], "a": 1 },
 						{ "px": [320,192], "src": [256,96], "f": 0, "t": 154, "d": [9,332], "a": 1 },
 						{ "px": [176,0], "src": [224,96], "f": 3, "t": 152, "d": [10,11], "a": 1 },
 						{ "px": [240,0], "src": [224,96], "f": 2, "t": 152, "d": [10,15], "a": 1 },
+						{ "px": [48,80], "src": [224,96], "f": 2, "t": 152, "d": [10,133], "a": 1 },
+						{ "px": [48,112], "src": [224,96], "f": 0, "t": 152, "d": [10,185], "a": 1 },
+						{ "px": [192,192], "src": [224,96], "f": 1, "t": 152, "d": [10,324], "a": 1 },
+						{ "px": [224,192], "src": [224,96], "f": 0, "t": 152, "d": [10,326], "a": 1 },
+						{ "px": [256,192], "src": [224,96], "f": 1, "t": 152, "d": [10,328], "a": 1 },
+						{ "px": [288,192], "src": [224,96], "f": 0, "t": 152, "d": [10,330], "a": 1 },
 						{ "px": [48,0], "src": [0,304], "f": 3, "t": 437, "d": [16,3], "a": 1 },
 						{ "px": [304,0], "src": [0,304], "f": 2, "t": 437, "d": [16,19], "a": 1 },
 						{ "px": [304,16], "src": [0,304], "f": 1, "t": 437, "d": [16,45], "a": 1 },
@@ -1635,14 +1673,14 @@
 					"entityInstances": []
 				}
 			],
-			"__neighbours": [ { "levelIid": "3d572040-b0a0-11ee-bca1-1bca725465d2", "dir": "e" }, { "levelIid": "71c606c0-b0a0-11ee-87cd-4b440e7a2f34", "dir": "se" } ]
+			"__neighbours": []
 		},
 		{
 			"identifier": "Level_1",
 			"iid": "3d572040-b0a0-11ee-bca1-1bca725465d2",
 			"uid": 22,
-			"worldX": 416,
-			"worldY": 0,
+			"worldX": 16,
+			"worldY": -432,
 			"worldDepth": 0,
 			"pxWid": 416,
 			"pxHei": 304,
@@ -1698,8 +1736,8 @@
 								{ "__identifier": "price", "__type": "Int", "__value": 0, "__tile": null, "defUid": 36, "realEditorValues": [] },
 								{ "__identifier": "electrify", "__type": "Bool", "__value": false, "__tile": null, "defUid": 37, "realEditorValues": [] }
 							],
-							"__worldX": 416,
-							"__worldY": 64
+							"__worldX": 16,
+							"__worldY": -368
 						},
 						{
 							"__identifier": "CrateLocation",
@@ -1714,8 +1752,8 @@
 							"defUid": 30,
 							"px": [208,96],
 							"fieldInstances": [],
-							"__worldX": 624,
-							"__worldY": 96
+							"__worldX": 224,
+							"__worldY": -336
 						},
 						{
 							"__identifier": "WeaponLocation",
@@ -1730,8 +1768,8 @@
 							"defUid": 31,
 							"px": [256,144],
 							"fieldInstances": [],
-							"__worldX": 672,
-							"__worldY": 144
+							"__worldX": 272,
+							"__worldY": -288
 						},
 						{
 							"__identifier": "SodaLocation",
@@ -1746,8 +1784,8 @@
 							"defUid": 33,
 							"px": [128,176],
 							"fieldInstances": [],
-							"__worldX": 544,
-							"__worldY": 176
+							"__worldX": 144,
+							"__worldY": -256
 						},
 						{
 							"__identifier": "ZombieSpawn",
@@ -1762,8 +1800,8 @@
 							"defUid": 35,
 							"px": [288,32],
 							"fieldInstances": [],
-							"__worldX": 704,
-							"__worldY": 32
+							"__worldX": 304,
+							"__worldY": -400
 						},
 						{
 							"__identifier": "Door",
@@ -1781,8 +1819,8 @@
 								{ "__identifier": "price", "__type": "Int", "__value": 0, "__tile": null, "defUid": 36, "realEditorValues": [] },
 								{ "__identifier": "electrify", "__type": "Bool", "__value": false, "__tile": null, "defUid": 37, "realEditorValues": [] }
 							],
-							"__worldX": 608,
-							"__worldY": 288
+							"__worldX": 208,
+							"__worldY": -144
 						}
 					]
 				},
@@ -2364,14 +2402,14 @@
 					"entityInstances": []
 				}
 			],
-			"__neighbours": [ { "levelIid": "ab6b2910-b0a0-11ee-bca1-6fa9ed374967", "dir": "w" }, { "levelIid": "71c606c0-b0a0-11ee-87cd-4b440e7a2f34", "dir": "s" } ]
+			"__neighbours": []
 		},
 		{
 			"identifier": "Level_2",
 			"iid": "71c606c0-b0a0-11ee-87cd-4b440e7a2f34",
 			"uid": 23,
-			"worldX": 416,
-			"worldY": 304,
+			"worldX": 0,
+			"worldY": 400,
 			"worldDepth": 0,
 			"pxWid": 416,
 			"pxHei": 304,
@@ -2424,8 +2462,8 @@
 							"defUid": 31,
 							"px": [128,96],
 							"fieldInstances": [],
-							"__worldX": 544,
-							"__worldY": 400
+							"__worldX": 128,
+							"__worldY": 496
 						},
 						{
 							"__identifier": "SodaLocation",
@@ -2440,8 +2478,8 @@
 							"defUid": 33,
 							"px": [256,80],
 							"fieldInstances": [],
-							"__worldX": 672,
-							"__worldY": 384
+							"__worldX": 256,
+							"__worldY": 480
 						},
 						{
 							"__identifier": "SodaLocation",
@@ -2456,8 +2494,8 @@
 							"defUid": 33,
 							"px": [128,208],
 							"fieldInstances": [],
-							"__worldX": 544,
-							"__worldY": 512
+							"__worldX": 128,
+							"__worldY": 608
 						},
 						{
 							"__identifier": "ZombieSpawn",
@@ -2472,8 +2510,8 @@
 							"defUid": 35,
 							"px": [352,112],
 							"fieldInstances": [],
-							"__worldX": 768,
-							"__worldY": 416
+							"__worldX": 352,
+							"__worldY": 512
 						},
 						{
 							"__identifier": "ZombieSpawn",
@@ -2488,8 +2526,8 @@
 							"defUid": 35,
 							"px": [32,112],
 							"fieldInstances": [],
-							"__worldX": 448,
-							"__worldY": 416
+							"__worldX": 32,
+							"__worldY": 512
 						},
 						{
 							"__identifier": "ZombieSpawn",
@@ -2504,8 +2542,8 @@
 							"defUid": 35,
 							"px": [32,240],
 							"fieldInstances": [],
-							"__worldX": 448,
-							"__worldY": 544
+							"__worldX": 32,
+							"__worldY": 640
 						},
 						{
 							"__identifier": "Window",
@@ -2520,8 +2558,8 @@
 							"defUid": 32,
 							"px": [256,144],
 							"fieldInstances": [],
-							"__worldX": 672,
-							"__worldY": 448
+							"__worldX": 256,
+							"__worldY": 544
 						},
 						{
 							"__identifier": "Window",
@@ -2536,8 +2574,8 @@
 							"defUid": 32,
 							"px": [128,160],
 							"fieldInstances": [],
-							"__worldX": 544,
-							"__worldY": 464
+							"__worldX": 128,
+							"__worldY": 560
 						},
 						{
 							"__identifier": "Door",
@@ -2555,8 +2593,8 @@
 								{ "__identifier": "price", "__type": "Int", "__value": 0, "__tile": null, "defUid": 36, "realEditorValues": [] },
 								{ "__identifier": "electrify", "__type": "Bool", "__value": false, "__tile": null, "defUid": 37, "realEditorValues": [] }
 							],
-							"__worldX": 608,
-							"__worldY": 304
+							"__worldX": 192,
+							"__worldY": 400
 						},
 						{
 							"__identifier": "Door",
@@ -2574,8 +2612,8 @@
 								{ "__identifier": "price", "__type": "Int", "__value": 0, "__tile": null, "defUid": 36, "realEditorValues": [] },
 								{ "__identifier": "electrify", "__type": "Bool", "__value": false, "__tile": null, "defUid": 37, "realEditorValues": [] }
 							],
-							"__worldX": 608,
-							"__worldY": 592
+							"__worldX": 192,
+							"__worldY": 688
 						}
 					]
 				},
@@ -3157,7 +3195,7 @@
 					"entityInstances": []
 				}
 			],
-			"__neighbours": [ { "levelIid": "ab6b2910-b0a0-11ee-bca1-6fa9ed374967", "dir": "nw" }, { "levelIid": "3d572040-b0a0-11ee-bca1-1bca725465d2", "dir": "n" } ]
+			"__neighbours": []
 		}
 	],
 	"worlds": [],

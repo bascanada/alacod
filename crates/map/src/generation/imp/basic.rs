@@ -1,13 +1,14 @@
 use std::rc::Rc;
 
-use crate::generation::{
+use crate::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::{
     context::{AvailableLevel, LevelType, MapGenerationContext, MapGenerationData},
     entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
     position::Position,
     room::{ConnectionTo, RoomConnection},
     IMapGeneration, Room, LEVEL_PROPERTIES_SPAWN_NAME,
-};
+}};
 
+use bevy_fixed::rng::RollbackRng;
 use serde_json::Value;
 use utils::map;
 
@@ -24,14 +25,13 @@ struct Map {
 pub struct BasicMapGeneration {
     context: MapGenerationContext,
     data: MapGenerationData,
-
     map: Map,
 }
 
 impl BasicMapGeneration {
     pub fn create(context: MapGenerationContext) -> Self {
         BasicMapGeneration {
-            data: MapGenerationData::from_context(&context),
+            data: MapGenerationData::default(),
             context,
             map: Map {
                 last_generated_room_index: None,
@@ -43,7 +43,7 @@ impl BasicMapGeneration {
 }
 
 impl BasicMapGeneration {
-    fn get_next_room_recursize(&mut self) -> Option<(Room, RoomConnection, RoomConnection)> {
+    fn get_next_room_recursize(&mut self, rng: &mut RollbackRng,) -> Option<(Room, RoomConnection, RoomConnection)> {
         if self.context.config.max_room > 0 && self.map.rooms.len() >= self.context.config.max_room
         {
             println!(
@@ -90,8 +90,7 @@ impl BasicMapGeneration {
                     .map
                     .rooms_possible
                     .get(
-                        self.data
-                            .rng
+                            rng
                             .next_u32_range(0, self.map.rooms_possible.len() as u32)
                             as usize,
                     )
@@ -105,7 +104,7 @@ impl BasicMapGeneration {
                         .connections
                         .iter()
                         .filter(|i| i.to.is_none())
-                        .skip(self.data.rng.next_u32_range(0, free_connection_len as u32) as usize)
+                        .skip(rng.next_u32_range(0, free_connection_len as u32) as usize)
                         .last()
                         .unwrap();
 
@@ -125,8 +124,7 @@ impl BasicMapGeneration {
                         .compatiable_levels
                         .iter()
                         .skip(
-                            self.data
-                                .rng
+                                rng
                                 .next_u32_range(0, connection_def.compatiable_levels.len() as u32)
                                 as usize,
                         )
@@ -153,6 +151,7 @@ impl BasicMapGeneration {
                     );
 
                     let mut new_room = Room::create(
+                        rng,
                         compatible_level_def.clone(),
                         my_position,
                         map!(LEVEL_PROPERTIES_SPAWN_NAME => Value::Bool(false)),
@@ -196,7 +195,7 @@ impl BasicMapGeneration {
 }
 
 impl IMapGeneration for BasicMapGeneration {
-    fn get_spawning_room(&mut self) -> Room {
+    fn get_spawning_room(&mut self, rng: &mut RollbackRng,) -> Room {
         let spawning_levels: Vec<&Rc<AvailableLevel>> = self
             .context
             .available_levels
@@ -207,8 +206,7 @@ impl IMapGeneration for BasicMapGeneration {
         let spawning_room_def = spawning_levels
             .iter()
             .skip(
-                self.data
-                    .rng
+                    rng
                     .next_u32_range_inclusive(0, (spawning_levels.len() - 1) as u32)
                     as usize,
             )
@@ -220,16 +218,17 @@ impl IMapGeneration for BasicMapGeneration {
 
         let spawning_room_def = (*spawning_room_def.unwrap()).clone();
 
-        let x: i32 = self.data.rng.next_i32_range_inclusive(
+        let x: i32 = rng.next_i32_range_inclusive(
             -self.context.config.max_width,
             self.context.config.max_width - spawning_room_def.level_size_p.0,
         );
-        let y: i32 = self.data.rng.next_i32_range_inclusive(
+        let y: i32 = rng.next_i32_range_inclusive(
             -self.context.config.max_heigth,
             self.context.config.max_heigth - spawning_room_def.level_size_p.1,
         );
 
         let spawning_room_def = Room::create(
+                rng,
             spawning_room_def.clone(),
             Position(x, y),
             map!(LEVEL_PROPERTIES_SPAWN_NAME => Value::Bool(true)),
@@ -240,8 +239,8 @@ impl IMapGeneration for BasicMapGeneration {
         spawning_room_def
     }
 
-    fn get_next_room(&mut self) -> Option<(Room, RoomConnection, RoomConnection)> {
-        let room = self.get_next_room_recursize();
+    fn get_next_room(&mut self, rng: &mut RollbackRng,) -> Option<(Room, RoomConnection, RoomConnection)> {
+        let room = self.get_next_room_recursize(rng);
         if let Some(room) = room.as_ref() {
             self.map.rooms.push(room.0.clone());
             let index = self.map.rooms.len() - 1;
@@ -251,7 +250,7 @@ impl IMapGeneration for BasicMapGeneration {
         room
     }
 
-    fn get_doors(&mut self) -> Vec<(EntityLocation, crate::generation::entity::door::DoorConfig)> {
+    fn get_doors(&mut self, rng: &mut RollbackRng,) -> Vec<(EntityLocation, crate::generation::entity::door::DoorConfig)> {
         // get all my level , get all the doors in each level
         self.map
             .rooms
@@ -282,6 +281,7 @@ impl IMapGeneration for BasicMapGeneration {
 
     fn get_windows(
         &mut self,
+        rng: &mut RollbackRng,
     ) -> Vec<(
         EntityLocation,
         crate::generation::entity::window::WindowConfig,
@@ -311,7 +311,7 @@ impl IMapGeneration for BasicMapGeneration {
             .collect()
     }
 
-    fn get_player_spawn(&mut self) -> Vec<(EntityLocation, ())> {
+    fn get_player_spawn(&mut self, rng: &mut RollbackRng,) -> Vec<(EntityLocation, PlayerSpawnConfig)> {
         self.map
             .rooms
             .iter()
@@ -328,17 +328,20 @@ impl IMapGeneration for BasicMapGeneration {
                 roor.entity_locations
                     .player_spawns
                     .iter()
-                    .map(|y| {
+                    .enumerate()
+                    .map(|(i, y)| {
                         (
                             EntityLocation {
                                 position: y.position,
                                 size: y.size,
                                 level_iid: roor.level_iid.clone(),
                             },
-                            (),
+                            PlayerSpawnConfig {
+                                index: i,
+                            },
                         )
                     })
-                    .collect::<Vec<(EntityLocation, ())>>()
+                    .collect::<Vec<(EntityLocation, PlayerSpawnConfig)>>()
             })
             .collect()
     }
