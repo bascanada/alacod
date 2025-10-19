@@ -85,6 +85,7 @@ impl Plugin for CoreSetupPlugin {
         app.add_plugins(BaseColliderGamePlugin {});
         app.add_plugins(DebugColliderGamePlugin);
         app.add_plugins(BaseCharacterGamePlugin {});
+        app.add_plugins(crate::interaction::InteractionPlugin);
 
 
     #[cfg(feature = "debug_ui")]
@@ -111,6 +112,7 @@ impl Plugin for CoreSetupPlugin {
             GgrsSchedule,
             (
                 RollbackSystemSet::Input,
+                RollbackSystemSet::Interaction,
                 RollbackSystemSet::Movement,
                 RollbackSystemSet::Weapon,
                 RollbackSystemSet::CollisionDamage,

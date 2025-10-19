@@ -90,6 +90,8 @@ pub fn create_player(
     commands.entity(entity).insert((
         inventory,
         CursorPosition::default(),
+        super::input::InteractionInput::default(),
+        crate::interaction::Interactor,
         Player {
             handle,
             color: PLAYER_COLORS[handle].into(),

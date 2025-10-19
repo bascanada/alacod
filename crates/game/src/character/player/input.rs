@@ -29,6 +29,7 @@ pub const INPUT_SWITCH_WEAPON_MODE: u16 = 1 << 5;
 pub const INPUT_SPRINT: u16 = 1 << 6;
 pub const INPUT_DASH: u16 = 1 << 7;
 pub const INPUT_MODIFIER: u16 = 1 << 8;
+pub const INPUT_INTERACTION: u16 = 1 << 9;
 
 const PAN_FACING_THRESHOLD: i16 = 5;
 
@@ -51,6 +52,12 @@ pub struct PointerWorldPosition(pub Vec2);
 pub struct CursorPosition {
     pub x: i32,
     pub y: i32,
+}
+
+/// Component that tracks interaction input state
+#[derive(Component, Clone, Copy, Default, Debug, Serialize, Deserialize)]
+pub struct InteractionInput {
+    pub is_holding: bool,
 }
 
 fn get_facing_direction(input: &BoxInput) -> FacingDirection {
@@ -115,6 +122,10 @@ pub fn read_local_inputs(
             input.buttons |= INPUT_DASH;
         }
 
+        if action_state.pressed(&PlayerAction::Interaction) {
+            input.buttons |= INPUT_INTERACTION;
+        }
+
         if action_state.pressed(&PlayerAction::Modifier) {
             input.buttons |= INPUT_MODIFIER;
         }
@@ -162,6 +173,7 @@ pub fn apply_inputs(
             &mut FacingDirection,
             &mut CursorPosition,
             &mut SprintState,
+            &mut InteractionInput,
             &CharacterConfigHandles,
             &Player,
         ),
@@ -178,6 +190,7 @@ pub fn apply_inputs(
         mut facing_direction,
         mut cursor_position,
         mut sprint_state,
+        mut interaction_input,
         config_handles,
         player,
     ) in query.iter_mut()
@@ -186,6 +199,9 @@ pub fn apply_inputs(
             let (input, _input_status) = inputs[player.handle];
 
             dash_state.update();
+
+            // Update interaction input state
+            interaction_input.is_holding = (input.buttons & INPUT_INTERACTION) != 0;
 
             // If currently dashing, directly update position
             if dash_state.is_dashing {

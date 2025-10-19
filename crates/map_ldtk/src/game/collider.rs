@@ -44,7 +44,6 @@ pub fn create_wall_colliders_from_ldtk(
                     
                     // Spawn wall entities for each rectangle
                     for rect in rectangles {
-                        info!("spawning wall of size {}x{} at {},{}", rect.height, rect.width, rect.x, rect.y);
                         spawn_invisible_wall_collider(
                             &mut commands,
                             &collision_settings,

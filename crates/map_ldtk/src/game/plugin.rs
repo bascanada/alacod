@@ -142,13 +142,17 @@ fn wait_for_all_map_rollback_entity(
             let id = 
                 id_factory.next(item.id.clone());
 
-            // Convert GlobalTransform to Transform for positioning
+            // Use the exact world position from the LDTK-spawned entity.
+            // bevy_ecs_ldtk already applies pivot and coordinate system conversions,
+            // so using the GlobalTransform directly keeps visuals and physics aligned.
             let world_position = item.global_transform.translation();
             let transform = Transform::from_translation(world_position);
+            let fixed_transform = fixed_math::FixedTransform3D::from_bevy_transform(&transform);
 
-            info!("spawning rollback map item {} at {} for parent {}", id, world_position, item.entity);
+            info!("spawning rollback map item {} at {} (fixed: {:?}) for parent {}", 
+                  id, world_position, fixed_transform.translation, item.entity);
             let mut cmd = commands.spawn((
-                fixed_math::FixedTransform3D::from_bevy_transform(&transform),
+                fixed_transform,
                 rollback_item,
                 id,
             ));
@@ -174,6 +178,10 @@ fn wait_for_all_map_rollback_entity(
                             offset: fixed_math::FixedVec3::ZERO,
                         },
                         CollisionLayer(collision_settings.wall_layer),
+                        game::interaction::Interactable {
+                            interaction_range: fixed_math::new(30.0),
+                            interaction_type: game::interaction::InteractionType::Door,
+                        },
                     ));
                     info!("adding collider to door entity with size {}x{}", width, height);
                 },

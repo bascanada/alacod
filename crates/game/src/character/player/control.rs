@@ -52,7 +52,6 @@ pub fn get_input_map() -> InputMap<PlayerAction> {
         (PlayerAction::SwitchWeaponMode, KeyCode::KeyZ),
         (PlayerAction::Reload, KeyCode::KeyR),
         (PlayerAction::MoveCameraRight, KeyCode::ArrowRight),
-        (PlayerAction::Interaction, KeyCode::KeyH),
         (PlayerAction::Sprint, KeyCode::ShiftLeft),
         (PlayerAction::Dash, KeyCode::KeyC),
         (PlayerAction::Modifier, KeyCode::ControlLeft),
