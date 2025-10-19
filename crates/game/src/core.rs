@@ -94,6 +94,13 @@ impl Plugin for CoreSetupPlugin {
     #[cfg(feature = "debug_ui")]
     app.add_plugins(WorldInspectorPlugin::new());
 
+
+    #[cfg(feature = "debug_ui")]
+    app.add_plugins(EguiPlugin { enable_multipass_for_primary_context: true });
+
+    #[cfg(feature = "debug_ui")]
+    app.add_plugins(WorldInspectorPlugin::new());
+
         app.init_resource::<GameInfo>();
         app.init_resource::<GggrsSessionConfigurationState>();
         app.init_resource::<GgrsNetIdFactory>();
