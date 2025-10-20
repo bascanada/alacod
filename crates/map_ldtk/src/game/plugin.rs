@@ -89,8 +89,27 @@ fn wait_for_all_map_rollback_entity(
     let current_time = time.elapsed_secs();
     let previous_size = entity_registery.entities.len();
 
-    for (e, global_transform, rollback_marker, ldtk_size) in query_map_entity.iter() {
-        // Skip if already registered
+    // Collect and sort entities by their marker name and position for deterministic order
+    let mut entities_to_process: Vec<_> = query_map_entity.iter()
+        .filter(|(e, _, _, _)| !entity_registery.registered_entities.contains(e))
+        .collect();
+    
+    // Sort by marker name first, then by position (x, y) for determinism
+    entities_to_process.sort_by(|a, b| {
+        let name_cmp = a.2.0.cmp(&b.2.0);
+        if name_cmp != std::cmp::Ordering::Equal {
+            return name_cmp;
+        }
+        // If names are equal, sort by position
+        let pos_a = a.1.translation();
+        let pos_b = b.1.translation();
+        pos_a.x.partial_cmp(&pos_b.x)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| pos_a.y.partial_cmp(&pos_b.y).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
+    for (e, global_transform, rollback_marker, ldtk_size) in entities_to_process {
+        // Skip if already registered (should not happen due to filter above, but keeping for safety)
         if entity_registery.registered_entities.contains(&e) {
             continue;
         }
@@ -179,7 +198,7 @@ fn wait_for_all_map_rollback_entity(
                         },
                         CollisionLayer(collision_settings.wall_layer),
                         game::interaction::Interactable {
-                            interaction_range: fixed_math::new(30.0),
+                            interaction_range: fixed_math::new(50.0),
                             interaction_type: game::interaction::InteractionType::Door,
                         },
                     ));

@@ -147,11 +147,6 @@ build_docker_website: build_wasm_apps
 	docker build --build-arg APP_VERSION=$(VERSION) -f ./website/Dockerfile ./website -t ghcr.io/bascanada/alacod:latest
 
 
-# CID_1 , CID_2
-diff_run:
-	grep 'system="ggrs_' game_run_bob.log > ggrs_bob_filtered.log
-	
-
 # Publish
 push_docker_website:
 	docker push ghcr.io/bascanada/alacod:latest
@@ -167,3 +162,22 @@ diff_log:
 	cat $(LOG_DIR)/$(LOG_PREFFIX)_$(CID_1).log | grep $(GREP_FILTER) > $(FILTERED_LOG_DIR)/$(CID_1).log
 	cat $(LOG_DIR)/$(LOG_PREFFIX)_$(CID_2).log | grep $(GREP_FILTER) > $(FILTERED_LOG_DIR)/$(CID_2).log
 	diff $(FILTERED_LOG_DIR)/$(CID_1).log $(FILTERED_LOG_DIR)/$(CID_2).log
+
+test_multiplayer:
+	@echo "Starting multiplayer test with lobby: $(LOBBY)"; \
+	echo "Starting Bob's instance..."; \
+	make ldtk_map_explorer_matchbox CID=bob LOBBY=$(LOBBY) & \
+	BOB_PID=$$!; \
+	echo "Bob started with PID: $$BOB_PID"; \
+	sleep 2; \
+	echo "Starting Alice's instance..."; \
+	make ldtk_map_explorer_matchbox CID=alice LOBBY=$(LOBBY) & \
+	ALICE_PID=$$!; \
+	echo "Alice started with PID: $$ALICE_PID"; \
+	echo "Waiting for both instances to complete..."; \
+	wait $$BOB_PID; \
+	echo "Bob's instance completed"; \
+	wait $$ALICE_PID; \
+	echo "Alice's instance completed"; \
+	echo "Running log diff..."; \
+	make diff_log CID_1=alice CID_2=bob
