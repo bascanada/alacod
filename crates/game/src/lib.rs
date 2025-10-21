@@ -6,6 +6,7 @@ pub mod collider;
 pub mod core;
 pub mod frame;
 pub mod global_asset;
+pub mod interaction;
 pub mod jjrs;
 pub mod system_set;
 pub mod weapons;

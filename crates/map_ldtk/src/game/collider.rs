@@ -15,7 +15,11 @@ pub fn create_wall_colliders_from_ldtk(
     collision_settings: Res<CollisionSettings>,
     mut id_factory: ResMut<GgrsNetIdFactory>,
 ) {
-            for (level_entity, level_iid, level_transform) in levels.iter() {
+    // Collect and sort levels by IID for deterministic order
+    let mut sorted_levels: Vec<_> = levels.iter().collect();
+    sorted_levels.sort_by(|a, b| a.1.to_string().cmp(&b.1.to_string()));
+
+    for (level_entity, level_iid, level_transform) in sorted_levels {
                 let project = project_assets
                     .get(projects.single().unwrap())
                     .expect("project asset should be loaded if levels are spawned");
@@ -44,7 +48,6 @@ pub fn create_wall_colliders_from_ldtk(
                     
                     // Spawn wall entities for each rectangle
                     for rect in rectangles {
-                        info!("spawning wall of size {}x{} at {},{}", rect.height, rect.width, rect.x, rect.y);
                         spawn_invisible_wall_collider(
                             &mut commands,
                             &collision_settings,

@@ -101,15 +101,16 @@ pub fn get_new_entity(
     let identifiers = fields
         .iter()
         .map(|x| {
-            let field = entity
+            // Try to find the field in the entity template
+            let field_opt = entity
                 .field_defs
                 .iter()
-                .find(|fd| fd.identifier == x.0)
-                .unwrap_or_else(|| panic!("failed to get field for entity {}", x.0));
+                .find(|fd| fd.identifier == x.0);
 
             let real_editor_value = match x.1.clone() {
                 FieldValue::Int(v) => Some(("V_Int", serde_json::to_value(v).unwrap())),
                 FieldValue::Bool(v) => Some(("V_Bool", serde_json::to_value(v).unwrap())),
+                FieldValue::String(v) => v.as_ref().map(|s| ("V_String", serde_json::to_value(s).unwrap())),
                 _ => None,
             };
 
@@ -118,13 +119,33 @@ pub fn get_new_entity(
                 params: vec![v.1],
             });
 
-            FieldInstance {
-                identifier: field.identifier.clone(),
-                def_uid: field.uid,
-                field_instance_type: field.field_definition_type.clone(),
-                value: x.1.clone(),
-                tile: None,
-                real_editor_values: vec![real_editor_value],
+            // If field exists in template, use its definition; otherwise create a synthetic one
+            if let Some(field) = field_opt {
+                FieldInstance {
+                    identifier: field.identifier.clone(),
+                    def_uid: field.uid,
+                    field_instance_type: field.field_definition_type.clone(),
+                    value: x.1.clone(),
+                    tile: None,
+                    real_editor_values: vec![real_editor_value],
+                }
+            } else {
+                // Create a synthetic field instance for fields not in the template
+                let field_type = match x.1 {
+                    FieldValue::Int(_) => "Int",
+                    FieldValue::Bool(_) => "Bool",
+                    FieldValue::String(_) => "String",
+                    _ => "String", // Default to String for unknown types
+                };
+                
+                FieldInstance {
+                    identifier: x.0.to_string(),
+                    def_uid: 0, // Use 0 for synthetic fields
+                    field_instance_type: field_type.to_string(),
+                    value: x.1.clone(),
+                    tile: None,
+                    real_editor_values: vec![real_editor_value],
+                }
             }
         })
         .collect();
@@ -263,28 +284,81 @@ impl IMapGenerator for GeneratedMap {
     }
 
     fn add_doors(&mut self, rng: &mut RollbackRng, doors: &Vec<(EntityLocation, DoorConfig)>) {
+        println!("Adding {} doors to map", doors.len());
+        
         for (location, door) in doors.iter() {
+            // Determine if door is horizontal or vertical based on size
+            // If width > height, it's horizontal; otherwise vertical
+            let door_type = if location.size.0 > location.size.1 {
+                map_const::ENTITY_DOOR_HORIZONTAL_LOCATION
+            } else {
+                map_const::ENTITY_DOOR_VERTICAL_LOCATION
+            };
+            
+            // Log door configuration
+            let pairing_info = if let Some((paired_level, (px, py))) = &door.paired_door {
+                format!("paired with door at ({}, {}) in level {}", px, py, paired_level)
+            } else {
+                "unpaired".to_string()
+            };
+            
+            println!("  Door at ({}, {}) in level {}: cost={}, electrify={}, interactable={}, {}",
+                     location.position.0, location.position.1, location.level_iid,
+                     door.cost, door.electrify, door.interactable, pairing_info);
+            
+            let mut fields = vec![
+                (
+                    map_const::FIELD_PRICE_NAME,
+                    FieldValue::Int(Some(door.cost)),
+                ),
+                (
+                    map_const::FIELD_ELECTRIFY_NAME,
+                    FieldValue::Bool(door.electrify),
+                ),
+                (
+                    map_const::FIELD_INTERACTABLE_NAME,
+                    FieldValue::Bool(door.interactable),
+                ),
+            ];
+            
+            // Add paired door information if it exists
+            if let Some((paired_level_iid, (paired_x, paired_y))) = &door.paired_door {
+                fields.push((
+                    map_const::FIELD_PAIRED_DOOR_X_NAME,
+                    FieldValue::Int(Some(*paired_x)),
+                ));
+                fields.push((
+                    map_const::FIELD_PAIRED_DOOR_Y_NAME,
+                    FieldValue::Int(Some(*paired_y)),
+                ));
+                fields.push((
+                    map_const::FIELD_PAIRED_DOOR_LEVEL_NAME,
+                    FieldValue::String(Some(paired_level_iid.clone())),
+                ));
+            }
+            
             self.add_entity_to_level(
                 rng,
                 location,
-                map_const::ENTITY_DOOR_LOCATION,
-                vec![
-                    (
-                        map_const::FIELD_PRICE_NAME,
-                        FieldValue::Int(Some(door.cost)),
-                    ),
-                    (
-                        map_const::FIELD_ELECTRIFY_NAME,
-                        FieldValue::Bool(door.electrify),
-                    ),
-                ],
+                door_type,
+                fields,
             );
         }
+        
+        println!("Door generation complete\n");
     }
 
     fn add_windows(&mut self, rng: &mut RollbackRng, windows: &Vec<(EntityLocation, WindowConfig)>) {
         for (location, _) in windows.iter() {
-            self.add_entity_to_level(rng, location, map_const::ENTITY_WINDOW_LOCATION, vec![]);
+            // Determine if window is horizontal or vertical based on size
+            // If width > height, it's horizontal; otherwise vertical
+            let window_type = if location.size.0 > location.size.1 {
+                map_const::ENTITY_WINDOW_HORIZONTAL_LOCATION
+            } else {
+                map_const::ENTITY_WINDOW_VERTICAL_LOCATION
+            };
+            
+            self.add_entity_to_level(rng, location, window_type, vec![]);
         }
     }
 

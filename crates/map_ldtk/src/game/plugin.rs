@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
+use bevy_ecs_ldtk::prelude::LevelIid;
 use game::{collider::{Collider, CollisionLayer, CollisionSettings, Wall, Window}, core::AppState};
-use map::game::entity::{map::map_rollback::MapRollbackMarker, MapRollbackItem};
+use map::game::entity::{map::{door::{DoorComponent, DoorGridPosition}, map_rollback::MapRollbackMarker}, MapRollbackItem};
+use map::generation::entity::door::DoorConfig;
 use bevy_ggrs::AddRollbackCommandExtension;
 use utils::net_id::GgrsNetIdFactory;
 
@@ -17,6 +19,8 @@ pub struct LdtkMapEntityLoading {
     pub global_transform: GlobalTransform,
     pub entity: Entity,
     pub sprite_size: Option<Vec2>,
+    pub door_config: Option<DoorConfig>,
+    pub door_grid_position: Option<DoorGridPosition>,
 }
 
 #[derive(Resource, Clone)]
@@ -62,9 +66,36 @@ impl Plugin for LdtkMapLoadingPlugin {
         app.add_systems(Update, (
             load_levels_if_not_present,
             wait_for_all_map_rollback_entity,
+            populate_door_level_iids,
         ).run_if(in_state(AppState::GameLoading)));
 
         app.add_systems(Update, create_wall_colliders_from_ldtk.run_if(on_event::<LdtkMapLoadingEvent>));
+    }
+}
+
+/// System to populate the level_iid in DoorGridPosition from the parent level entity
+fn populate_door_level_iids(
+    mut door_query: Query<(&ChildOf, &mut DoorGridPosition), With<MapRollbackMarker>>,
+    parent_query: Query<&ChildOf>,
+    level_query: Query<&LevelIid>,
+) {
+    for (door_parent, mut grid_pos) in door_query.iter_mut() {
+        // If level_iid is empty, try to get it from parent hierarchy
+        if grid_pos.level_iid.is_empty() {
+            // Access the entity through the ChildOf component
+            let parent_entity = door_parent.parent();
+            
+            // First check if the immediate parent is a level
+            if let Ok(level_iid) = level_query.get(parent_entity) {
+                grid_pos.level_iid = level_iid.to_string();
+            } else if let Ok(grandparent) = parent_query.get(parent_entity) {
+                // Check if the grandparent (parent's parent) is a level
+                let grandparent_entity = grandparent.parent();
+                if let Ok(level_iid) = level_query.get(grandparent_entity) {
+                    grid_pos.level_iid = level_iid.to_string();
+                }
+            }
+        }
     }
 }
 
@@ -73,7 +104,7 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: EventWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>), With<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>), With<MapRollbackMarker>>,
 
     collision_settings: Res<CollisionSettings>,
 
@@ -89,8 +120,27 @@ fn wait_for_all_map_rollback_entity(
     let current_time = time.elapsed_secs();
     let previous_size = entity_registery.entities.len();
 
-    for (e, global_transform, rollback_marker, ldtk_size) in query_map_entity.iter() {
-        // Skip if already registered
+    // Collect and sort entities by their marker name and position for deterministic order
+    let mut entities_to_process: Vec<_> = query_map_entity.iter()
+        .filter(|(e, _, _, _, _, _)| !entity_registery.registered_entities.contains(e))
+        .collect();
+    
+    // Sort by marker name first, then by position (x, y) for determinism
+    entities_to_process.sort_by(|a, b| {
+        let name_cmp = a.2.0.cmp(&b.2.0);
+        if name_cmp != std::cmp::Ordering::Equal {
+            return name_cmp;
+        }
+        // If names are equal, sort by position
+        let pos_a = a.1.translation();
+        let pos_b = b.1.translation();
+        pos_a.x.partial_cmp(&pos_b.x)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| pos_a.y.partial_cmp(&pos_b.y).unwrap_or(std::cmp::Ordering::Equal))
+    });
+
+    for (e, global_transform, rollback_marker, ldtk_size, door_component, door_grid_pos) in entities_to_process {
+        // Skip if already registered (should not happen due to filter above, but keeping for safety)
         if entity_registery.registered_entities.contains(&e) {
             continue;
         }
@@ -101,8 +151,10 @@ fn wait_for_all_map_rollback_entity(
         // GlobalTransform gets updated by Bevy's transform propagation system
         if translation.x != 0.0 || translation.y != 0.0 {
             let sprite_size = ldtk_size.map(|s| Vec2::new(s.width, s.height));
-            info!("Found {} entity {:?} at position {} with LDTK size {:?}", 
-                  rollback_marker.0, e, translation, sprite_size);
+            let door_config = door_component.map(|dc| dc.config.clone());
+            let door_grid_position = door_grid_pos.cloned();
+            info!("Found {} entity {:?} at position {} with LDTK size {:?} and door config {:?}", 
+                  rollback_marker.0, e, translation, sprite_size, door_config);
             
             entity_registery.entities.push(LdtkMapEntityLoading { 
                 id: rollback_marker.0.clone(), 
@@ -110,6 +162,8 @@ fn wait_for_all_map_rollback_entity(
                 entity: e.clone(), 
                 global_transform: *global_transform,
                 sprite_size,
+                door_config,
+                door_grid_position,
             });
             entity_registery.registered_entities.insert(e);
         }
@@ -142,13 +196,17 @@ fn wait_for_all_map_rollback_entity(
             let id = 
                 id_factory.next(item.id.clone());
 
-            // Convert GlobalTransform to Transform for positioning
+            // Use the exact world position from the LDTK-spawned entity.
+            // bevy_ecs_ldtk already applies pivot and coordinate system conversions,
+            // so using the GlobalTransform directly keeps visuals and physics aligned.
             let world_position = item.global_transform.translation();
             let transform = Transform::from_translation(world_position);
+            let fixed_transform = fixed_math::FixedTransform3D::from_bevy_transform(&transform);
 
-            info!("spawning rollback map item {} at {} for parent {}", id, world_position, item.entity);
+            info!("spawning rollback map item {} at {} (fixed: {:?}) for parent {}", 
+                  id, world_position, fixed_transform.translation, item.entity);
             let mut cmd = commands.spawn((
-                fixed_math::FixedTransform3D::from_bevy_transform(&transform),
+                fixed_transform,
                 rollback_item,
                 id,
             ));
@@ -164,8 +222,20 @@ fn wait_for_all_map_rollback_entity(
                         (64.0, 32.0)
                     };
                     
+                    let max_dimension = width.max(height);
+                    let interaction_range = max_dimension;
+                    
+                    // Get the DoorConfig from the LDTK entity, or use default
+                    let door_config = item.door_config.clone().unwrap_or_default();
+                    
+                    // Get the DoorGridPosition if available
+                    let door_grid_position = item.door_grid_position.clone();
+                    
                     cmd.insert((
                         Wall,
+                        DoorComponent {
+                            config: door_config.clone(),
+                        },
                         Collider {
                             shape: game::collider::ColliderShape::Rectangle {
                                 width: fixed_math::Fixed::from_num(width), 
@@ -175,7 +245,24 @@ fn wait_for_all_map_rollback_entity(
                         },
                         CollisionLayer(collision_settings.wall_layer),
                     ));
-                    info!("adding collider to door entity with size {}x{}", width, height);
+                    
+                    // Add grid position if available
+                    if let Some(grid_pos) = door_grid_position {
+                        cmd.insert(grid_pos);
+                    }
+                    
+                    // Only add Interactable component if the door is actually interactable
+                    if door_config.interactable {
+                        cmd.insert(game::interaction::Interactable {
+                            interaction_range: fixed_math::new(interaction_range),
+                            interaction_type: game::interaction::InteractionType::Door,
+                        });
+                        info!("adding collider to door entity with size {}x{}, interaction range {}, and config {:?}", 
+                              width, height, interaction_range, door_config);
+                    } else {
+                        info!("adding collider to NON-INTERACTABLE door entity with size {}x{} and config {:?}", 
+                              width, height, door_config);
+                    }
                 },
                 "window" => {
                     // Use sprite size if available, otherwise fall back to default size
