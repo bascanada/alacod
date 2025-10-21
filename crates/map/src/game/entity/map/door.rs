@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::generation::entity::door::DoorConfig;
 
@@ -9,7 +10,7 @@ pub struct DoorComponent {
 
 /// Component to store the grid position and level identifier of a door
 /// This is used to match paired doors during interaction
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, Serialize, Deserialize)]
 pub struct DoorGridPosition {
     pub level_iid: String,
     pub grid_x: i32,
