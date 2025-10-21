@@ -20,6 +20,10 @@ pub const FIELD_PRICE_NAME: &str = "price";
 // pub const FIELD_PRICE_TYPE: &str = FIELD_INT_TYPE;
 pub const FIELD_ELECTRIFY_NAME: &str = "electrify";
 // pub const FIELD_ELECTRIFY_TYPE: &str = FIELD_BOOL_TYPE;
+pub const FIELD_INTERACTABLE_NAME: &str = "interactable";
+pub const FIELD_PAIRED_DOOR_X_NAME: &str = "paired_door_x";
+pub const FIELD_PAIRED_DOOR_Y_NAME: &str = "paired_door_y";
+pub const FIELD_PAIRED_DOOR_LEVEL_NAME: &str = "paired_door_level";
 
 
 pub const FIELD_PLAYER_SPAWN_INDEX_NAME: &str = "index";

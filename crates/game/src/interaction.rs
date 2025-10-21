@@ -207,7 +207,8 @@ pub fn handle_door_interaction(
     mut event_reader: EventReader<InteractionEvent>,
     mut door_opened_writer: EventWriter<DoorOpenedEvent>,
     mut commands: Commands,
-    door_query: Query<(Entity, &map::game::entity::MapRollbackItem), (With<Interactable>, With<Rollback>)>,
+    door_query: Query<(Entity, &map::game::entity::MapRollbackItem, &map::game::entity::map::door::DoorComponent), (With<Interactable>, With<Rollback>)>,
+    all_doors_query: Query<(Entity, &GgrsNetId, &map::game::entity::MapRollbackItem, &map::game::entity::map::door::DoorComponent, &map::game::entity::map::door::DoorGridPosition), With<Rollback>>,
 ) {
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "handle_door_interaction");
     let _enter = system_span.enter();
@@ -219,7 +220,7 @@ pub fn handle_door_interaction(
         }
 
         // Verify the interactable entity exists and is a rollback entity
-        if let Ok((door_entity, rollback_item)) = door_query.get(event.interactable) {
+        if let Ok((door_entity, rollback_item, door_component)) = door_query.get(event.interactable) {
             info!(
                 "{} door interaction triggered: interactor {} on door {}",
                 frame.as_ref(), event.interactor_net_id, event.interactable_net_id
@@ -243,8 +244,37 @@ pub fn handle_door_interaction(
                 visual_entity: rollback_item.parent,
             });
             
-            // Note: Visual feedback (sprite changes) would be handled outside GGRS
-            // in a separate system that responds to the door's changed state
+            // If this door has a paired door, open it too
+            if let Some((paired_level_iid, (paired_x, paired_y))) = &door_component.config.paired_door {
+                // Find the paired door by matching level_iid and grid position
+                // Note: We use iter() instead of order_iter! here since we're searching for a specific door
+                // and the ordering doesn't matter for this lookup
+                for (paired_door_entity, paired_net_id, paired_rollback_item, _paired_door_component, paired_grid_pos) in all_doors_query.iter() {
+                    // Match by level_iid and grid position
+                    if &paired_grid_pos.level_iid == paired_level_iid 
+                        && paired_grid_pos.grid_x == *paired_x 
+                        && paired_grid_pos.grid_y == *paired_y {
+                        info!(
+                            "{} opening paired door {} at grid position ({}, {}) in level {}",
+                            frame.as_ref(), paired_net_id, paired_x, paired_y, paired_level_iid
+                        );
+                        
+                        // Remove components from paired door
+                        commands.entity(paired_door_entity)
+                            .remove::<Collider>()
+                            .remove::<CollisionLayer>()
+                            .remove::<Interactable>();
+                        
+                        // Send visual event for paired door
+                        door_opened_writer.write(DoorOpenedEvent {
+                            door_net_id: paired_net_id.clone(),
+                            visual_entity: paired_rollback_item.parent,
+                        });
+                        
+                        break;
+                    }
+                }
+            }
         } else {
             warn!(
                 "InteractionEvent received for entity {:?} that is not a rollback interactable",
@@ -364,7 +394,7 @@ pub fn display_interaction_prompts(
             let range_fw = fixed_math::FixedWide::from_num(interactable.interaction_range.to_num::<i64>());
             let range_sq_fw = range_fw.saturating_mul(range_fw);
 
-            // If within range and it's a door, track the closest one
+            // If within range and it's a door, record its info
             if distance_sq <= range_sq_fw {
                 if let Some(door_component) = door_component_opt {
                     let distance = fixed_math::to_f32(fixed_math::Fixed::from_num(distance_sq.to_num::<f32>().sqrt()));
