@@ -191,6 +191,9 @@ fn wait_for_all_map_rollback_entity(
                         (64.0, 32.0)
                     };
                     
+                    let max_dimension = width.max(height);
+                    let interaction_range = max_dimension;
+                    
                     // Get the DoorConfig from the LDTK entity, or use default
                     let door_config = item.door_config.clone().unwrap_or_default();
                     
@@ -208,11 +211,12 @@ fn wait_for_all_map_rollback_entity(
                         },
                         CollisionLayer(collision_settings.wall_layer),
                         game::interaction::Interactable {
-                            interaction_range: fixed_math::new(50.0),
+                            interaction_range: fixed_math::new(interaction_range),
                             interaction_type: game::interaction::InteractionType::Door,
                         },
                     ));
-                    info!("adding collider to door entity with size {}x{} and config {:?}", width, height, door_config);
+                    info!("adding collider to door entity with size {}x{}, interaction range {}, and config {:?}", 
+                          width, height, interaction_range, door_config);
                 },
                 "window" => {
                     // Use sprite size if available, otherwise fall back to default size
