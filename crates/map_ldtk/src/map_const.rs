@@ -3,12 +3,14 @@ pub const LEVEL_FIELD_SPAWN: &str = "spawn";
 pub const LAYER_CONNECTION: &str = "LevelConnection";
 pub const LAYER_ENTITY: &str = "Entities";
 
-pub const ENTITY_DOOR_LOCATION: &str = "Door";
+pub const ENTITY_DOOR_HORIZONTAL_LOCATION: &str = "DoorHorizontal";
+pub const ENTITY_DOOR_VERTICAL_LOCATION: &str = "DoorVertical";
 pub const ENTITY_PLAYER_SPAWN_LOCATION: &str = "PlayerSpawn";
 pub const ENTITY_ZOMBIE_SPAWN_LOCATION: &str = "ZombieSpawn";
 pub const ENTITY_CRATE_LOCATION: &str = "CrateLocation";
 pub const ENTITY_WEAPON_LOCATION: &str = "WeaponLocation";
-pub const ENTITY_WINDOW_LOCATION: &str = "Window";
+pub const ENTITY_WINDOW_VERTICAL_LOCATION: &str = "WindowVertical";
+pub const ENTITY_WINDOW_HORIZONTAL_LOCATION: &str = "WindowHorizontal";
 pub const ENTITY_SODA_LOCATION: &str = "SodaLocation";
 
 // pub const FIELD_BOOL_TYPE: &str = "Bool";

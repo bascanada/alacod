@@ -40,6 +40,25 @@ macro_rules! get_entities {
     };
 }
 
+// Macro to collect entities matching multiple identifiers (e.g., DoorHorizontal, DoorVertical)
+macro_rules! get_entities_multi {
+    ($self: expr, $tile_size: expr, $identifiers: expr, $type: ident) => {
+        $self
+            .iter()
+            .filter(|x| $identifiers.contains(&x.identifier.as_str()))
+            .map(|x| {
+                let position = Position(x.grid.x, x.grid.y);
+                let size = (x.width / $tile_size.0, x.height / $tile_size.1);
+                $type {
+                    position,
+                    size,
+                    level_iid: "".to_string(),
+                }
+            })
+            .collect()
+    };
+}
+
 fn extract_entity_locations(level: &Level, tile_size: &(i32, i32)) -> EntityLocations {
     let entity_layer = level
         .layer_instances
@@ -50,10 +69,10 @@ fn extract_entity_locations(level: &Level, tile_size: &(i32, i32)) -> EntityLoca
 
     if let Some(entity_layer) = entity_layer {
         EntityLocations {
-            doors: get_entities!(
+            doors: get_entities_multi!(
                 entity_layer.entity_instances,
                 tile_size,
-                map_const::ENTITY_DOOR_LOCATION,
+                &[map_const::ENTITY_DOOR_HORIZONTAL_LOCATION, map_const::ENTITY_DOOR_VERTICAL_LOCATION],
                 EntityLocation
             ),
             sodas: get_entities!(
@@ -86,10 +105,10 @@ fn extract_entity_locations(level: &Level, tile_size: &(i32, i32)) -> EntityLoca
                 map_const::ENTITY_WEAPON_LOCATION,
                 EntityLocation
             ),
-            windows: get_entities!(
+            windows: get_entities_multi!(
                 entity_layer.entity_instances,
                 tile_size,
-                map_const::ENTITY_WINDOW_LOCATION,
+                &[map_const::ENTITY_WINDOW_HORIZONTAL_LOCATION, map_const::ENTITY_WINDOW_VERTICAL_LOCATION],
                 EntityLocation
             ),
         }

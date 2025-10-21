@@ -12,7 +12,7 @@ use crate::character::config::{CharacterConfig, CharacterConfigHandles};
 use crate::character::dash::DashState;
 use crate::character::movement::{SprintState, Velocity};
 use crate::character::player::{control::PlayerAction, Player};
-use crate::collider::{is_colliding, Collider, CollisionLayer, CollisionSettings, Wall};
+use crate::collider::{is_colliding, Collider, CollisionLayer, CollisionSettings};
 use crate::weapons::WeaponInventory;
 
 use super::jjrs::PeerConfig;
@@ -355,7 +355,7 @@ pub fn move_characters(
             &Collider,
             &CollisionLayer,
         ),
-        (With<Wall>, Without<Player>),
+        (With<Collider>, Without<Player>, With<Rollback>),
     >,
 ) {
     'mainloop: for (mut transform, mut velocity, player_collider, collision_layer) in

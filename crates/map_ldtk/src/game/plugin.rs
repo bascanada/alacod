@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use game::{collider::{Collider, CollisionLayer, CollisionSettings, Wall, Window}, core::AppState};
-use map::game::entity::{map::map_rollback::MapRollbackMarker, MapRollbackItem};
+use map::game::entity::{map::{door::DoorComponent, map_rollback::MapRollbackMarker}, MapRollbackItem};
+use map::generation::entity::door::DoorConfig;
 use bevy_ggrs::AddRollbackCommandExtension;
 use utils::net_id::GgrsNetIdFactory;
 
@@ -17,6 +18,7 @@ pub struct LdtkMapEntityLoading {
     pub global_transform: GlobalTransform,
     pub entity: Entity,
     pub sprite_size: Option<Vec2>,
+    pub door_config: Option<DoorConfig>,
 }
 
 #[derive(Resource, Clone)]
@@ -73,7 +75,7 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: EventWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>), With<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>), With<MapRollbackMarker>>,
 
     collision_settings: Res<CollisionSettings>,
 
@@ -91,7 +93,7 @@ fn wait_for_all_map_rollback_entity(
 
     // Collect and sort entities by their marker name and position for deterministic order
     let mut entities_to_process: Vec<_> = query_map_entity.iter()
-        .filter(|(e, _, _, _)| !entity_registery.registered_entities.contains(e))
+        .filter(|(e, _, _, _, _)| !entity_registery.registered_entities.contains(e))
         .collect();
     
     // Sort by marker name first, then by position (x, y) for determinism
@@ -108,7 +110,7 @@ fn wait_for_all_map_rollback_entity(
             .then_with(|| pos_a.y.partial_cmp(&pos_b.y).unwrap_or(std::cmp::Ordering::Equal))
     });
 
-    for (e, global_transform, rollback_marker, ldtk_size) in entities_to_process {
+    for (e, global_transform, rollback_marker, ldtk_size, door_component) in entities_to_process {
         // Skip if already registered (should not happen due to filter above, but keeping for safety)
         if entity_registery.registered_entities.contains(&e) {
             continue;
@@ -120,8 +122,9 @@ fn wait_for_all_map_rollback_entity(
         // GlobalTransform gets updated by Bevy's transform propagation system
         if translation.x != 0.0 || translation.y != 0.0 {
             let sprite_size = ldtk_size.map(|s| Vec2::new(s.width, s.height));
-            info!("Found {} entity {:?} at position {} with LDTK size {:?}", 
-                  rollback_marker.0, e, translation, sprite_size);
+            let door_config = door_component.map(|dc| dc.config.clone());
+            info!("Found {} entity {:?} at position {} with LDTK size {:?} and door config {:?}", 
+                  rollback_marker.0, e, translation, sprite_size, door_config);
             
             entity_registery.entities.push(LdtkMapEntityLoading { 
                 id: rollback_marker.0.clone(), 
@@ -129,6 +132,7 @@ fn wait_for_all_map_rollback_entity(
                 entity: e.clone(), 
                 global_transform: *global_transform,
                 sprite_size,
+                door_config,
             });
             entity_registery.registered_entities.insert(e);
         }
@@ -187,8 +191,14 @@ fn wait_for_all_map_rollback_entity(
                         (64.0, 32.0)
                     };
                     
+                    // Get the DoorConfig from the LDTK entity, or use default
+                    let door_config = item.door_config.clone().unwrap_or_default();
+                    
                     cmd.insert((
                         Wall,
+                        DoorComponent {
+                            config: door_config.clone(),
+                        },
                         Collider {
                             shape: game::collider::ColliderShape::Rectangle {
                                 width: fixed_math::Fixed::from_num(width), 
@@ -202,7 +212,7 @@ fn wait_for_all_map_rollback_entity(
                             interaction_type: game::interaction::InteractionType::Door,
                         },
                     ));
-                    info!("adding collider to door entity with size {}x{}", width, height);
+                    info!("adding collider to door entity with size {}x{} and config {:?}", width, height, door_config);
                 },
                 "window" => {
                     // Use sprite size if available, otherwise fall back to default size

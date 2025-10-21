@@ -264,10 +264,18 @@ impl IMapGenerator for GeneratedMap {
 
     fn add_doors(&mut self, rng: &mut RollbackRng, doors: &Vec<(EntityLocation, DoorConfig)>) {
         for (location, door) in doors.iter() {
+            // Determine if door is horizontal or vertical based on size
+            // If width > height, it's horizontal; otherwise vertical
+            let door_type = if location.size.0 > location.size.1 {
+                map_const::ENTITY_DOOR_HORIZONTAL_LOCATION
+            } else {
+                map_const::ENTITY_DOOR_VERTICAL_LOCATION
+            };
+            
             self.add_entity_to_level(
                 rng,
                 location,
-                map_const::ENTITY_DOOR_LOCATION,
+                door_type,
                 vec![
                     (
                         map_const::FIELD_PRICE_NAME,
@@ -284,7 +292,15 @@ impl IMapGenerator for GeneratedMap {
 
     fn add_windows(&mut self, rng: &mut RollbackRng, windows: &Vec<(EntityLocation, WindowConfig)>) {
         for (location, _) in windows.iter() {
-            self.add_entity_to_level(rng, location, map_const::ENTITY_WINDOW_LOCATION, vec![]);
+            // Determine if window is horizontal or vertical based on size
+            // If width > height, it's horizontal; otherwise vertical
+            let window_type = if location.size.0 > location.size.1 {
+                map_const::ENTITY_WINDOW_HORIZONTAL_LOCATION
+            } else {
+                map_const::ENTITY_WINDOW_VERTICAL_LOCATION
+            };
+            
+            self.add_entity_to_level(rng, location, window_type, vec![]);
         }
     }
 
