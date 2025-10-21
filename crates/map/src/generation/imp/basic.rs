@@ -20,6 +20,8 @@ struct Map {
     rooms: Vec<Room>,
     // index of all the item in the rooms vector that still possively have open connection
     rooms_possible: Vec<usize>,
+    // Track the depth/distance from spawn for each room (by index)
+    room_depths: Vec<usize>,
 }
 
 pub struct BasicMapGeneration {
@@ -37,6 +39,7 @@ impl BasicMapGeneration {
                 last_generated_room_index: None,
                 rooms: vec![],
                 rooms_possible: vec![],
+                room_depths: vec![],
             },
         }
     }
@@ -234,6 +237,7 @@ impl IMapGeneration for BasicMapGeneration {
             map!(LEVEL_PROPERTIES_SPAWN_NAME => Value::Bool(true)),
         );
         self.map.rooms.push(spawning_room_def.clone());
+        self.map.room_depths.push(0); // Spawn room is at depth 0
         self.map.last_generated_room_index = Some(0);
 
         spawning_room_def
@@ -242,7 +246,12 @@ impl IMapGeneration for BasicMapGeneration {
     fn get_next_room(&mut self, rng: &mut RollbackRng,) -> Option<(Room, RoomConnection, RoomConnection)> {
         let room = self.get_next_room_recursize(rng);
         if let Some(room) = room.as_ref() {
+            // Calculate depth: parent room's depth + 1
+            let parent_depth = self.map.room_depths[self.map.last_generated_room_index.unwrap()];
+            let new_depth = parent_depth + 1;
+            
             self.map.rooms.push(room.0.clone());
+            self.map.room_depths.push(new_depth);
             let index = self.map.rooms.len() - 1;
             self.map.rooms_possible.push(index);
         }
@@ -250,27 +259,34 @@ impl IMapGeneration for BasicMapGeneration {
         room
     }
 
-    fn get_doors(&mut self, rng: &mut RollbackRng,) -> Vec<(EntityLocation, crate::generation::entity::door::DoorConfig)> {
+    fn get_doors(&mut self, _rng: &mut RollbackRng,) -> Vec<(EntityLocation, crate::generation::entity::door::DoorConfig)> {
         // get all my level , get all the doors in each level
         self.map
             .rooms
             .iter()
-            .flat_map(|x| {
-                x.entity_locations
+            .enumerate() // Add enumerate to get the room index
+            .flat_map(|(room_index, room)| {
+                let room_depth = self.map.room_depths[room_index];
+                // Base cost is 750, increases by 250 per depth level
+                // Depth 0 (spawn) = 750, Depth 1 = 1000, Depth 2 = 1250, etc.
+                let base_cost = 750;
+                let cost_per_depth = 250;
+                let door_cost = base_cost + (room_depth * cost_per_depth) as i32;
+                
+                room.entity_locations
                     .doors
                     .iter()
-                    .map(|y| {
+                    .map(move |door_location| {
                         (
                             EntityLocation {
-                                position: y.position,
-                                size: y.size,
-                                level_iid: x.level_iid.clone(),
+                                position: door_location.position,
+                                size: door_location.size,
+                                level_iid: room.level_iid.clone(),
                             },
                             DoorConfig {
-                                // TODO: create the algo to fix the price of door
-                                cost: 1000,
-                                // TODO: create the algo to found the electrify rule
-                                electrify: true,
+                                cost: door_cost,
+                                // Doors in deeper rooms could be electrified
+                                electrify: room_depth > 0,
                             },
                         )
                     })
