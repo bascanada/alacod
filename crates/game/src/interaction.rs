@@ -97,6 +97,8 @@ pub struct WindowRepairedEvent {
     pub visual_entity: Entity,
     /// The new health value (for updating visuals)
     pub new_health: u8,
+    /// The maximum health value (for calculating health bar ratio)
+    pub max_health: u8,
 }
 
 /// System that detects interactions within the GGRS schedule
@@ -423,6 +425,7 @@ pub fn handle_window_repair(
                 window_net_id: window_net_id.clone(),
                 visual_entity: rollback_item.parent,
                 new_health: window_health.current,
+                max_health: window_health.max,
             });
 
             info!(
@@ -523,33 +526,31 @@ pub struct WindowHealthBar;
 /// This runs outside the GGRS schedule for visual feedback only
 pub fn update_window_health_bars(
     mut window_repaired_events: EventReader<WindowRepairedEvent>,
-    rollback_items: Query<&map::game::entity::MapRollbackItem>,
     children_query: Query<&Children>,
     mut health_bar_query: Query<&mut Sprite, With<WindowHealthBar>>,
 ) {
     for event in window_repaired_events.read() {
         info!(
-            "Window {:?} health bar update: new health {}",
-            event.window_net_id, event.new_health
+            "Window {:?} health bar update: new health {}/{}",
+            event.window_net_id, event.new_health, event.max_health
         );
         
-        // Find the rollback entity to get the health
-        // We need to iterate through all windows to find the matching one
-        for rollback_item in rollback_items.iter() {
-            if rollback_item.parent == event.visual_entity {
-                // Found the rollback item, now find its health bar child
-                if let Ok(children) = children_query.get(rollback_item.parent) {
-                    for child in children.iter() {
-                        if let Ok(mut sprite) = health_bar_query.get_mut(child) {
-                            // Update health bar width based on current health
-                            let health_ratio = event.new_health as f32 / 3.0; // Max health is 3
-                            sprite.custom_size = Some(Vec2::new(16.0 * health_ratio, 2.0)); // Smaller health bar
-                            info!("Updated window health bar sprite: ratio {}", health_ratio);
-                        }
-                    }
+        // Directly query the visual entity's children - O(1) instead of O(N)
+        if let Ok(children) = children_query.get(event.visual_entity) {
+            for child in children.iter() {
+                if let Ok(mut sprite) = health_bar_query.get_mut(child) {
+                    // Update health bar width based on current health
+                    let health_ratio = event.new_health as f32 / event.max_health as f32;
+                    sprite.custom_size = Some(Vec2::new(16.0 * health_ratio, 2.0)); // Smaller health bar
+                    info!("Updated window health bar sprite: ratio {}", health_ratio);
+                    break; // Found and updated the health bar, no need to continue
                 }
-                break;
             }
+        } else {
+            warn!(
+                "Could not find children for window visual entity {:?}",
+                event.visual_entity
+            );
         }
     }
 }

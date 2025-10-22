@@ -298,9 +298,12 @@ fn wait_for_all_map_rollback_entity(
                 _ => {}
             }
 
-            let rollback_entity = cmd.add_rollback().id();
+            // Register the entity with GGRS rollback system
+            let _rollback_entity = cmd.add_rollback().id();
             
-            // Add health bar to windows as a child of the visual parent entity
+            // Add window-specific visual children
+            // Note: This must be done after add_rollback() completes to avoid mutable borrow conflicts
+            // since add_children() requires exclusive access to Commands
             if item.kind.as_str() == "window" {
                 commands.entity(item.entity).with_children(|parent| {
                     parent.spawn((
