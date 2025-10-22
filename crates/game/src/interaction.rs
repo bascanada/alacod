@@ -14,6 +14,24 @@ use crate::{
 #[derive(Component)]
 pub struct InteractionPromptText;
 
+/// Resource that configures window repair behavior
+#[derive(Resource, Clone, Debug, Serialize, Deserialize)]
+pub struct WindowRepairConfig {
+    /// Number of frames to wait between repairs
+    pub repair_cooldown_frames: u32,
+    /// Interaction range for repairing windows
+    pub repair_range: fixed_math::Fixed,
+}
+
+impl Default for WindowRepairConfig {
+    fn default() -> Self {
+        Self {
+            repair_cooldown_frames: 60, // 1 second at 60 FPS
+            repair_range: fixed_math::new(50.0),
+        }
+    }
+}
+
 /// Component that marks an entity as interactable
 #[derive(Component, Clone, Debug, Serialize, Deserialize)]
 pub struct Interactable {
@@ -36,6 +54,7 @@ impl Default for Interactable {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Reflect, PartialEq, Eq)]
 pub enum InteractionType {
     Door,
+    Window,
     // Future: Crate, Weapon, Soda, etc.
 }
 
@@ -68,6 +87,18 @@ pub struct DoorOpenedEvent {
     pub visual_entity: Entity,
 }
 
+/// Event sent when a window is repaired (for visual feedback)
+/// This event is sent from GGRS schedule to Update schedule
+#[derive(Event, Clone, Debug)]
+pub struct WindowRepairedEvent {
+    /// The GGRS net ID of the window that was repaired
+    pub window_net_id: GgrsNetId,
+    /// The visual entity for the window
+    pub visual_entity: Entity,
+    /// The new health value (for updating visuals)
+    pub new_health: u8,
+}
+
 /// System that detects interactions within the GGRS schedule
 pub fn interaction_detection_system(
     frame: Res<FrameCount>,
@@ -87,7 +118,7 @@ pub fn interaction_detection_system(
         With<Rollback>,
     >,
 ) {
-    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "interaction_detection");
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "interaction_detection_system");
     let _enter = system_span.enter();
 
     for (interactor_net_id, interactor_entity, interactor_transform, interaction_input) in order_iter!(interactors) {
@@ -142,8 +173,12 @@ pub fn interaction_detection_system(
 
         // Only send interaction event for the closest interactable
         if let Some((distance_sq, net_id, interactable_entity, interaction_type)) = closest_interactable {
-            info!("{} interaction detected: interactor {} with {} at distance_sq {:?}", 
-                  frame.as_ref(), interactor_net_id, net_id, 
+            let interaction_type_str = match interaction_type {
+                InteractionType::Door => "Door",
+                InteractionType::Window => "Window",
+            };
+            info!("{} interaction detected: interactor {} with {} ({}) at distance_sq {:?}", 
+                  frame.as_ref(), interactor_net_id, net_id, interaction_type_str,
                   fixed_math::to_f32(fixed_math::Fixed::from_num(distance_sq.to_num::<f32>())));
             event_writer.write(InteractionEvent {
                 interactor: interactor_entity,
@@ -284,6 +319,132 @@ pub fn handle_door_interaction(
     }
 }
 
+/// System that handles window repair interactions
+pub fn handle_window_repair(
+    frame: Res<FrameCount>,
+    mut event_reader: EventReader<InteractionEvent>,
+    mut window_repaired_writer: EventWriter<WindowRepairedEvent>,
+    repair_config: Res<WindowRepairConfig>,
+    mut window_query: Query<
+        (
+            Entity,
+            &GgrsNetId,
+            &map::game::entity::MapRollbackItem,
+            &mut map::game::entity::map::window::WindowHealth,
+        ),
+        (With<Interactable>, With<Rollback>),
+    >,
+) {
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "handle_window_repair_system");
+    let _enter = system_span.enter();
+
+    // Events are delivered in deterministic order from interaction_detection_system
+    // No need for order_iter! on EventReader since the source system uses order_iter!
+    for event in event_reader.read() {
+        // Only handle window interactions
+        if event.interaction_type != InteractionType::Window {
+            continue;
+        }
+
+        info!(
+            "{} [GGRS] window repair event received: interactor {} targeting window {}",
+            frame.as_ref(),
+            event.interactor_net_id,
+            event.interactable_net_id
+        );
+
+        // Verify the interactable entity exists and is a rollback entity with WindowHealth
+        if let Ok((window_entity, window_net_id, rollback_item, mut window_health)) =
+            window_query.get_mut(event.interactable)
+        {
+            info!(
+                "{} [GGRS] window {} state before repair: health={}/{}, cooldown_frame={:?}",
+                frame.as_ref(),
+                window_net_id,
+                window_health.current,
+                window_health.max,
+                window_health.can_repair_after_frame
+            );
+
+            // Check if we can repair (cooldown check)
+            if let Some(cooldown_frame) = window_health.can_repair_after_frame {
+                if frame.frame < cooldown_frame {
+                    info!(
+                        "{} [GGRS] window {} repair BLOCKED: cooldown active until frame {} (current: {})",
+                        frame.as_ref(),
+                        window_net_id,
+                        cooldown_frame,
+                        frame.frame
+                    );
+                    continue;
+                }
+            }
+
+            // Check if window is already at max health
+            if window_health.current >= window_health.max {
+                info!(
+                    "{} [GGRS] window {} repair BLOCKED: already at max health {}/{}",
+                    frame.as_ref(),
+                    window_net_id,
+                    window_health.current,
+                    window_health.max
+                );
+                continue;
+            }
+
+            // Repair one health point
+            let old_health = window_health.current;
+            window_health.current += 1;
+            let new_cooldown_frame = frame.frame + repair_config.repair_cooldown_frames;
+            window_health.can_repair_after_frame = Some(new_cooldown_frame);
+
+            info!(
+                "{} [GGRS] window {} REPAIRED: health {}→{}/{}, cooldown set to frame {}, config_cooldown={}",
+                frame.as_ref(),
+                window_net_id,
+                old_health,
+                window_health.current,
+                window_health.max,
+                new_cooldown_frame,
+                repair_config.repair_cooldown_frames
+            );
+
+            // If window is now at max health, it becomes solid again
+            if window_health.current >= window_health.max {
+                info!(
+                    "{} [GGRS] window {} FULLY REPAIRED - should restore collision",
+                    frame.as_ref(),
+                    window_net_id
+                );
+            }
+
+            // Send event for visual feedback
+            window_repaired_writer.write(WindowRepairedEvent {
+                window_net_id: window_net_id.clone(),
+                visual_entity: rollback_item.parent,
+                new_health: window_health.current,
+            });
+
+            info!(
+                "{} [GGRS] window {} state after repair: health={}/{}, cooldown_frame={:?}, entity={:?}",
+                frame.as_ref(),
+                window_net_id,
+                window_health.current,
+                window_health.max,
+                window_health.can_repair_after_frame,
+                window_entity
+            );
+        } else {
+            warn!(
+                "{} [GGRS] window repair FAILED: entity {:?} (net_id {}) not found or not a valid window",
+                frame.as_ref(),
+                event.interactable,
+                event.interactable_net_id
+            );
+        }
+    }
+}
+
 /// Plugin for the interaction system
 pub struct InteractionPlugin;
 
@@ -292,10 +453,16 @@ impl Plugin for InteractionPlugin {
         // Register events
         app.add_event::<InteractionEvent>();
         app.add_event::<DoorOpenedEvent>();
+        app.add_event::<WindowRepairedEvent>();
+
+        // Initialize window repair config
+        app.init_resource::<WindowRepairConfig>();
 
         // Register rollback components
         app.rollback_component_with_clone::<Interactable>()
             .rollback_component_with_clone::<Interactor>()
+            .rollback_component_with_clone::<map::game::entity::map::window::WindowHealth>()
+            .rollback_resource_with_clone::<WindowRepairConfig>()
             .rollback_component_with_clone::<crate::character::player::input::InteractionInput>();
 
         // Add interaction detection to GGRS schedule
@@ -305,6 +472,7 @@ impl Plugin for InteractionPlugin {
             (
                 interaction_detection_system,
                 handle_door_interaction,
+                handle_window_repair,
             )
                 .chain()
                 .after(RollbackSystemSet::Input)
@@ -320,6 +488,7 @@ impl Plugin for InteractionPlugin {
             Update,
             (
                 update_door_visuals,
+                update_window_health_bars,
                 display_interaction_prompts,
             ).run_if(in_state(AppState::InGame)),
         );
@@ -342,6 +511,45 @@ pub fn update_door_visuals(
         } else {
             warn!("Could not find visual entity {:?} for door {:?}", 
                   event.visual_entity, event.door_net_id);
+        }
+    }
+}
+
+/// Component marker for window health bar
+#[derive(Component)]
+pub struct WindowHealthBar;
+
+/// System that updates window health bar visuals based on window repaired events
+/// This runs outside the GGRS schedule for visual feedback only
+pub fn update_window_health_bars(
+    mut window_repaired_events: EventReader<WindowRepairedEvent>,
+    rollback_items: Query<&map::game::entity::MapRollbackItem>,
+    children_query: Query<&Children>,
+    mut health_bar_query: Query<&mut Sprite, With<WindowHealthBar>>,
+) {
+    for event in window_repaired_events.read() {
+        info!(
+            "Window {:?} health bar update: new health {}",
+            event.window_net_id, event.new_health
+        );
+        
+        // Find the rollback entity to get the health
+        // We need to iterate through all windows to find the matching one
+        for rollback_item in rollback_items.iter() {
+            if rollback_item.parent == event.visual_entity {
+                // Found the rollback item, now find its health bar child
+                if let Ok(children) = children_query.get(rollback_item.parent) {
+                    for child in children.iter() {
+                        if let Ok(mut sprite) = health_bar_query.get_mut(child) {
+                            // Update health bar width based on current health
+                            let health_ratio = event.new_health as f32 / 3.0; // Max health is 3
+                            sprite.custom_size = Some(Vec2::new(16.0 * health_ratio, 2.0)); // Smaller health bar
+                            info!("Updated window health bar sprite: ratio {}", health_ratio);
+                        }
+                    }
+                }
+                break;
+            }
         }
     }
 }
@@ -370,48 +578,76 @@ fn setup_interaction_ui(mut commands: Commands, asset_server: Res<AssetServer>) 
 }
 
 /// System that displays interaction prompts when player is near interactable
+/// Only shows prompts for local players (supports split-screen multiplayer)
 pub fn display_interaction_prompts(
     mut gizmos: Gizmos,
     mut text_query: Query<&mut Text, With<InteractionPromptText>>,
-    interactors: Query<&fixed_math::FixedTransform3D, (With<Interactor>, With<Rollback>)>,
+    local_interactors: Query<
+        &fixed_math::FixedTransform3D,
+        (With<Interactor>, With<Rollback>, With<crate::character::player::LocalPlayer>),
+    >,
     interactables: Query<
-        (Entity, &fixed_math::FixedTransform3D, &Interactable, Option<&map::game::entity::map::door::DoorComponent>),
+        (
+            Entity,
+            &fixed_math::FixedTransform3D,
+            &Interactable,
+            Option<&map::game::entity::map::door::DoorComponent>,
+            Option<&map::game::entity::map::window::WindowHealth>,
+        ),
         (Without<Interactor>, With<Rollback>),
     >,
 ) {
-    // Track the closest door across all players
+    // Track the closest door across all LOCAL players
     // Store: (distance, cost, position, range)
     let mut closest_door_info: Option<(f32, i32, Vec3, f32)> = None;
+    // Track the closest window
+    // Store: (distance, current_health, max_health, position, range)
+    let mut closest_window_info: Option<(f32, u8, u8, Vec3, f32)> = None;
     
-    for interactor_transform in interactors.iter() {
-        for (_interactable_entity, interactable_transform, interactable, door_component_opt) in interactables.iter() {
+    // Only check local players
+    for interactor_transform in local_interactors.iter() {
+        for (_interactable_entity, interactable_transform, interactable, door_component_opt, window_health_opt) in interactables.iter() {
             // Calculate distance
             let distance_vec = interactable_transform.translation - interactor_transform.translation;
             let distance_sq: fixed_math::FixedWide = distance_vec.length_squared();
             
             // Convert range to FixedWide for comparison
-            // Direct conversion from Fixed to FixedWide to maintain precision
             let range_fw = fixed_math::FixedWide::from_num(interactable.interaction_range.to_num::<i64>());
             let range_sq_fw = range_fw.saturating_mul(range_fw);
 
-            // If within range and it's a door, record its info
+            // If within range, check what type of interactable it is
             if distance_sq <= range_sq_fw {
+                let distance = fixed_math::to_f32(fixed_math::Fixed::from_num(distance_sq.to_num::<f32>().sqrt()));
+                let pos = Vec3::new(
+                    fixed_math::to_f32(interactable_transform.translation.x),
+                    fixed_math::to_f32(interactable_transform.translation.y),
+                    fixed_math::to_f32(interactable_transform.translation.z),
+                );
+                let interaction_range = fixed_math::to_f32(interactable.interaction_range);
+
+                // Check if it's a door
                 if let Some(door_component) = door_component_opt {
-                    let distance = fixed_math::to_f32(fixed_math::Fixed::from_num(distance_sq.to_num::<f32>().sqrt()));
-                    let door_pos = Vec3::new(
-                        fixed_math::to_f32(interactable_transform.translation.x),
-                        fixed_math::to_f32(interactable_transform.translation.y),
-                        fixed_math::to_f32(interactable_transform.translation.z),
-                    );
-                    let interaction_range = fixed_math::to_f32(interactable.interaction_range);
-                    
                     match &closest_door_info {
                         None => {
-                            closest_door_info = Some((distance, door_component.config.cost, door_pos, interaction_range));
+                            closest_door_info = Some((distance, door_component.config.cost, pos, interaction_range));
                         }
                         Some((closest_dist, _, _, _)) => {
                             if distance < *closest_dist {
-                                closest_door_info = Some((distance, door_component.config.cost, door_pos, interaction_range));
+                                closest_door_info = Some((distance, door_component.config.cost, pos, interaction_range));
+                            }
+                        }
+                    }
+                }
+
+                // Check if it's a window
+                if let Some(window_health) = window_health_opt {
+                    match &closest_window_info {
+                        None => {
+                            closest_window_info = Some((distance, window_health.current, window_health.max, pos, interaction_range));
+                        }
+                        Some((closest_dist, _, _, _, _)) => {
+                            if distance < *closest_dist {
+                                closest_window_info = Some((distance, window_health.current, window_health.max, pos, interaction_range));
                             }
                         }
                     }
@@ -420,7 +656,7 @@ pub fn display_interaction_prompts(
         }
     }
 
-    // Draw the range circle only for the closest door (if any player is in range)
+    // Priority: show door prompt if there's a door nearby, otherwise show window prompt
     if let Some((_distance, cost, door_pos, interaction_range)) = closest_door_info {
         // Draw outer range circle in yellow with low opacity
         gizmos.circle(
@@ -433,8 +669,24 @@ pub fn display_interaction_prompts(
         if let Ok(mut text) = text_query.single_mut() {
             text.0 = format!("Press H to open door (Cost: {})", cost);
         }
+    } else if let Some((_distance, current_health, max_health, window_pos, interaction_range)) = closest_window_info {
+        // Draw outer range circle in green with low opacity for windows
+        gizmos.circle(
+            Isometry3d::from_translation(window_pos),
+            interaction_range,
+            Color::srgba(0.0, 1.0, 0.0, 0.3),
+        );
+        
+        // Update the text UI
+        if let Ok(mut text) = text_query.single_mut() {
+            if current_health < max_health {
+                text.0 = format!("Press H to repair window ({}/{})", current_health, max_health);
+            } else {
+                text.0 = format!("Window fully repaired ({}/{})", current_health, max_health);
+            }
+        }
     } else {
-        // Clear the text if no door is in range
+        // Clear the text if no interactable is in range for any local player
         if let Ok(mut text) = text_query.single_mut() {
             text.0.clear();
         }

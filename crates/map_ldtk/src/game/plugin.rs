@@ -273,6 +273,9 @@ fn wait_for_all_map_rollback_entity(
                         (16.0, 16.0)
                     };
                     
+                    let max_dimension = width.max(height);
+                    let interaction_range = max_dimension * 0.8; // Smaller range for windows - need to be close
+                    
                     cmd.insert((
                         Window,
                         Collider {
@@ -283,13 +286,35 @@ fn wait_for_all_map_rollback_entity(
                             offset: fixed_math::FixedVec3::ZERO,
                         },
                         CollisionLayer(collision_settings.window_layer),
+                        map::game::entity::map::window::WindowHealth::default(), // Start with 0 health for testing
+                        game::interaction::Interactable {
+                            interaction_range: fixed_math::new(interaction_range),
+                            interaction_type: game::interaction::InteractionType::Window,
+                        },
                     ));
-                    info!("adding collider to window entity with size {}x{}", width, height);
+                    info!("adding collider and health to window entity with size {}x{}, interaction range {}", 
+                          width, height, interaction_range);
                 },
                 _ => {}
             }
 
-            let _ = cmd.add_rollback().id();
+            let rollback_entity = cmd.add_rollback().id();
+            
+            // Add health bar to windows as a child of the visual parent entity
+            if item.kind.as_str() == "window" {
+                commands.entity(item.entity).with_children(|parent| {
+                    parent.spawn((
+                        game::interaction::WindowHealthBar,
+                        Sprite {
+                            color: Color::srgb(0.0, 1.0, 0.0), // Green health bar
+                            custom_size: Some(Vec2::new(0.0, 2.0)), // Start at 0 width (0 health), smaller height
+                            ..default()
+                        },
+                        Transform::from_translation(Vec3::new(0.0, 8.0, 0.1)), // Closer to window
+                    ));
+                });
+                info!("Added health bar to window entity {:?}", item.entity);
+            }
         }
 
         ev_loading_map.write_default();
