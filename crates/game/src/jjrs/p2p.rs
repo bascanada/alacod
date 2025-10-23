@@ -1,22 +1,14 @@
 
 
-use std::{net::SocketAddr};
-
-use animation::SpriteSheetConfig;
-use bevy::{color::palettes::{css::TURQUOISE, tailwind::{ORANGE_300, PURPLE_300}}, prelude::*};
-use bevy_fixed::{fixed_math, rng::RollbackRng};
-use bevy_ggrs::{ggrs::PlayerType, prelude::*};
+use bevy::prelude::*;
+use bevy_ggrs::ggrs::PlayerType;
 use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
-use ggrs::UdpNonBlockingSocket;
-use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use utils::net_id::GgrsNetIdFactory;
+use bevy_fixed::rng::RollbackRng;
 
 use crate::{
-    character::{
-        config::CharacterConfig,
-        enemy::spawning::EnemySpawnerState,
-        player::{create::create_player, jjrs::PeerConfig},
-    }, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, OnlineState}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding}, weapons::WeaponsConfig
+    character::player::jjrs::PeerConfig,
+    core::{AppState, OnlineState}, 
+    jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding},
 };
 
 
@@ -24,8 +16,8 @@ use crate::{
 
 pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessionConfiguration>) {
     let url = format!(
-        "{}/{}?next={}",
-        ggrs_config.matchbox_url, ggrs_config.lobby, ggrs_config.connection.max_player
+        "{}/{}",
+        ggrs_config.matchbox_url, ggrs_config.lobby
     );
     commands.insert_resource(MatchboxSocket::new_unreliable(url));
 
@@ -61,17 +53,19 @@ pub fn wait_for_players(
     let players = socket.players();
 
     let num_players = ggrs_config.connection.max_player;
+    
+    // Log the current state of player connections
     if players.len() < num_players {
+        info!("Waiting for players: {}/{} connected", players.len(), num_players);
         return; // wait for more players
     }
 
-
     if !session_state.ready {
-        info!("missing extra configuration");
+        info!("All players connected ({}/{}), but waiting for session configuration to be ready", players.len(), num_players);
         return;
     }
 
-    info!("all players are ready, loading the game");
+    info!("All {} players are connected and ready, transitioning to GameLoading", num_players);
 
     commands.insert_resource(GgrsSessionBuilding{
         players: players.iter().enumerate().map(|(i, x)| GgrsPlayer { handle: i, is_local: matches!(x, PlayerType::Local)}).collect(),

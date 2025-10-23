@@ -12,6 +12,7 @@ LOG_DIR := ./logs
 LOG_PREFFIX := game_run
 FILTERED_LOG_DIR := ./logs/filtered
 GREP_FILTER := 'ggrs{'
+MATCHBOX_URL := wss://matchbox.bascanada.org
 
 
 ifeq ($(CURRENT_TAG),)
@@ -110,13 +111,13 @@ character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
 
 character_tester_matchbox:
-	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
+	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID)
 
 ldtk_map_explorer:
 	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --local-port 7000 --players localhost
 
 ldtk_map_explorer_matchbox:
-	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox "wss://matchbox.bascanada.org" --lobby $(LOBBY) --players localhost remote --cid $(CID)
+	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID)
 
 host_website:
 	cd website && APP_VERSION=$(VERSION) npm run dev
@@ -166,12 +167,11 @@ diff_log:
 test_multiplayer:
 	@echo "Starting multiplayer test with lobby: $(LOBBY)"; \
 	echo "Starting Bob's instance..."; \
-	make ldtk_map_explorer_matchbox CID=bob LOBBY=$(LOBBY) & \
+	make ldtk_map_explorer_matchbox CID=bob LOBBY=$(LOBBY_1) & \
 	BOB_PID=$$!; \
 	echo "Bob started with PID: $$BOB_PID"; \
-	sleep 2; \
 	echo "Starting Alice's instance..."; \
-	make ldtk_map_explorer_matchbox CID=alice LOBBY=$(LOBBY) & \
+	make ldtk_map_explorer_matchbox CID=alice LOBBY=$(LOBBY_2) & \
 	ALICE_PID=$$!; \
 	echo "Alice started with PID: $$ALICE_PID"; \
 	echo "Waiting for both instances to complete..."; \
