@@ -69,6 +69,9 @@ impl Plugin for LdtkMapLoadingPlugin {
             populate_door_level_iids,
         ).run_if(in_state(AppState::GameLoading)));
 
+        // Transition from GameLoading to GameStarting when map loading is complete
+        app.add_systems(Update, transition_to_game_starting.run_if(on_event::<LdtkMapLoadingEvent>));
+
         app.add_systems(Update, create_wall_colliders_from_ldtk.run_if(on_event::<LdtkMapLoadingEvent>));
     }
 }
@@ -325,5 +328,18 @@ fn wait_for_all_map_rollback_entity(
 
     }
 }
+
+/// System to transition from GameLoading to GameStarting when the map finishes loading
+fn transition_to_game_starting(
+    mut app_state: ResMut<NextState<AppState>>,
+    mut ev_map_loaded: EventReader<LdtkMapLoadingEvent>,
+) {
+    for _event in ev_map_loaded.read() {
+        info!("Map loading complete, transitioning to GameStarting state");
+        app_state.set(AppState::GameStarting);
+    }
+}
+
+
 
 
