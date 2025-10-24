@@ -1,0 +1,18 @@
+(
+    config: (
+        name: "Club",
+        weapon_type: Club,
+        damage: "3.0",
+        range: "40.0",
+        attack_pattern: SingleStrike,
+        attack_duration_frames: 15,
+        cooldown_frames: 45,
+        knockback_force: "30.0",
+        stamina_cost: "10.0",
+    ),
+    sprite_config: (
+        name: "club",
+        index: 0,
+        weapon_offset: (x: "0.0", y: "0.0"),
+    ),
+)

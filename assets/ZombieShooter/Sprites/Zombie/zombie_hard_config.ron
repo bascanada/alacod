@@ -1,8 +1,8 @@
 (
     movement: (
-        acceleration: "300.0",
-        max_speed: "300.0",
-        friction: "50.0",
+        acceleration: "100.0",
+        max_speed: "140.0",
+        friction: "10.0",
 
         sprint_multiplier: "2.0",                // Double speed
         sprint_acceleration_per_frame: "0.1",    // Reach full sprint in 10 frames
@@ -27,7 +27,7 @@
         max: "10.0"
     ),
 
-    scale: "6.0",
+    scale: "1.0",
 
     starting_skin: "1",
 

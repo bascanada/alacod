@@ -6,7 +6,7 @@ use crate::{
     camera::CameraSettingsAsset,
     character::config::CharacterConfig,
     core::{AppState, OnlineState},
-    weapons::WeaponsConfig,
+    weapons::{melee::MeleeWeaponsConfig, WeaponsConfig},
 };
 
 const PLAYER_SPRITESHEET_CONFIG_PATH: &str = "ZombieShooter/Sprites/Character/player_sheet.ron";
@@ -23,7 +23,12 @@ pub struct GlobalAsset {
     pub animations: HashMap<String, Handle<AnimationMapConfig>>,
     pub character_configs: HashMap<String, Handle<CharacterConfig>>,
     pub weapons: Handle<WeaponsConfig>,
+    pub melee_weapons: Handle<MeleeWeaponsConfig>,
     pub camera: Handle<CameraSettingsAsset>,
+    
+    // Visual effects
+    pub slash_effect_spritesheet: Handle<SpriteSheetConfig>,
+    pub slash_effect_animation: Handle<AnimationMapConfig>,
 }
 
 impl GlobalAsset {
@@ -68,7 +73,12 @@ impl GlobalAsset {
                 "zombie_2" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_hard_config.ron")
             ),
             weapons: asset_server.load("ZombieShooter/Sprites/Character/weapons.ron"),
+            melee_weapons: asset_server.load("weapons/melee/melee_weapons.ron"),
             camera: asset_server.load("camera.ron"),
+            
+            // Visual effects
+            slash_effect_spritesheet: asset_server.load("ZombieShooter/Sprites/Character/slash_sheet.ron"),
+            slash_effect_animation: asset_server.load("ZombieShooter/Sprites/Character/slash_animation.ron"),
         }
     }
 }
@@ -108,7 +118,18 @@ pub fn loading_asset_system(
     if !asset_server.load_state(&global_assets.weapons).is_loaded() {
         return;
     }
+    if !asset_server.load_state(&global_assets.melee_weapons).is_loaded() {
+        return;
+    }
     if !asset_server.load_state(&global_assets.camera).is_loaded() {
+        return;
+    }
+    
+    // Check visual effects
+    if !asset_server.load_state(&global_assets.slash_effect_spritesheet).is_loaded() {
+        return;
+    }
+    if !asset_server.load_state(&global_assets.slash_effect_animation).is_loaded() {
         return;
     }
 

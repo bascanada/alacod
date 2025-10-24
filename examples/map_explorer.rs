@@ -4,7 +4,7 @@ use animation::SpriteSheetConfig;
 use bevy::{color::palettes::{css::TURQUOISE, tailwind::{ORANGE_300, PURPLE_300}}, platform::collections::HashMap, prelude::*};
 use bevy_fixed::fixed_math;
 use game::{
-    args::BaseArgsPlugin, character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::create::create_player}, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, CoreSetupConfig, CoreSetupPlugin}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsSessionBuilding}, weapons::WeaponsConfig
+    args::BaseArgsPlugin, character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::create::create_player}, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, CoreSetupConfig, CoreSetupPlugin}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsSessionBuilding}, weapons::{melee::MeleeWeaponsConfig, WeaponsConfig}
 };
 use map::{game::entity::map::{enemy_spawn::EnemySpawnerComponent, player_spawn::PlayerSpawnConfig}, generation::{config::MapGenerationConfig, position}};
 use map_ldtk::{game::plugin::LdtkMapLoadingEvent, plugins::LdtkRoguePlugin};
@@ -56,6 +56,7 @@ fn system_wait_for_map_loaded(
     global_assets: Res<GlobalAsset>,
     character_asset: Res<Assets<CharacterConfig>>,
     weapons_asset: Res<Assets<WeaponsConfig>>,
+    melee_weapons_asset: Res<Assets<MeleeWeaponsConfig>>,
 
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
@@ -94,6 +95,7 @@ fn system_wait_for_map_loaded(
             &mut commands,
             &global_assets,
             &weapons_asset,
+            &melee_weapons_asset,
             &character_asset,
             &collision_settings,
             &asset_server,

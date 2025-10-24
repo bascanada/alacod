@@ -1,5 +1,6 @@
 #[cfg(feature = "debug_ui")]
 pub mod ui;
+pub mod melee;
 
 use animation::{create_child_sprite, AnimationBundle, FacingDirection, SpriteSheetConfig};
 use bevy::{log::{tracing::span, Level}, platform::collections::{HashMap, HashSet}, prelude::*};
@@ -31,6 +32,7 @@ use crate::{
     system_set::RollbackSystemSet,
     GAME_SPEED,
 };
+use self::melee::MeleeAttackState;
 use std::fmt;
 use utils::frame::FrameCount;
 
@@ -582,6 +584,7 @@ pub fn weapon_rollback_system(
         &mut WeaponInventory,
         &SprintState,
         &DashState,
+        &MeleeAttackState,
         &fixed_math::FixedTransform3D,
         &Player,
     )>,
@@ -603,13 +606,18 @@ pub fn weapon_rollback_system(
     let _enter = system_span.enter(); // Enter the span
 
     // Process weapon firing for all players
-    for (_entity, mut inventory, sprint_state, dash_state, transform, player) in
+    for (_entity, mut inventory, sprint_state, dash_state, melee_attack_state, transform, player) in
         inventory_query.iter_mut()
     {
         let (input, _input_status) = inputs[player.handle];
 
         // Do nothing if no weapons
         if inventory.weapons.is_empty() {
+            continue;
+        }
+
+        // Don't allow weapon firing during melee attacks
+        if melee_attack_state.is_attacking {
             continue;
         }
 
@@ -1037,10 +1045,10 @@ pub fn bullet_rollback_collision_system(
 // Non rollback system to display the weapon correct sprite
 pub fn weapon_inventory_system(
     mut commands: Commands,
-    query: Query<(Entity, &mut WeaponInventory)>,
+    query: Query<(Entity, &WeaponInventory, &MeleeAttackState)>,
     mut weapon_entities: Query<(Entity, &mut Visibility), With<Weapon>>,
 ) {
-    for (_player_entity, inventory) in query.iter() {
+    for (_player_entity, inventory, melee_attack_state) in query.iter() {
         if inventory.weapons.is_empty() {
             continue;
         }
@@ -1054,7 +1062,12 @@ pub fn weapon_inventory_system(
             if let Ok((_, mut visibility)) = weapon_entities.get_mut(*weapon_entity) {
                 if is_active {
                     commands.entity(*weapon_entity).insert(ActiveWeapon);
-                    *visibility = Visibility::Visible;
+                    // Hide weapon during melee attacks
+                    if melee_attack_state.is_attacking {
+                        *visibility = Visibility::Hidden;
+                    } else {
+                        *visibility = Visibility::Visible;
+                    }
                 } else {
                     commands.entity(*weapon_entity).remove::<ActiveWeapon>();
                     *visibility = Visibility::Hidden;
@@ -1121,12 +1134,20 @@ impl Plugin for BaseWeaponGamePlugin {
         #[cfg(feature = "debug_ui")]
         app.add_plugins(self::ui::WeaponDebugUIPlugin);
 
+        // Add RON asset plugins for weapons and melee weapons
         app.add_plugins(RonAssetPlugin::<WeaponsConfig>::new(&["ron"]));
+        app.add_plugins(RonAssetPlugin::<melee::MeleeWeaponsConfig>::new(&["ron"]));
 
+        // Rollback components for ranged weapons
         app.rollback_component_with_clone::<WeaponInventory>()
             .rollback_component_with_clone::<WeaponModesState>()
             .rollback_component_with_clone::<WeaponState>()
             .rollback_component_with_clone::<Bullet>();
+
+        // Rollback components for melee weapons
+        app.rollback_component_with_clone::<melee::MeleeWeapon>()
+            .rollback_component_with_clone::<melee::MeleeAttackState>()
+            .rollback_component_with_clone::<melee::MeleeHitbox>();
 
         app.add_systems(
             Update,
@@ -1134,16 +1155,23 @@ impl Plugin for BaseWeaponGamePlugin {
                 update_weapon_sprite_direction,
                 weapon_inventory_system,
                 weapons_config_update_system,
+                melee::update_slash_effects, // Add slash effect animation system
             ),
         );
 
         app.add_systems(
             GgrsSchedule,
             (
+                // Ranged weapon systems
                 system_weapon_position,
                 weapon_rollback_system.after(system_weapon_position),
                 bullet_rollback_system.after(weapon_rollback_system),
                 bullet_rollback_collision_system.after(bullet_rollback_system),
+                // Melee weapon systems
+                melee::player_melee_attack_system.after(bullet_rollback_collision_system),
+                melee::enemy_melee_attack_system.after(melee::player_melee_attack_system),
+                melee::update_melee_hitboxes.after(melee::enemy_melee_attack_system),
+                melee::melee_hitbox_collision_system.after(melee::update_melee_hitboxes),
             )
                 .in_set(RollbackSystemSet::Weapon),
         );

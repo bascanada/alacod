@@ -69,8 +69,8 @@ impl Default for PathfindingConfig {
             node_size: fixed_math::new(20.0),
             movement_speed: fixed_math::new(20.0),
             waypoint_reach_distance: fixed_math::new(10.0),
-            optimal_attack_distance: fixed_math::new(100.0), // Keep this distance from players
-            slow_down_distance: fixed_math::new(150.0),      // Start slowing down at this distance
+            optimal_attack_distance: fixed_math::new(30.0), // Melee range - get close to players
+            slow_down_distance: fixed_math::new(50.0),      // Start slowing down very close
             enemy_separation_force: fixed_math::new(2.0),    // Much stronger separation force
             enemy_separation_distance: fixed_math::new(80.0), // Larger separation distance
         }
@@ -526,7 +526,7 @@ pub fn move_enemies(
 
                 let speed_factor_fixed =
                     if distance_to_nearest_player < config.optimal_attack_distance {
-                        fixed_math::new(-0.3) // Back up slightly
+                        fixed_math::FIXED_ZERO // Stop when in melee range (don't back up)
                     } else if distance_to_nearest_player < config.slow_down_distance {
                         let range = config.slow_down_distance - config.optimal_attack_distance;
                         if range > fixed_math::FIXED_ZERO {

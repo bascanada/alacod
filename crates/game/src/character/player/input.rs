@@ -30,6 +30,7 @@ pub const INPUT_SPRINT: u16 = 1 << 6;
 pub const INPUT_DASH: u16 = 1 << 7;
 pub const INPUT_MODIFIER: u16 = 1 << 8;
 pub const INPUT_INTERACTION: u16 = 1 << 9;
+pub const INPUT_MELEE_ATTACK: u16 = 1 << 10;
 
 const PAN_FACING_THRESHOLD: i16 = 5;
 
@@ -128,6 +129,10 @@ pub fn read_local_inputs(
 
         if action_state.pressed(&PlayerAction::Modifier) {
             input.buttons |= INPUT_MODIFIER;
+        }
+
+        if action_state.pressed(&PlayerAction::MeleeAttack) {
+            input.buttons |= INPUT_MELEE_ATTACK;
         }
 
         if let Ok(window) = q_window.get_single() {
