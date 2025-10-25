@@ -577,12 +577,13 @@ pub fn move_enemies(
                 .saturating_add(velocity_component.0.y * fixed_math::new(FIXED_TIMESTEP));
             // Z remains unchanged for 2D movement
 
-            // Update facing direction
-            let threshold = fixed_math::new(0.1);
-            if velocity_component.0.x > threshold {
-                *facing_direction = FacingDirection::Right;
-            } else if velocity_component.0.x < -threshold {
-                *facing_direction = FacingDirection::Left;
+            // Update facing direction based on velocity
+            let vel_vec = bevy::math::Vec2::new(
+                velocity_component.0.x.to_num::<f32>(),
+                velocity_component.0.y.to_num::<f32>(),
+            );
+            if vel_vec.length_squared() > 0.01 {
+                *facing_direction = FacingDirection::from_vector(vel_vec);
             }
         }
     }

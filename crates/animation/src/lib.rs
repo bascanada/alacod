@@ -103,19 +103,90 @@ struct AnimationTimer {
     frame_timer: Timer,
 }
 
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Component, Reflect, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[reflect(Component, PartialEq)]
 pub enum FacingDirection {
-    Left,
     #[default]
-    Right,
+    Right,        // 0 degrees
+    UpRight,      // 45 degrees
+    Up,           // 90 degrees
+    UpLeft,       // 135 degrees
+    Left,         // 180 degrees
+    DownLeft,     // 225 degrees
+    Down,         // 270 degrees
+    DownRight,    // 315 degrees
 }
 
 impl FacingDirection {
+    /// Returns -1 for left-ish directions, 1 for right-ish directions
     pub fn to_int(&self) -> i32 {
         match self {
-            FacingDirection::Left => -1,
-            FacingDirection::Right => 1,
+            FacingDirection::Right | FacingDirection::UpRight | FacingDirection::DownRight => 1,
+            FacingDirection::Left | FacingDirection::UpLeft | FacingDirection::DownLeft => -1,
+            FacingDirection::Up | FacingDirection::Down => 0,
         }
+    }
+    
+    /// Returns the angle in radians for this direction
+    pub fn to_radians(&self) -> f32 {
+        match self {
+            FacingDirection::Right => 0.0,
+            FacingDirection::UpRight => std::f32::consts::PI / 4.0,
+            FacingDirection::Up => std::f32::consts::PI / 2.0,
+            FacingDirection::UpLeft => 3.0 * std::f32::consts::PI / 4.0,
+            FacingDirection::Left => std::f32::consts::PI,
+            FacingDirection::DownLeft => 5.0 * std::f32::consts::PI / 4.0,
+            FacingDirection::Down => 3.0 * std::f32::consts::PI / 2.0,
+            FacingDirection::DownRight => 7.0 * std::f32::consts::PI / 4.0,
+        }
+    }
+    
+    /// Returns the unit vector for this direction
+    pub fn to_vector(&self) -> bevy::math::Vec2 {
+        let angle = self.to_radians();
+        bevy::math::Vec2::new(angle.cos(), angle.sin())
+    }
+    
+    /// Determines the facing direction from a 2D vector
+    pub fn from_vector(vec: bevy::math::Vec2) -> Self {
+        if vec.length_squared() < 0.001 {
+            return FacingDirection::default();
+        }
+        
+        let angle = vec.y.atan2(vec.x);
+        let normalized_angle = if angle < 0.0 {
+            angle + 2.0 * std::f32::consts::PI
+        } else {
+            angle
+        };
+        
+        // Divide circle into 8 equal segments (45 degrees each)
+        let segment = ((normalized_angle + std::f32::consts::PI / 8.0) / (std::f32::consts::PI / 4.0)) as u8 % 8;
+        
+        match segment {
+            0 => FacingDirection::Right,
+            1 => FacingDirection::UpRight,
+            2 => FacingDirection::Up,
+            3 => FacingDirection::UpLeft,
+            4 => FacingDirection::Left,
+            5 => FacingDirection::DownLeft,
+            6 => FacingDirection::Down,
+            7 => FacingDirection::DownRight,
+            _ => FacingDirection::Right,
+        }
+    }
+    
+    /// Check if this direction is primarily horizontal
+    pub fn is_horizontal(&self) -> bool {
+        matches!(self, FacingDirection::Left | FacingDirection::Right)
+    }
+    
+    /// Check if sprite should be flipped horizontally
+    pub fn should_flip_x(&self) -> bool {
+        matches!(
+            self,
+            FacingDirection::Left | FacingDirection::UpLeft | FacingDirection::DownLeft
+        )
     }
 }
 
@@ -306,14 +377,8 @@ pub fn set_sprite_flip(
     for (childrens, direction) in query.iter() {
         for child in childrens.iter() {
             if let Ok(mut sprite) = sprite_query.get_mut(child.clone()) {
-                match direction {
-                    FacingDirection::Left => {
-                        sprite.flip_x = true;
-                    }
-                    FacingDirection::Right => {
-                        sprite.flip_x = false;
-                    }
-                }
+                // Flip sprite horizontally for left-facing directions
+                sprite.flip_x = direction.should_flip_x();
             }
         }
     }
@@ -383,6 +448,7 @@ impl Plugin for D2AnimationPlugin {
         app.add_plugins(RonAssetPlugin::<AnimationMapConfig>::new(&["ron"]));
 
         app.rollback_component_with_reflect::<AnimationState>()
+            .rollback_component_with_reflect::<FacingDirection>()
             .rollback_component_with_clone::<LayerName>()
             .rollback_component_with_clone::<ActiveLayers>();
 

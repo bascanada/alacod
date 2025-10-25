@@ -166,12 +166,12 @@ diff_log:
 test_multiplayer:
 	@echo "Starting multiplayer test with lobby: $(LOBBY)"; \
 	echo "Starting Bob's instance..."; \
-	make ldtk_map_explorer_matchbox CID=bob LOBBY=$(LOBBY) & \
+	make $(TARGET)_matchbox CID=bob LOBBY=$(LOBBY) & \
 	BOB_PID=$$!; \
 	echo "Bob started with PID: $$BOB_PID"; \
 	sleep 2; \
 	echo "Starting Alice's instance..."; \
-	make ldtk_map_explorer_matchbox CID=alice LOBBY=$(LOBBY) & \
+	make $(TARGET)_matchbox CID=alice LOBBY=$(LOBBY) & \
 	ALICE_PID=$$!; \
 	echo "Alice started with PID: $$ALICE_PID"; \
 	echo "Waiting for both instances to complete..."; \

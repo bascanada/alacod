@@ -224,15 +224,17 @@ pub fn spawn_melee_hitbox(
     let config = &melee_weapon.config;
     
     // Calculate hitbox position based on facing direction and range
-    let direction_multiplier = match facing_direction {
-        FacingDirection::Right => fixed_math::FIXED_ONE,
-        FacingDirection::Left => -fixed_math::FIXED_ONE,
-    };
+    // Use the direction's vector to determine offset
+    let direction_vec = facing_direction.to_vector();
+    let direction_fixed = fixed_math::FixedVec2::new(
+        fixed_math::Fixed::from_num(direction_vec.x),
+        fixed_math::Fixed::from_num(direction_vec.y),
+    );
     
-    let offset_x = direction_multiplier * config.range * fixed_math::FIXED_HALF;
+    let offset = direction_fixed * config.range * fixed_math::FIXED_HALF;
     let hitbox_position = fixed_math::FixedVec3::new(
-        attacker_transform.translation.x + offset_x,
-        attacker_transform.translation.y,
+        attacker_transform.translation.x + offset.x,
+        attacker_transform.translation.y + offset.y,
         attacker_transform.translation.z,
     );
     
@@ -320,8 +322,21 @@ pub fn spawn_melee_hitbox(
         let mut effect_transform = hitbox_transform.to_bevy_transform();
         effect_transform.translation.z = 5.0; // Place above everything
         
-        // Flip based on facing direction
-        let flip_x = matches!(facing_direction, FacingDirection::Left);
+        // For 8-directional slashes, we need to handle flipping carefully
+        // The sprite is designed for right-facing attacks (0 degrees)
+        // For left-facing, we flip and use the opposite angle
+        let (flip_x, flip_y, rotation_angle) = match facing_direction {
+            FacingDirection::Right => (false, false, 0.0),
+            FacingDirection::UpRight => (false, false, std::f32::consts::PI / 4.0),
+            FacingDirection::Up => (false, false, std::f32::consts::PI / 2.0),
+            FacingDirection::UpLeft => (true, false, -std::f32::consts::PI / 4.0),  // Flip + negative angle for upper left
+            FacingDirection::Left => (true, false, 0.0),  // Flip + 0° for left
+            FacingDirection::DownLeft => (true, false, std::f32::consts::PI / 4.0),  // Flip + positive angle for lower left
+            FacingDirection::Down => (false, false, -std::f32::consts::PI / 2.0),
+            FacingDirection::DownRight => (false, false, -std::f32::consts::PI / 4.0),
+        };
+        
+        effect_transform.rotation = Quat::from_rotation_z(rotation_angle);
         
         commands.spawn((
             SlashEffect {
@@ -335,6 +350,7 @@ pub fn spawn_melee_hitbox(
                     index: 0,
                 }),
                 flip_x,
+                flip_y,
                 ..default()
             },
             effect_transform,

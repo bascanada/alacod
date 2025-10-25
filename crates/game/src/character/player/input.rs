@@ -62,15 +62,32 @@ pub struct InteractionInput {
 }
 
 fn get_facing_direction(input: &BoxInput) -> FacingDirection {
-    if input.pan_x > PAN_FACING_THRESHOLD {
-        FacingDirection::Right
-    } else if input.pan_x < -PAN_FACING_THRESHOLD {
-        FacingDirection::Left
-    } else if input.buttons & INPUT_RIGHT != 0 {
-        FacingDirection::Right
-    } else if input.buttons & INPUT_LEFT != 0 {
-        FacingDirection::Left
+    // Use pan (cursor) input for 8-directional aiming if available
+    if input.pan_x.abs() > PAN_FACING_THRESHOLD || input.pan_y.abs() > PAN_FACING_THRESHOLD {
+        let direction_vec = Vec2::new(input.pan_x as f32, input.pan_y as f32);
+        return FacingDirection::from_vector(direction_vec);
+    }
+    
+    // Fallback to movement keys for 8-directional movement
+    let mut direction = Vec2::ZERO;
+    
+    if input.buttons & INPUT_RIGHT != 0 {
+        direction.x += 1.0;
+    }
+    if input.buttons & INPUT_LEFT != 0 {
+        direction.x -= 1.0;
+    }
+    if input.buttons & INPUT_UP != 0 {
+        direction.y += 1.0;
+    }
+    if input.buttons & INPUT_DOWN != 0 {
+        direction.y -= 1.0;
+    }
+    
+    if direction.length_squared() > 0.01 {
+        FacingDirection::from_vector(direction)
     } else {
+        // Default to right if no input
         FacingDirection::Right
     }
 }

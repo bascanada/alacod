@@ -462,7 +462,7 @@ fn spawn_bullet_rollback(
         BulletType::Piercing { .. } => Color::BLACK,
     };
 
-    let local_muzzle_offset_v2 = if matches!(facing_direction, FacingDirection::Right) {
+    let local_muzzle_offset_v2 = if !facing_direction.should_flip_x() {
         weapon.sprite_config.bullet_offset_right
     } else {
         weapon.sprite_config.bullet_offset_left
@@ -1087,14 +1087,8 @@ pub fn update_weapon_sprite_direction(
             if let Ok(childs) = query_weapons.get(child.clone()) {
                 for child in childs.iter() {
                     if let Ok(mut sprite) = query_sprite.get_mut(child.clone()) {
-                        match direction {
-                            FacingDirection::Left => {
-                                sprite.flip_y = true;
-                            }
-                            FacingDirection::Right => {
-                                sprite.flip_y = false;
-                            }
-                        };
+                        // Flip sprite based on facing direction
+                        sprite.flip_y = direction.should_flip_x();
                     }
                 }
             }
