@@ -2,7 +2,6 @@
     "bare_hands": (
         config: (
             name: "Bare Hands",
-            weapon_type: BareHands,
             damage: "1.0",
             range: "30.0",
             attack_pattern: SingleStrike,
@@ -20,7 +19,6 @@
     "club": (
         config: (
             name: "Club",
-            weapon_type: Club,
             damage: "3.0",
             range: "40.0",
             attack_pattern: SingleStrike,
@@ -38,7 +36,6 @@
     "knife": (
         config: (
             name: "Knife",
-            weapon_type: Knife,
             damage: "2.0",
             range: "25.0",
             attack_pattern: Combo(
@@ -58,7 +55,6 @@
     "sword": (
         config: (
             name: "Sword",
-            weapon_type: Sword,
             damage: "5.0",
             range: "50.0",
             attack_pattern: Sweep(
@@ -78,7 +74,6 @@
     "axe": (
         config: (
             name: "Axe",
-            weapon_type: Axe,
             damage: "7.0",
             range: "45.0",
             attack_pattern: Thrust,

@@ -93,11 +93,6 @@ pub fn create_player(
         if let Some(bare_hands) = melee_weapons_config.0.get("bare_hands") {
             spawn_melee_weapon_for_character(
                 commands,
-                global_assets,
-                asset_server,
-                texture_atlas_layouts,
-                sprint_sheet_assets,
-                false,
                 entity,
                 bare_hands.clone(),
                 id_factory,

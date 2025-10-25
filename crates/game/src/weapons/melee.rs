@@ -138,6 +138,9 @@ pub struct MeleeHitbox {
 pub struct SlashEffect {
     pub start_frame: u32,
     pub duration_frames: u32,
+    pub frame_duration: u32,  // Frames per animation frame
+    pub animation_start: usize,
+    pub animation_end: usize,  // Inclusive
 }
 
 // MELEE WEAPONS CONFIG ASSET
@@ -147,11 +150,6 @@ pub struct MeleeWeaponsConfig(pub HashMap<String, MeleeWeaponAsset>);
 // SPAWN MELEE WEAPON
 pub fn spawn_melee_weapon_for_character(
     commands: &mut Commands,
-    _global_assets: &Res<GlobalAsset>,
-    _asset_server: &Res<AssetServer>,
-    _texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
-    _sprite_sheet_assets: &Res<Assets<SpriteSheetConfig>>,
-    _active: bool,
     character_entity: Entity,
     weapon: MeleeWeaponAsset,
     id_factory: &mut ResMut<GgrsNetIdFactory>,
@@ -197,6 +195,7 @@ pub fn spawn_melee_hitbox(
     id_factory: &mut ResMut<GgrsNetIdFactory>,
     global_assets: &Res<GlobalAsset>,
     spritesheet_assets: &Res<Assets<SpriteSheetConfig>>,
+    animation_configs: &Res<Assets<animation::AnimationMapConfig>>,
     asset_server: &Res<AssetServer>,
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
 ) -> Entity {
@@ -287,7 +286,9 @@ pub fn spawn_melee_hitbox(
     
     // Spawn slash visual effect
     let slash_spritesheet = spritesheet_assets.get(&global_assets.slash_effect_spritesheet);
-    if let Some(slash_config) = slash_spritesheet {
+    let slash_anim_config = animation_configs.get(&global_assets.slash_effect_animation);
+    
+    if let (Some(slash_config), Some(anim_config)) = (slash_spritesheet, slash_anim_config) {
         let texture_handle: Handle<Image> = asset_server.load(&slash_config.path);
         let layout = TextureAtlasLayout::from_grid(
             UVec2::new(slash_config.tile_size.0, slash_config.tile_size.1),
@@ -298,6 +299,12 @@ pub fn spawn_melee_hitbox(
         );
         let layout_handle = texture_atlas_layouts.add(layout);
         
+        // Get animation configuration dynamically
+        let slash_anim = anim_config.animations.get("slash").expect("slash animation not found in config");
+        let frame_duration = anim_config.frame_duration as u32;
+        let animation_frame_count = (slash_anim.end - slash_anim.start + 1) as u32;
+        let total_duration = animation_frame_count * frame_duration;
+        
         // Position effect at hitbox location
         let mut effect_transform = hitbox_transform.to_bevy_transform();
         effect_transform.translation.z = 5.0; // Place above everything
@@ -305,15 +312,15 @@ pub fn spawn_melee_hitbox(
         // For 8-directional slashes, we need to handle flipping carefully
         // The sprite is designed for right-facing attacks (0 degrees)
         // For left-facing, we flip and use the opposite angle
-        let (flip_x, flip_y, rotation_angle) = match facing_direction {
-            FacingDirection::Right => (false, false, 0.0),
-            FacingDirection::UpRight => (false, false, std::f32::consts::PI / 4.0),
-            FacingDirection::Up => (false, false, std::f32::consts::PI / 2.0),
-            FacingDirection::UpLeft => (true, false, -std::f32::consts::PI / 4.0),  // Flip + negative angle for upper left
-            FacingDirection::Left => (true, false, 0.0),  // Flip + 0° for left
-            FacingDirection::DownLeft => (true, false, std::f32::consts::PI / 4.0),  // Flip + positive angle for lower left
-            FacingDirection::Down => (false, false, -std::f32::consts::PI / 2.0),
-            FacingDirection::DownRight => (false, false, -std::f32::consts::PI / 4.0),
+        let (flip_x, rotation_angle) = match facing_direction {
+            FacingDirection::Right => (false, 0.0),
+            FacingDirection::UpRight => (false, std::f32::consts::PI / 4.0),
+            FacingDirection::Up => (false, std::f32::consts::PI / 2.0),
+            FacingDirection::UpLeft => (true, -std::f32::consts::PI / 4.0),  // Flip + negative angle for upper left
+            FacingDirection::Left => (true, 0.0),  // Flip + 0° for left
+            FacingDirection::DownLeft => (true, std::f32::consts::PI / 4.0),  // Flip + positive angle for lower left
+            FacingDirection::Down => (false, -std::f32::consts::PI / 2.0),
+            FacingDirection::DownRight => (false, -std::f32::consts::PI / 4.0),
         };
         
         effect_transform.rotation = Quat::from_rotation_z(rotation_angle);
@@ -321,16 +328,19 @@ pub fn spawn_melee_hitbox(
         commands.spawn((
             SlashEffect {
                 start_frame: current_frame,
-                duration_frames: 9, // 3 frames * 3 ticks each = 9 frames total
+                duration_frames: total_duration,
+                frame_duration,
+                animation_start: slash_anim.start,
+                animation_end: slash_anim.end,
             },
             Sprite {
                 image: texture_handle,
                 texture_atlas: Some(TextureAtlas {
                     layout: layout_handle,
-                    index: 0,
+                    index: slash_anim.start,  // Start at the correct animation frame
                 }),
                 flip_x,
-                flip_y,
+                flip_y: false,
                 ..default()
             },
             effect_transform,
@@ -368,11 +378,14 @@ pub fn update_slash_effects(
     for (entity, slash_effect, mut sprite) in slash_query.iter_mut() {
         let frames_alive = frame.frame - slash_effect.start_frame;
         
-        // Update animation frame (3 frames, 3 ticks each)
-        let animation_frame = (frames_alive / 3).min(2) as usize;
+        // Calculate current animation frame dynamically based on SlashEffect config
+        let animation_progress = frames_alive / slash_effect.frame_duration;
+        let animation_frame_count = (slash_effect.animation_end - slash_effect.animation_start + 1) as u32;
+        let current_animation_frame = animation_progress.min(animation_frame_count - 1) as usize;
+        let sprite_index = slash_effect.animation_start + current_animation_frame;
         
         if let Some(ref mut atlas) = sprite.texture_atlas {
-            atlas.index = animation_frame;
+            atlas.index = sprite_index;
         }
         
         // Despawn when animation is complete
@@ -538,6 +551,7 @@ pub fn player_melee_attack_system(
     spritesheet_assets: Res<Assets<SpriteSheetConfig>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    animation_configs: Res<Assets<animation::AnimationMapConfig>>,
     mut player_query: Query<
         (
             Entity,
@@ -602,6 +616,7 @@ pub fn player_melee_attack_system(
                     &mut id_factory,
                     &global_assets,
                     &spritesheet_assets,
+                    &animation_configs,
                     &asset_server,
                     &mut texture_atlas_layouts,
                 );
@@ -625,6 +640,7 @@ pub fn enemy_melee_attack_system(
     spritesheet_assets: Res<Assets<SpriteSheetConfig>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    animation_configs: Res<Assets<animation::AnimationMapConfig>>,
     mut enemy_query: Query<
         (
             Entity,
@@ -699,6 +715,7 @@ pub fn enemy_melee_attack_system(
                         &mut id_factory,
                         &global_assets,
                         &spritesheet_assets,
+                        &animation_configs,
                         &asset_server,
                         &mut texture_atlas_layouts,
                     );
