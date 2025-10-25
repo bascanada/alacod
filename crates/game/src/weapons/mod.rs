@@ -560,7 +560,7 @@ pub fn system_weapon_position(
                     fixed_math::new(0.0),
                 );
                 let direction_to_target_fixed =
-                    (cursor_game_world_pos - transform.translation).normalize();
+                    (cursor_game_world_pos - transform.translation).normalize_or_zero();
                 let angle_radians_fixed = fixed_math::atan2_fixed(
                     direction_to_target_fixed.y,
                     direction_to_target_fixed.x,
@@ -763,7 +763,7 @@ pub fn weapon_rollback_system(
                         );
                         aim_dir.x /= fixed_math::new(127.0);
                         aim_dir.y /= fixed_math::new(127.0);
-                        aim_dir = aim_dir.normalize();
+                        aim_dir = aim_dir.normalize_or_zero();
 
                         match weapon_config.firing_mode {
                             FiringMode::Shotgun {

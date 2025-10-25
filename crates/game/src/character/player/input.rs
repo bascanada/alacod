@@ -64,28 +64,33 @@ pub struct InteractionInput {
 fn get_facing_direction(input: &BoxInput) -> FacingDirection {
     // Use pan (cursor) input for 8-directional aiming if available
     if input.pan_x.abs() > PAN_FACING_THRESHOLD || input.pan_y.abs() > PAN_FACING_THRESHOLD {
-        let direction_vec = Vec2::new(input.pan_x as f32, input.pan_y as f32);
-        return FacingDirection::from_vector(direction_vec);
+        let direction_vec = fixed_math::FixedVec2::new(
+            fixed_math::new(input.pan_x as f32),
+            fixed_math::new(input.pan_y as f32),
+        );
+        // Normalize to prevent overflow in atan2 calculations with large input values
+        let normalized = direction_vec.normalize_or_zero();
+        return FacingDirection::from_fixed_vector(normalized);
     }
     
     // Fallback to movement keys for 8-directional movement
-    let mut direction = Vec2::ZERO;
+    let mut direction = fixed_math::FixedVec2::ZERO;
     
     if input.buttons & INPUT_RIGHT != 0 {
-        direction.x += 1.0;
+        direction.x += fixed_math::FIXED_ONE;
     }
     if input.buttons & INPUT_LEFT != 0 {
-        direction.x -= 1.0;
+        direction.x -= fixed_math::FIXED_ONE;
     }
     if input.buttons & INPUT_UP != 0 {
-        direction.y += 1.0;
+        direction.y += fixed_math::FIXED_ONE;
     }
     if input.buttons & INPUT_DOWN != 0 {
-        direction.y -= 1.0;
+        direction.y -= fixed_math::FIXED_ONE;
     }
     
-    if direction.length_squared() > 0.01 {
-        FacingDirection::from_vector(direction)
+    if direction.length_squared() > fixed_math::new(0.01) {
+        FacingDirection::from_fixed_vector(direction)
     } else {
         // Default to right if no input
         FacingDirection::Right
@@ -228,9 +233,11 @@ pub fn apply_inputs(
             // If currently dashing, directly update position
             if dash_state.is_dashing {
                 // Calculate position based on remaining frames and distance
+                // Protect against division by zero
+                let dash_duration = config.movement.dash_duration_frames.max(1);
                 let completed_fraction = fixed_math::FIXED_ONE
                     - (fixed_math::new(dash_state.dash_frames_remaining as f32)
-                        / fixed_math::new(config.movement.dash_duration_frames as f32));
+                        / fixed_math::new(dash_duration as f32));
 
                 let dash_offset =
                     dash_state.dash_direction * dash_state.dash_total_distance * completed_fraction;
@@ -257,8 +264,8 @@ pub fn apply_inputs(
                 let is_reverse_dash = (input.buttons & INPUT_MODIFIER) != 0;
 
                 // If the player isn't aiming, use facing direction
-                let mut dash_direction = if look_direction.length_squared() > 1.0 {
-                    look_direction.normalize()
+                let mut dash_direction = if look_direction.length_squared() > fixed_math::FIXED_ONE {
+                    look_direction.normalize_or_zero()
                 } else {
                     fixed_math::FixedVec2::new(
                         fixed_math::new(facing_direction.to_int() as f32),
@@ -319,7 +326,7 @@ pub fn apply_inputs(
                     + (config.movement.sprint_multiplier - fixed_math::FIXED_ONE)
                         * sprint_state.sprint_factor;
                 // Using FIXED_TIMESTEP instead of time.delta()
-                let move_delta = direction.normalize()
+                let move_delta = direction.normalize_or_zero()
                     * config.movement.acceleration
                     * sprint_multiplier
                     * fixed_math::new(FIXED_TIMESTEP);

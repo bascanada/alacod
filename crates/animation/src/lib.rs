@@ -147,7 +147,7 @@ impl FacingDirection {
         bevy::math::Vec2::new(angle.cos(), angle.sin())
     }
     
-    /// Determines the facing direction from a 2D vector
+    /// Determines the facing direction from a 2D vector (using f32 for non-rollback systems)
     pub fn from_vector(vec: bevy::math::Vec2) -> Self {
         if vec.length_squared() < 0.001 {
             return FacingDirection::default();
@@ -162,6 +162,40 @@ impl FacingDirection {
         
         // Divide circle into 8 equal segments (45 degrees each)
         let segment = ((normalized_angle + std::f32::consts::PI / 8.0) / (std::f32::consts::PI / 4.0)) as u8 % 8;
+        
+        match segment {
+            0 => FacingDirection::Right,
+            1 => FacingDirection::UpRight,
+            2 => FacingDirection::Up,
+            3 => FacingDirection::UpLeft,
+            4 => FacingDirection::Left,
+            5 => FacingDirection::DownLeft,
+            6 => FacingDirection::Down,
+            7 => FacingDirection::DownRight,
+            _ => FacingDirection::Right,
+        }
+    }
+    
+    /// Determines the facing direction from a fixed-point 2D vector (for deterministic rollback systems)
+    pub fn from_fixed_vector(vec: bevy_fixed::fixed_math::FixedVec2) -> Self {
+        use bevy_fixed::fixed_math;
+        
+        if vec.length_squared() < fixed_math::new(0.001) {
+            return FacingDirection::default();
+        }
+        
+        let angle = fixed_math::atan2_fixed(vec.y, vec.x);
+        let two_pi = fixed_math::new(2.0) * fixed_math::FIXED_PI;
+        let normalized_angle = if angle < fixed_math::FIXED_ZERO {
+            angle + two_pi
+        } else {
+            angle
+        };
+        
+        // Divide circle into 8 equal segments (45 degrees each)
+        let pi_over_8 = fixed_math::FIXED_PI / fixed_math::new(8.0);
+        let pi_over_4 = fixed_math::FIXED_PI / fixed_math::new(4.0);
+        let segment = ((normalized_angle + pi_over_8) / pi_over_4).to_num::<u8>() % 8;
         
         match segment {
             0 => FacingDirection::Right,

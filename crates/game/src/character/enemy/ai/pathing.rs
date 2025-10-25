@@ -577,13 +577,9 @@ pub fn move_enemies(
                 .saturating_add(velocity_component.0.y * fixed_math::new(FIXED_TIMESTEP));
             // Z remains unchanged for 2D movement
 
-            // Update facing direction based on velocity
-            let vel_vec = bevy::math::Vec2::new(
-                velocity_component.0.x.to_num::<f32>(),
-                velocity_component.0.y.to_num::<f32>(),
-            );
-            if vel_vec.length_squared() > 0.01 {
-                *facing_direction = FacingDirection::from_vector(vel_vec);
+            // Update facing direction based on velocity using deterministic fixed-point math
+            if velocity_component.0.length_squared() > fixed_math::new(0.01) {
+                *facing_direction = FacingDirection::from_fixed_vector(velocity_component.0);
             }
         }
     }

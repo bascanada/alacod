@@ -165,13 +165,13 @@ diff_log:
 	diff $(FILTERED_LOG_DIR)/$(CID_1).log $(FILTERED_LOG_DIR)/$(CID_2).log
 
 test_multiplayer:
-	@echo "Starting multiplayer test with lobby: $(LOBBY)"; \
+	@echo "Starting multiplayer test with lobby: $(LOBBY_1)"; \
 	echo "Starting Bob's instance..."; \
-	make $(TARGET)_matchbox CID=bob LOBBY=$(LOBBY) & \
+	make $(TARGET)_matchbox CID=bob LOBBY=$(LOBBY_1) & \
 	BOB_PID=$$!; \
 	echo "Bob started with PID: $$BOB_PID"; \
 	echo "Starting Alice's instance..."; \
-	make $(TARGET)_matchbox CID=alice LOBBY=$(LOBBY) & \
+	make $(TARGET)_matchbox CID=alice LOBBY=$(LOBBY_2) & \
 	ALICE_PID=$$!; \
 	echo "Alice started with PID: $$ALICE_PID"; \
 	echo "Waiting for both instances to complete..."; \

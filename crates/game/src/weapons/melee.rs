@@ -18,28 +18,6 @@ use crate::{
 };
 use utils::frame::FrameCount;
 
-// MELEE WEAPON TYPES
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-pub enum MeleeWeaponType {
-    BareHands,
-    Club,
-    Knife,
-    Sword,
-    Axe,
-}
-
-impl std::fmt::Display for MeleeWeaponType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            MeleeWeaponType::BareHands => write!(f, "Bare Hands"),
-            MeleeWeaponType::Club => write!(f, "Club"),
-            MeleeWeaponType::Knife => write!(f, "Knife"),
-            MeleeWeaponType::Sword => write!(f, "Sword"),
-            MeleeWeaponType::Axe => write!(f, "Axe"),
-        }
-    }
-}
-
 // MELEE ATTACK PATTERN
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum MeleeAttackPattern {
@@ -61,7 +39,6 @@ pub enum MeleeAttackPattern {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MeleeWeaponConfig {
     pub name: String,
-    pub weapon_type: MeleeWeaponType,
     pub damage: fixed_math::Fixed,
     pub range: fixed_math::Fixed,
     pub attack_pattern: MeleeAttackPattern,
@@ -110,7 +87,7 @@ pub struct MeleeAttackState {
     pub attack_ended_frame: Option<u32>,
     pub last_attack_frame: u32,
     pub combo_count: u32,
-    pub entities_hit_this_attack: Vec<Entity>,
+    pub entities_hit_this_attack: Vec<GgrsNetId>,
 }
 
 impl MeleeAttackState {
@@ -133,13 +110,13 @@ impl MeleeAttackState {
         self.entities_hit_this_attack.clear();
     }
 
-    pub fn has_hit_entity(&self, entity: Entity) -> bool {
-        self.entities_hit_this_attack.contains(&entity)
+    pub fn has_hit_entity(&self, net_id: &GgrsNetId) -> bool {
+        self.entities_hit_this_attack.contains(net_id)
     }
 
-    pub fn add_hit_entity(&mut self, entity: Entity) {
-        if !self.entities_hit_this_attack.contains(&entity) {
-            self.entities_hit_this_attack.push(entity);
+    pub fn add_hit_entity(&mut self, net_id: GgrsNetId) {
+        if !self.entities_hit_this_attack.contains(&net_id) {
+            self.entities_hit_this_attack.push(net_id);
         }
     }
 }
@@ -150,6 +127,7 @@ pub struct MeleeHitbox {
     pub damage: fixed_math::Fixed,
     pub knockback_force: fixed_math::Fixed,
     pub owner_entity: Entity,
+    pub owner_net_id: GgrsNetId,
     pub owner_handle: Option<PlayerHandle>,
     pub created_frame: u32,
     pub duration_frames: u32,
@@ -209,6 +187,7 @@ pub fn spawn_melee_weapon_for_character(
 pub fn spawn_melee_hitbox(
     commands: &mut Commands,
     attacker_entity: Entity,
+    attacker_net_id: &GgrsNetId,
     attacker_transform: &fixed_math::FixedTransform3D,
     facing_direction: &FacingDirection,
     melee_weapon: &MeleeWeapon,
@@ -292,6 +271,7 @@ pub fn spawn_melee_hitbox(
                 damage: config.damage,
                 knockback_force: config.knockback_force,
                 owner_entity: attacker_entity,
+                owner_net_id: attacker_net_id.clone(),
                 owner_handle,
                 created_frame: current_frame,
                 duration_frames: config.attack_duration_frames,
@@ -433,8 +413,7 @@ pub fn melee_hitbox_collision_system(
         ),
         (Without<MeleeHitbox>, With<Rollback>),
     >,
-    mut attacker_query: Query<&mut MeleeAttackState, With<Rollback>>,
-    attacker_transform_query: Query<&fixed_math::FixedTransform3D, With<Rollback>>,
+    mut attacker_query: Query<(&GgrsNetId, &mut MeleeAttackState, &fixed_math::FixedTransform3D), With<Rollback>>,
 ) {
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "melee_collisions");
     let _enter = system_span.enter();
@@ -442,9 +421,16 @@ pub fn melee_hitbox_collision_system(
     for (hitbox_g_id, _hitbox_entity, hitbox_transform, hitbox, hitbox_collider, hitbox_layer) in
         order_iter!(hitbox_query)
     {
-        let mut attacker_state = if let Ok(state) = attacker_query.get_mut(hitbox.owner_entity) {
-            state
-        } else {
+        // Find the attacker by their GgrsNetId
+        let mut attacker_data = None;
+        for (attacker_net_id, attack_state, attacker_transform) in attacker_query.iter_mut() {
+            if attacker_net_id == &hitbox.owner_net_id {
+                attacker_data = Some((attack_state, attacker_transform));
+                break;
+            }
+        }
+        
+        let Some((mut attacker_state, attacker_transform)) = attacker_data else {
             continue;
         };
         
@@ -467,7 +453,7 @@ pub fn melee_hitbox_collision_system(
             }
             
             // Skip if already hit this entity in this attack
-            if attacker_state.has_hit_entity(target_entity) {
+            if attacker_state.has_hit_entity(target_g_id) {
                 continue;
             }
             
@@ -518,26 +504,23 @@ pub fn melee_hitbox_collision_system(
                     
                     // Apply knockback
                     if let Some(mut velocity) = opt_velocity_mut {
-                        // Get attacker position to calculate knockback direction
-                        if let Ok(attacker_transform) = attacker_transform_query.get(hitbox.owner_entity) {
-                            // Calculate direction from attacker to target
-                            let attacker_pos = attacker_transform.translation.truncate();
-                            let target_pos = target_transform.translation.truncate();
-                            let knockback_direction = (target_pos - attacker_pos).normalize_or_zero();
-                            
-                            // Apply knockback force
-                            let knockback_velocity = knockback_direction * hitbox.knockback_force;
-                            velocity.0 = velocity.0 + knockback_velocity;
-                            
-                            info!(
-                                "Applied knockback force {} in direction {:?} to target {}",
-                                hitbox.knockback_force, knockback_direction, target_g_id
-                            );
-                        }
+                        // Calculate direction from attacker to target
+                        let attacker_pos = attacker_transform.translation.truncate();
+                        let target_pos = target_transform.translation.truncate();
+                        let knockback_direction = (target_pos - attacker_pos).normalize_or_zero();
+                        
+                        // Apply knockback force
+                        let knockback_velocity = knockback_direction * hitbox.knockback_force;
+                        velocity.0 = velocity.0 + knockback_velocity;
+                        
+                        info!(
+                            "Applied knockback force {} in direction {:?} to target {}",
+                            hitbox.knockback_force, knockback_direction, target_g_id
+                        );
                     }
                     
                     // Mark entity as hit
-                    attacker_state.add_hit_entity(target_entity);
+                    attacker_state.add_hit_entity(target_g_id.clone());
                 }
             }
         }
@@ -558,6 +541,7 @@ pub fn player_melee_attack_system(
     mut player_query: Query<
         (
             Entity,
+            &GgrsNetId,
             &Player,
             &fixed_math::FixedTransform3D,
             &FacingDirection,
@@ -571,7 +555,7 @@ pub fn player_melee_attack_system(
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "player_melee_attack");
     let _enter = system_span.enter();
     
-    for (entity, player, transform, facing_direction, children, mut attack_state) in
+    for (entity, net_id, player, transform, facing_direction, children, mut attack_state) in
         player_query.iter_mut()
     {
         let (input, _status) = inputs[player.handle];
@@ -608,6 +592,7 @@ pub fn player_melee_attack_system(
                 spawn_melee_hitbox(
                     &mut commands,
                     entity,
+                    net_id,
                     transform,
                     facing_direction,
                     melee_weapon,
@@ -643,6 +628,7 @@ pub fn enemy_melee_attack_system(
     mut enemy_query: Query<
         (
             Entity,
+            &GgrsNetId,
             &fixed_math::FixedTransform3D,
             &FacingDirection,
             &Children,
@@ -656,7 +642,7 @@ pub fn enemy_melee_attack_system(
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "enemy_melee_attack");
     let _enter = system_span.enter();
     
-    for (entity, transform, facing_direction, children, mut attack_state) in enemy_query.iter_mut()
+    for (entity, net_id, transform, facing_direction, children, mut attack_state) in enemy_query.iter_mut()
     {
         // Find melee weapon in children
         let mut melee_weapon_opt: Option<&MeleeWeapon> = None;
@@ -703,6 +689,7 @@ pub fn enemy_melee_attack_system(
                     spawn_melee_hitbox(
                         &mut commands,
                         entity,
+                        net_id,
                         transform,
                         facing_direction,
                         melee_weapon,

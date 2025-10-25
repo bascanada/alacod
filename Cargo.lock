@@ -252,6 +252,7 @@ version = "0.2.0"
 dependencies = [
  "bevy",
  "bevy_common_assets",
+ "bevy_fixed",
  "bevy_ggrs",
  "serde",
 ]
