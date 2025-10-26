@@ -1,7 +1,9 @@
 
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
+use bevy_ggrs::Rollback;
 use serde::Deserialize;
+use utils::{net_id::GgrsNetId, order_mut_iter};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct MovementConfig {
@@ -31,24 +33,26 @@ pub struct Velocity {
 
 
 /// Resource for configuring knockback damping
+/// IMPORTANT: Uses Fixed instead of f32 for determinism across rollback
 #[derive(Resource, Clone)]
 pub struct KnockbackDampingConfig {
-    pub damping: f32, // e.g., 0.85 means 15% decay per frame
+    pub damping: fixed_math::Fixed, // e.g., 0.85 means 15% decay per frame
 }
 
 impl Default for KnockbackDampingConfig {
     fn default() -> Self {
-        Self { damping: 0.85 }
+        Self { damping: fixed_math::new(0.85) }
     }
 }
 
 /// System to apply damping to knockback velocity each frame
+/// IMPORTANT: Uses order_mut_iter for deterministic iteration order
 pub fn apply_knockback_damping(
-    mut query: Query<&mut Velocity>,
+    mut query: Query<(&GgrsNetId, &mut Velocity), With<Rollback>>,
     config: Res<KnockbackDampingConfig>,
 ) {
-    let damping = fixed_math::new(config.damping);
-    for mut velocity in query.iter_mut() {
+    let damping = config.damping;
+    for (_net_id, mut velocity) in order_mut_iter!(query) {
         velocity.knockback = velocity.knockback * damping;
         // If knockback is very small, zero it out
         if velocity.knockback.length_squared() < fixed_math::new(0.01) {
