@@ -560,26 +560,26 @@ pub fn move_enemies(
             _ => { /* Idle, CalculatingPath, Blocked - no target-based movement */ }
         }
 
-        // Combine movement and separation
+        // Combine movement and separation for AI intent
         let final_movement_v2 = desired_move_velocity_v2 + separation_v2;
-        velocity_component.0 = final_movement_v2; // Assuming Velocity.0 is FixedVec2
+        velocity_component.main = final_movement_v2;
 
-        // Apply movement using FIXED_TIMESTEP (must be Fixed)
-        // Check against a small epsilon for length_squared
-        if velocity_component.0.length_squared() > fixed_math::new(0.01) {
+        // Apply movement using both main and knockback velocities
+        let total_velocity = velocity_component.main + velocity_component.knockback;
+        if total_velocity.length_squared() > fixed_math::new(0.01) {
             fixed_transform.translation.x = fixed_transform
                 .translation
                 .x
-                .saturating_add(velocity_component.0.x * fixed_math::new(FIXED_TIMESTEP));
+                .saturating_add(total_velocity.x * fixed_math::new(FIXED_TIMESTEP));
             fixed_transform.translation.y = fixed_transform
                 .translation
                 .y
-                .saturating_add(velocity_component.0.y * fixed_math::new(FIXED_TIMESTEP));
+                .saturating_add(total_velocity.y * fixed_math::new(FIXED_TIMESTEP));
             // Z remains unchanged for 2D movement
 
-            // Update facing direction based on velocity using deterministic fixed-point math
-            if velocity_component.0.length_squared() > fixed_math::new(0.01) {
-                *facing_direction = FacingDirection::from_fixed_vector(velocity_component.0);
+            // Update facing direction based on main velocity (not knockback)
+            if velocity_component.main.length_squared() > fixed_math::new(0.01) {
+                *facing_direction = FacingDirection::from_fixed_vector(velocity_component.main);
             }
         }
     }

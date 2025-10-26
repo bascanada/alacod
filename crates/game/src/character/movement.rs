@@ -1,3 +1,4 @@
+
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use serde::Deserialize;
@@ -22,5 +23,36 @@ pub struct SprintState {
     pub sprint_factor: fixed_math::Fixed, // Ranges from 0.0 to 1.0 for gradual acceleration
 }
 
-#[derive(Component, Default, Deref, DerefMut, Clone)]
-pub struct Velocity(pub fixed_math::FixedVec2);
+#[derive(Component, Default, Clone)]
+pub struct Velocity {
+    pub main: fixed_math::FixedVec2,
+    pub knockback: fixed_math::FixedVec2,
+}
+
+
+/// Resource for configuring knockback damping
+#[derive(Resource, Clone)]
+pub struct KnockbackDampingConfig {
+    pub damping: f32, // e.g., 0.85 means 15% decay per frame
+}
+
+impl Default for KnockbackDampingConfig {
+    fn default() -> Self {
+        Self { damping: 0.85 }
+    }
+}
+
+/// System to apply damping to knockback velocity each frame
+pub fn apply_knockback_damping(
+    mut query: Query<&mut Velocity>,
+    config: Res<KnockbackDampingConfig>,
+) {
+    let damping = fixed_math::new(config.damping);
+    for mut velocity in query.iter_mut() {
+        velocity.knockback = velocity.knockback * damping;
+        // If knockback is very small, zero it out
+        if velocity.knockback.length_squared() < fixed_math::new(0.01) {
+            velocity.knockback = fixed_math::FixedVec2::ZERO;
+        }
+    }
+}

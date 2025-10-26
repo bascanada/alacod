@@ -521,13 +521,13 @@ pub fn melee_hitbox_collision_system(
                         let attacker_pos = attacker_transform.translation.truncate();
                         let target_pos = target_transform.translation.truncate();
                         let knockback_direction = (target_pos - attacker_pos).normalize_or_zero();
-                        
-                        // Apply knockback force
+
+                        // Apply knockback force to knockback field
                         let knockback_velocity = knockback_direction * hitbox.knockback_force;
-                        velocity.0 = velocity.0 + knockback_velocity;
-                        
+                        velocity.knockback = velocity.knockback + knockback_velocity;
+
                         info!(
-                            "Applied knockback force {} in direction {:?} to target {}",
+                            "Applied knockback force {} in direction {:?} to target {} (knockback field)",
                             hitbox.knockback_force, knockback_direction, target_g_id
                         );
                     }

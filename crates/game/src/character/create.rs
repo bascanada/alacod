@@ -99,7 +99,7 @@ pub fn create_character(
         transform_fixed,
         Visibility::default(),
         SpatialAudioEmitter { instances: vec![] },
-        Velocity(fixed_math::FixedVec2::ZERO),
+        Velocity { main: fixed_math::FixedVec2::ZERO, knockback: fixed_math::FixedVec2::ZERO },
         SprintState::default(),
         DashState::default(),
         MeleeAttackState::default(),

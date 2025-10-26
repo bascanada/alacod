@@ -2,12 +2,12 @@
     "bare_hands": (
         config: (
             name: "Bare Hands",
-            damage: "1.0",
+            damage: "10.0",
             range: "30.0",
             attack_pattern: SingleStrike,
             attack_duration_frames: 10,
             cooldown_frames: 30,
-            knockback_force: "10.0",
+            knockback_force: "50.0",
             stamina_cost: "5.0",
         ),
         sprite_config: (

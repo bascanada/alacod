@@ -157,8 +157,8 @@ pub fn read_local_inputs(
             input.buttons |= INPUT_MELEE_ATTACK;
         }
 
-        if let Ok(window) = q_window.get_single() {
-            if let Ok((camera, camera_transform)) = q_camera.get_single() {
+        if let Ok(window) = q_window.single() {
+            if let Ok((camera, camera_transform)) = q_camera.single() {
                 if let Some(cursor_position) = window.cursor_position() {
                     if let Ok(world_position) =
                         camera.viewport_to_world_2d(camera_transform, cursor_position)
@@ -249,7 +249,7 @@ pub fn apply_inputs(
                     );
 
                 // Zero out velocity while dashing to prevent normal movement physics
-                velocity.0 = fixed_math::FixedVec2::ZERO;
+                velocity.main = fixed_math::FixedVec2::ZERO;
                 continue;
             }
 
@@ -287,7 +287,7 @@ pub fn apply_inputs(
                 dash_state.set_cooldown(config.movement.dash_cooldown_frames);
 
                 // Zero out velocity to prevent normal movement physics
-                velocity.0 = fixed_math::FixedVec2::ZERO;
+                velocity.main = fixed_math::FixedVec2::ZERO;
                 continue;
             }
 
@@ -330,10 +330,10 @@ pub fn apply_inputs(
                     * config.movement.acceleration
                     * sprint_multiplier
                     * fixed_math::new(FIXED_TIMESTEP);
-                velocity.0 += move_delta;
+                velocity.main += move_delta;
 
                 let max_speed = config.movement.max_speed * sprint_multiplier;
-                velocity.0 = velocity.0.clamp_length_max(max_speed);
+                velocity.main = velocity.main.clamp_length_max(max_speed);
             }
         }
     }
@@ -353,13 +353,13 @@ pub fn apply_friction(
                 || input.buttons & INPUT_UP != 0
                 || input.buttons & INPUT_DOWN != 0;
 
-            if !moving && velocity.length_squared() > 0.1 {
-                velocity.0 = velocity.0
+            if !moving && velocity.main.length_squared() > 0.1 {
+                velocity.main = velocity.main
                     * (fixed_math::FIXED_ONE
                         - config.movement.friction * fixed_math::new(FIXED_TIMESTEP))
                     .max(fixed_math::FIXED_ZERO);
-                if velocity.length_squared() < 1.0 {
-                    velocity.0 = fixed_math::FixedVec2::ZERO;
+                if velocity.main.length_squared() < 1.0 {
+                    velocity.main = fixed_math::FixedVec2::ZERO;
                 }
             }
         }
@@ -391,8 +391,9 @@ pub fn move_characters(
         query.iter_mut()
     {
         let mut new_transform = transform.clone();
-        new_transform.translation.x += velocity.x * fixed_math::new(FIXED_TIMESTEP);
-        new_transform.translation.y += velocity.y * fixed_math::new(FIXED_TIMESTEP);
+        let total_velocity = velocity.main + velocity.knockback;
+        new_transform.translation.x += total_velocity.x * fixed_math::new(FIXED_TIMESTEP);
+        new_transform.translation.y += total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
 
         for (_target_entity, target_transform, target_collider, target_layer) in
             collider_query.iter()
@@ -406,7 +407,7 @@ pub fn move_characters(
                 &target_transform.translation,
                 target_collider,
             ) {
-                velocity.0 = fixed_math::FixedVec2::ZERO;
+                velocity.main = fixed_math::FixedVec2::ZERO;
                 continue 'mainloop;
             }
         }
@@ -417,7 +418,7 @@ pub fn move_characters(
 pub fn update_animation_state(mut query: Query<(&Velocity, &mut AnimationState), With<Rollback>>) {
     for (velocity, mut state) in query.iter_mut() {
         let current_state_name = state.0.clone();
-        let new_state_name = if velocity.length_squared() > 0.5 {
+        let new_state_name = if (velocity.main + velocity.knockback).length_squared() > 0.5 {
             "Run"
         } else {
             "Idle"
