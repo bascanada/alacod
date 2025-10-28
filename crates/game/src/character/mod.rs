@@ -29,7 +29,7 @@ use crate::{
             rollback_apply_accumulated_damage, rollback_apply_death, ui::update_health_bars,
             DamageAccumulator, Death, Health,
         },
-        movement::{SprintState, Velocity},
+        movement::{apply_knockback_damping, KnockbackDampingConfig, SprintState, Velocity},
         player::{
             control::PlayerAction,
             input::{
@@ -55,8 +55,10 @@ impl Plugin for BaseCharacterGamePlugin {
         app.init_resource::<PointerWorldPosition>();
 
         app.init_resource::<PathfindingConfig>();
+        app.init_resource::<KnockbackDampingConfig>();
 
         app.rollback_resource_with_clone::<PathfindingConfig>()
+            .rollback_resource_with_clone::<KnockbackDampingConfig>()
             .rollback_component_with_clone::<EnemySpawnerComponent>()
             .rollback_component_with_clone::<EnemySpawnerState>()
             .rollback_component_with_clone::<EnemyPath>()
@@ -88,6 +90,11 @@ impl Plugin for BaseCharacterGamePlugin {
                     rollback_apply_death.after(rollback_apply_accumulated_damage),
                 )
                     .in_set(RollbackSystemSet::DeathManagement),
+                // KNOCKBACK DAMPING - Apply after weapons (which apply knockback) but before animation/AI
+                (apply_knockback_damping,)
+                    .after(RollbackSystemSet::Weapon)
+                    .before(RollbackSystemSet::AnimationUpdates)
+                    .before(RollbackSystemSet::EnemyAI),
                 // ANIMATION CRATE
                 (update_animation_state,).in_set(RollbackSystemSet::AnimationUpdates),
                 // SPAWING

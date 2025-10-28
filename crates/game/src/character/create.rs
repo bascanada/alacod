@@ -8,6 +8,7 @@ use crate::{
     character::{config::CharacterConfigHandles, movement::Velocity},
     collider::{Collider, CollisionLayer},
     global_asset::GlobalAsset,
+    weapons::melee::MeleeAttackState,
 };
 
 use bevy_ggrs::AddRollbackCommandExtension;
@@ -76,16 +77,32 @@ pub fn create_character(
         fixed_math::FixedVec3::splat(config.scale),
     );
 
-    let collider: Collider = (&config.collider).into();
+    // Apply character scale to collider dimensions
+    let mut collider: Collider = (&config.collider).into();
+    match &mut collider.shape {
+        crate::collider::ColliderShape::Circle { radius } => {
+            *radius = radius.saturating_mul(config.scale);
+        }
+        crate::collider::ColliderShape::Rectangle { width, height } => {
+            *width = width.saturating_mul(config.scale);
+            *height = height.saturating_mul(config.scale);
+        }
+    }
+    // Also scale the collider offset
+    collider.offset.x = collider.offset.x.saturating_mul(config.scale);
+    collider.offset.y = collider.offset.y.saturating_mul(config.scale);
+    collider.offset.z = collider.offset.z.saturating_mul(config.scale);
+    
     let health: Health = config.base_health.clone().into();
     let mut entity = commands.spawn((
         transform_fixed.to_bevy_transform(),
         transform_fixed,
         Visibility::default(),
         SpatialAudioEmitter { instances: vec![] },
-        Velocity(fixed_math::FixedVec2::ZERO),
+        Velocity { main: fixed_math::FixedVec2::ZERO, knockback: fixed_math::FixedVec2::ZERO },
         SprintState::default(),
         DashState::default(),
+        MeleeAttackState::default(),
         collider,
         health,
         collision_layer,

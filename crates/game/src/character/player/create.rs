@@ -8,7 +8,7 @@ use crate::{
     character::{config::CharacterConfig, create::create_character},
     collider::{CollisionLayer, CollisionSettings},
     global_asset::GlobalAsset,
-    weapons::{spawn_weapon_for_player, WeaponInventory, WeaponsConfig},
+    weapons::{melee::{spawn_melee_weapon_for_character, MeleeWeaponsConfig}, spawn_weapon_for_player, WeaponInventory, WeaponsConfig},
 };
 
 use super::{
@@ -29,6 +29,7 @@ pub fn create_player(
     commands: &mut Commands,
     global_assets: &Res<GlobalAsset>,
     weapons_asset: &Res<Assets<WeaponsConfig>>,
+    melee_weapons_asset: &Res<Assets<MeleeWeaponsConfig>>,
     character_asset: &Res<Assets<CharacterConfig>>,
     collision_settings: &Res<CollisionSettings>,
     asset_server: &Res<AssetServer>,
@@ -82,6 +83,18 @@ pub fn create_player(
                 entity,
                 weapons_config.0.get(*k).unwrap().clone(),
                 &mut inventory,
+                id_factory,
+            );
+        }
+    }
+
+    // Add a default melee weapon (bare hands) to all players
+    if let Some(melee_weapons_config) = melee_weapons_asset.get(&global_assets.melee_weapons) {
+        if let Some(bare_hands) = melee_weapons_config.0.get("bare_hands") {
+            spawn_melee_weapon_for_character(
+                commands,
+                entity,
+                bare_hands.clone(),
                 id_factory,
             );
         }

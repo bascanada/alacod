@@ -30,6 +30,7 @@ pub const INPUT_SPRINT: u16 = 1 << 6;
 pub const INPUT_DASH: u16 = 1 << 7;
 pub const INPUT_MODIFIER: u16 = 1 << 8;
 pub const INPUT_INTERACTION: u16 = 1 << 9;
+pub const INPUT_MELEE_ATTACK: u16 = 1 << 10;
 
 const PAN_FACING_THRESHOLD: i16 = 5;
 
@@ -61,15 +62,37 @@ pub struct InteractionInput {
 }
 
 fn get_facing_direction(input: &BoxInput) -> FacingDirection {
-    if input.pan_x > PAN_FACING_THRESHOLD {
-        FacingDirection::Right
-    } else if input.pan_x < -PAN_FACING_THRESHOLD {
-        FacingDirection::Left
-    } else if input.buttons & INPUT_RIGHT != 0 {
-        FacingDirection::Right
-    } else if input.buttons & INPUT_LEFT != 0 {
-        FacingDirection::Left
+    // Use pan (cursor) input for 8-directional aiming if available
+    if input.pan_x.abs() > PAN_FACING_THRESHOLD || input.pan_y.abs() > PAN_FACING_THRESHOLD {
+        let direction_vec = fixed_math::FixedVec2::new(
+            fixed_math::new(input.pan_x as f32),
+            fixed_math::new(input.pan_y as f32),
+        );
+        // Normalize to prevent overflow in atan2 calculations with large input values
+        let normalized = direction_vec.normalize_or_zero();
+        return FacingDirection::from_fixed_vector(normalized);
+    }
+    
+    // Fallback to movement keys for 8-directional movement
+    let mut direction = fixed_math::FixedVec2::ZERO;
+    
+    if input.buttons & INPUT_RIGHT != 0 {
+        direction.x += fixed_math::FIXED_ONE;
+    }
+    if input.buttons & INPUT_LEFT != 0 {
+        direction.x -= fixed_math::FIXED_ONE;
+    }
+    if input.buttons & INPUT_UP != 0 {
+        direction.y += fixed_math::FIXED_ONE;
+    }
+    if input.buttons & INPUT_DOWN != 0 {
+        direction.y -= fixed_math::FIXED_ONE;
+    }
+    
+    if direction.length_squared() > fixed_math::new(0.01) {
+        FacingDirection::from_fixed_vector(direction)
     } else {
+        // Default to right if no input
         FacingDirection::Right
     }
 }
@@ -130,8 +153,12 @@ pub fn read_local_inputs(
             input.buttons |= INPUT_MODIFIER;
         }
 
-        if let Ok(window) = q_window.get_single() {
-            if let Ok((camera, camera_transform)) = q_camera.get_single() {
+        if action_state.pressed(&PlayerAction::MeleeAttack) {
+            input.buttons |= INPUT_MELEE_ATTACK;
+        }
+
+        if let Ok(window) = q_window.single() {
+            if let Ok((camera, camera_transform)) = q_camera.single() {
                 if let Some(cursor_position) = window.cursor_position() {
                     if let Ok(world_position) =
                         camera.viewport_to_world_2d(camera_transform, cursor_position)
@@ -206,9 +233,11 @@ pub fn apply_inputs(
             // If currently dashing, directly update position
             if dash_state.is_dashing {
                 // Calculate position based on remaining frames and distance
+                // Protect against division by zero
+                let dash_duration = config.movement.dash_duration_frames.max(1);
                 let completed_fraction = fixed_math::FIXED_ONE
                     - (fixed_math::new(dash_state.dash_frames_remaining as f32)
-                        / fixed_math::new(config.movement.dash_duration_frames as f32));
+                        / fixed_math::new(dash_duration as f32));
 
                 let dash_offset =
                     dash_state.dash_direction * dash_state.dash_total_distance * completed_fraction;
@@ -220,7 +249,7 @@ pub fn apply_inputs(
                     );
 
                 // Zero out velocity while dashing to prevent normal movement physics
-                velocity.0 = fixed_math::FixedVec2::ZERO;
+                velocity.main = fixed_math::FixedVec2::ZERO;
                 continue;
             }
 
@@ -235,8 +264,8 @@ pub fn apply_inputs(
                 let is_reverse_dash = (input.buttons & INPUT_MODIFIER) != 0;
 
                 // If the player isn't aiming, use facing direction
-                let mut dash_direction = if look_direction.length_squared() > 1.0 {
-                    look_direction.normalize()
+                let mut dash_direction = if look_direction.length_squared() > fixed_math::FIXED_ONE {
+                    look_direction.normalize_or_zero()
                 } else {
                     fixed_math::FixedVec2::new(
                         fixed_math::new(facing_direction.to_int() as f32),
@@ -258,7 +287,7 @@ pub fn apply_inputs(
                 dash_state.set_cooldown(config.movement.dash_cooldown_frames);
 
                 // Zero out velocity to prevent normal movement physics
-                velocity.0 = fixed_math::FixedVec2::ZERO;
+                velocity.main = fixed_math::FixedVec2::ZERO;
                 continue;
             }
 
@@ -297,14 +326,14 @@ pub fn apply_inputs(
                     + (config.movement.sprint_multiplier - fixed_math::FIXED_ONE)
                         * sprint_state.sprint_factor;
                 // Using FIXED_TIMESTEP instead of time.delta()
-                let move_delta = direction.normalize()
+                let move_delta = direction.normalize_or_zero()
                     * config.movement.acceleration
                     * sprint_multiplier
                     * fixed_math::new(FIXED_TIMESTEP);
-                velocity.0 += move_delta;
+                velocity.main += move_delta;
 
                 let max_speed = config.movement.max_speed * sprint_multiplier;
-                velocity.0 = velocity.0.clamp_length_max(max_speed);
+                velocity.main = velocity.main.clamp_length_max(max_speed);
             }
         }
     }
@@ -324,13 +353,13 @@ pub fn apply_friction(
                 || input.buttons & INPUT_UP != 0
                 || input.buttons & INPUT_DOWN != 0;
 
-            if !moving && velocity.length_squared() > 0.1 {
-                velocity.0 = velocity.0
+            if !moving && velocity.main.length_squared() > 0.1 {
+                velocity.main = velocity.main
                     * (fixed_math::FIXED_ONE
                         - config.movement.friction * fixed_math::new(FIXED_TIMESTEP))
                     .max(fixed_math::FIXED_ZERO);
-                if velocity.length_squared() < 1.0 {
-                    velocity.0 = fixed_math::FixedVec2::ZERO;
+                if velocity.main.length_squared() < 1.0 {
+                    velocity.main = fixed_math::FixedVec2::ZERO;
                 }
             }
         }
@@ -362,8 +391,9 @@ pub fn move_characters(
         query.iter_mut()
     {
         let mut new_transform = transform.clone();
-        new_transform.translation.x += velocity.x * fixed_math::new(FIXED_TIMESTEP);
-        new_transform.translation.y += velocity.y * fixed_math::new(FIXED_TIMESTEP);
+        let total_velocity = velocity.main + velocity.knockback;
+        new_transform.translation.x += total_velocity.x * fixed_math::new(FIXED_TIMESTEP);
+        new_transform.translation.y += total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
 
         for (_target_entity, target_transform, target_collider, target_layer) in
             collider_query.iter()
@@ -377,7 +407,7 @@ pub fn move_characters(
                 &target_transform.translation,
                 target_collider,
             ) {
-                velocity.0 = fixed_math::FixedVec2::ZERO;
+                velocity.main = fixed_math::FixedVec2::ZERO;
                 continue 'mainloop;
             }
         }
@@ -388,7 +418,7 @@ pub fn move_characters(
 pub fn update_animation_state(mut query: Query<(&Velocity, &mut AnimationState), With<Rollback>>) {
     for (velocity, mut state) in query.iter_mut() {
         let current_state_name = state.0.clone();
-        let new_state_name = if velocity.length_squared() > 0.5 {
+        let new_state_name = if (velocity.main + velocity.knockback).length_squared() > 0.5 {
             "Run"
         } else {
             "Idle"

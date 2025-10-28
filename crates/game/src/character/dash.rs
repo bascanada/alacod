@@ -24,12 +24,15 @@ impl DashState {
         total_distance: fixed_math::Fixed,
         duration_frames: u32,
     ) {
+        // Ensure duration is at least 1 to prevent division by zero
+        let safe_duration = duration_frames.max(1);
+        
         self.is_dashing = true;
-        self.dash_direction = direction.normalize();
-        self.dash_frames_remaining = duration_frames;
+        self.dash_direction = direction.normalize_or_zero();
+        self.dash_frames_remaining = safe_duration;
         self.dash_start_position = start_position;
         self.dash_total_distance = total_distance;
-        self.dash_distance_per_frame = total_distance / fixed_math::new(duration_frames as f32);
+        self.dash_distance_per_frame = total_distance / fixed_math::new(safe_duration as f32);
     }
 
     pub fn update(&mut self) {

@@ -69,8 +69,8 @@ impl Default for PathfindingConfig {
             node_size: fixed_math::new(20.0),
             movement_speed: fixed_math::new(20.0),
             waypoint_reach_distance: fixed_math::new(10.0),
-            optimal_attack_distance: fixed_math::new(100.0), // Keep this distance from players
-            slow_down_distance: fixed_math::new(150.0),      // Start slowing down at this distance
+            optimal_attack_distance: fixed_math::new(30.0), // Melee range - get close to players
+            slow_down_distance: fixed_math::new(50.0),      // Start slowing down very close
             enemy_separation_force: fixed_math::new(2.0),    // Much stronger separation force
             enemy_separation_distance: fixed_math::new(80.0), // Larger separation distance
         }
@@ -526,7 +526,7 @@ pub fn move_enemies(
 
                 let speed_factor_fixed =
                     if distance_to_nearest_player < config.optimal_attack_distance {
-                        fixed_math::new(-0.3) // Back up slightly
+                        fixed_math::FIXED_ZERO // Stop when in melee range (don't back up)
                     } else if distance_to_nearest_player < config.slow_down_distance {
                         let range = config.slow_down_distance - config.optimal_attack_distance;
                         if range > fixed_math::FIXED_ZERO {
@@ -560,29 +560,26 @@ pub fn move_enemies(
             _ => { /* Idle, CalculatingPath, Blocked - no target-based movement */ }
         }
 
-        // Combine movement and separation
+        // Combine movement and separation for AI intent
         let final_movement_v2 = desired_move_velocity_v2 + separation_v2;
-        velocity_component.0 = final_movement_v2; // Assuming Velocity.0 is FixedVec2
+        velocity_component.main = final_movement_v2;
 
-        // Apply movement using FIXED_TIMESTEP (must be Fixed)
-        // Check against a small epsilon for length_squared
-        if velocity_component.0.length_squared() > fixed_math::new(0.01) {
+        // Apply movement using both main and knockback velocities
+        let total_velocity = velocity_component.main + velocity_component.knockback;
+        if total_velocity.length_squared() > fixed_math::new(0.01) {
             fixed_transform.translation.x = fixed_transform
                 .translation
                 .x
-                .saturating_add(velocity_component.0.x * fixed_math::new(FIXED_TIMESTEP));
+                .saturating_add(total_velocity.x * fixed_math::new(FIXED_TIMESTEP));
             fixed_transform.translation.y = fixed_transform
                 .translation
                 .y
-                .saturating_add(velocity_component.0.y * fixed_math::new(FIXED_TIMESTEP));
+                .saturating_add(total_velocity.y * fixed_math::new(FIXED_TIMESTEP));
             // Z remains unchanged for 2D movement
 
-            // Update facing direction
-            let threshold = fixed_math::new(0.1);
-            if velocity_component.0.x > threshold {
-                *facing_direction = FacingDirection::Right;
-            } else if velocity_component.0.x < -threshold {
-                *facing_direction = FacingDirection::Left;
+            // Update facing direction based on main velocity (not knockback)
+            if velocity_component.main.length_squared() > fixed_math::new(0.01) {
+                *facing_direction = FacingDirection::from_fixed_vector(velocity_component.main);
             }
         }
     }

@@ -64,7 +64,7 @@ pub fn enemy_spawn_from_spawners_system(
     }
 
     let mut current_enemies_count = enemy_query.iter().count(); // Make mutable for local tracking
-    let global_max_enemies = 20;
+    let global_max_enemies = 10; // Reduced from 20 to keep fewer zombies on screen
 
     if current_enemies_count >= global_max_enemies {
         // println!("Frame {}: Global max enemies reached at start", frame.frame);
