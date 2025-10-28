@@ -25,7 +25,9 @@
     scale: "1.0",
 
     base_health: (
-        max: "10.0"
+        max: "10.0",
+        regen_rate: Some("1.0"),  // 1 HP per second
+        regen_delay_frames: Some(180),  // 3 seconds at 60 FPS
     ),
 
 

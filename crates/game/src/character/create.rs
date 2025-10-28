@@ -16,7 +16,7 @@ use bevy_ggrs::AddRollbackCommandExtension;
 use super::{
     config::CharacterConfig,
     dash::DashState,
-    health::{ui::HealthBar, Health},
+    health::{ui::HealthBar, Health, HealthRegen},
     movement::SprintState,
     Character,
 };
@@ -113,6 +113,17 @@ pub fn create_character(
         animation_bundle,
         id_factory.next(config_name),
     ));
+
+    // Add HealthRegen component if configured
+    if let (Some(regen_rate), Some(regen_delay_frames)) = 
+        (config.base_health.regen_rate, config.base_health.regen_delay_frames) 
+    {
+        entity.insert(HealthRegen {
+            last_damage_frame: 0,
+            regen_rate,
+            regen_delay_frames,
+        });
+    }
 
     let entity = entity.with_children(|parent| {
         parent

@@ -7,7 +7,7 @@ use crate::{
     character::{config::CharacterConfig, create::create_character},
     collider::{CollisionLayer, CollisionSettings},
     global_asset::GlobalAsset,
-    weapons::{WeaponInventory, WeaponsConfig},
+    weapons::{melee::{spawn_melee_weapon_for_character, MeleeWeaponsConfig}, WeaponInventory, WeaponsConfig},
 };
 
 use super::{ai::pathing::EnemyPath, Enemy};
@@ -17,6 +17,7 @@ pub fn spawn_enemy(
     position: fixed_math::FixedVec3,
     commands: &mut Commands,
     _weapons_asset: &Res<Assets<WeaponsConfig>>,
+    melee_weapons_asset: &Res<Assets<MeleeWeaponsConfig>>,
     characters_asset: &Res<Assets<CharacterConfig>>,
     asset_server: &Res<AssetServer>,
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
@@ -43,6 +44,25 @@ pub fn spawn_enemy(
     );
 
     let inventory = WeaponInventory::default();
+
+    // Give the enemy a melee weapon (zombie claws)
+    if let Some(melee_weapons_config) = melee_weapons_asset.get(&global_assets.melee_weapons) {
+        // Try to give them zombie_claws, or fallback to bare_hands
+        let weapon_name = if melee_weapons_config.0.contains_key("zombie_claws") {
+            "zombie_claws"
+        } else {
+            "bare_hands"
+        };
+        
+        if let Some(weapon) = melee_weapons_config.0.get(weapon_name) {
+            spawn_melee_weapon_for_character(
+                commands,
+                entity,
+                weapon.clone(),
+                id_factory,
+            );
+        }
+    }
 
     commands
         .entity(entity)

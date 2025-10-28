@@ -16,6 +16,23 @@
             weapon_offset: (x: "0.0", y: "0.0"),
         ),
     ),
+    "zombie_claws": (
+        config: (
+            name: "Zombie Claws",
+            damage: "2.5",
+            range: "35.0",
+            attack_pattern: SingleStrike,
+            attack_duration_frames: 12,
+            cooldown_frames: 45,
+            knockback_force: "50.0",
+            stamina_cost: "0.0",
+        ),
+        sprite_config: (
+            name: "zombie_claws",
+            index: 0,
+            weapon_offset: (x: "0.0", y: "0.0"),
+        ),
+    ),
     "club": (
         config: (
             name: "Club",

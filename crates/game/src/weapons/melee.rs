@@ -298,13 +298,15 @@ pub fn spawn_melee_hitbox(
             None,
         );
         let layout_handle = texture_atlas_layouts.add(layout);
-        
+
         // Get animation configuration dynamically
         let slash_anim = anim_config.animations.get("slash").expect("slash animation not found in config");
+        let columns = slash_config.columns;
+        let (start, end) = slash_anim.to_absolute(columns);
         let frame_duration = anim_config.frame_duration as u32;
-        let animation_frame_count = (slash_anim.end - slash_anim.start + 1) as u32;
+        let animation_frame_count = (end - start + 1) as u32;
         let total_duration = animation_frame_count * frame_duration;
-        
+            
         // Position effect at hitbox location
         let mut effect_transform = hitbox_transform.to_bevy_transform();
         effect_transform.translation.z = 5.0; // Place above everything
@@ -330,14 +332,14 @@ pub fn spawn_melee_hitbox(
                 start_frame: current_frame,
                 duration_frames: total_duration,
                 frame_duration,
-                animation_start: slash_anim.start,
-                animation_end: slash_anim.end,
+                animation_start: start,
+                animation_end: end,
             },
             Sprite {
                 image: texture_handle,
                 texture_atlas: Some(TextureAtlas {
                     layout: layout_handle,
-                    index: slash_anim.start,  // Start at the correct animation frame
+                    index: start,  // Start at the correct animation frame
                 }),
                 flip_x,
                 flip_y: false,
@@ -436,7 +438,7 @@ pub fn melee_hitbox_collision_system(
     {
         // Find the attacker by their GgrsNetId
         let mut attacker_data = None;
-        for (attacker_net_id, attack_state, attacker_transform) in attacker_query.iter_mut() {
+        for (attacker_net_id, attack_state, attacker_transform) in order_iter!(attacker_query) {
             if attacker_net_id == &hitbox.owner_net_id {
                 attacker_data = Some((attack_state, attacker_transform));
                 break;
@@ -458,7 +460,7 @@ pub fn melee_hitbox_collision_system(
             opt_velocity_mut,
             opt_player,
             opt_enemy,
-        ) in target_query.iter_mut()
+        ) in order_iter!(target_query)
         {
             // Skip if this is the attacker
             if target_entity == hitbox.owner_entity {
@@ -570,7 +572,7 @@ pub fn player_melee_attack_system(
     let _enter = system_span.enter();
     
     for (entity, net_id, player, transform, facing_direction, children, mut attack_state) in
-        player_query.iter_mut()
+        order_iter!(player_query)
     {
         let (input, _status) = inputs[player.handle];
         
@@ -658,7 +660,7 @@ pub fn enemy_melee_attack_system(
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "enemy_melee_attack");
     let _enter = system_span.enter();
     
-    for (entity, net_id, transform, facing_direction, children, mut attack_state) in enemy_query.iter_mut()
+    for (entity, net_id, transform, facing_direction, children, mut attack_state) in order_iter!(enemy_query)
     {
         // Find melee weapon in children
         let mut melee_weapon_opt: Option<&MeleeWeapon> = None;

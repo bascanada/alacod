@@ -57,6 +57,10 @@ impl GlobalAsset {
                 "zombie_2" => bmap!(
                     "body" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_hard_sheet.ron"),
                     "shadow" => asset_server.load("ZombieShooter/Sprites/Character/shadow_sheet.ron")
+                ),
+                "zombie_full" => bmap!(
+                    "body" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_full_sheet.ron"),
+                    "shadow" => asset_server.load("ZombieShooter/Sprites/Character/shadow_sheet.ron")
                 )
             ),
             animations: bmap!(
@@ -65,12 +69,14 @@ impl GlobalAsset {
                 "pistol" => asset_server.load(PLAYER_ANIMATIONS_CONFIG_PATH),
                 "shotgun" => asset_server.load(PLAYER_ANIMATIONS_CONFIG_PATH),
                 "zombie_1" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_animation.ron"),
-                "zombie_2" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_animation.ron")
+                "zombie_2" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_animation.ron"),
+                "zombie_full" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_full_animation.ron")
             ),
             character_configs: bmap!(
                 "player" => asset_server.load(PLAYER_CONFIG_PATH),
                 "zombie_1" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_config.ron"),
-                "zombie_2" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_hard_config.ron")
+                "zombie_2" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_hard_config.ron"),
+                "zombie_full" => asset_server.load("ZombieShooter/Sprites/Zombie/zombie_full_config.ron")
             ),
             weapons: asset_server.load("ZombieShooter/Sprites/Character/weapons.ron"),
             melee_weapons: asset_server.load("weapons/melee/melee_weapons.ron"),

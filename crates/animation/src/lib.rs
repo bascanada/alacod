@@ -58,15 +58,43 @@ pub struct SpriteSheetConfig {
 
 // -- Animation Definition Configuration --
 #[derive(Deserialize, Debug, Clone)]
-pub struct AnimationIndices {
-    pub start: usize,
-    pub end: usize, // Inclusive end index
+#[serde(untagged)]
+pub enum AnimationIndices {
+    // Direct sprite indices (backwards compatible)
+    Direct {
+        start: usize,
+        end: usize, // Inclusive end index
+    },
+    // Row-based specification
+    Row {
+        row: usize,
+        end: usize, // Number of frames in the row (offset from row start)
+    },
+}
+
+impl AnimationIndices {
+    /// Converts the animation indices to absolute start/end sprite indices
+    /// based on the sprite sheet configuration
+    pub fn to_absolute(&self, columns: u32) -> (usize, usize) {
+        match self {
+            AnimationIndices::Direct { start, end } => (*start, *end),
+            AnimationIndices::Row { row, end } => {
+                let row_start = row * columns as usize;
+                let row_end = row_start + end;
+                (row_start, row_end)
+            }
+        }
+    }
 }
 
 #[derive(Asset, TypePath, Deserialize, Debug, Clone)]
 pub struct AnimationMapConfig {
     pub frame_duration: u64,
     pub animations: HashMap<String, AnimationIndices>,
+    // Optional: Store columns count if needed for row-based animations
+    // This can be provided or inferred from the associated sprite sheet
+    #[serde(default)]
+    pub columns: Option<u32>,
 }
 
 // COMPONENT
@@ -266,6 +294,7 @@ impl AnimationBundle {
 fn animate_sprite_system(
     time: Res<Time>,
     animation_configs: Res<Assets<AnimationMapConfig>>,
+    spritesheet_configs: Res<Assets<SpriteSheetConfig>>,
     mut query: Query<(
         &Children,
         &CharacterAnimationHandles,
@@ -276,14 +305,20 @@ fn animate_sprite_system(
 ) {
     for (childs, config_handles, mut timer, state) in query.iter_mut() {
         if let Some(anim_config) = animation_configs.get(&config_handles.animations) {
+            // Try to get columns count from animation config or first spritesheet
+            let columns = anim_config.columns.or_else(|| {
+                config_handles.spritesheets.values().next().and_then(|handle| {
+                    spritesheet_configs.get(handle).map(|config| config.columns)
+                })
+            }).unwrap_or(1); // Default to 1 if we can't determine
+            
             timer.frame_timer.tick(time.delta());
             if timer.frame_timer.just_finished() {
                 for child in childs.iter() {
                     if let Ok((mut sprite, _)) = query_sprites.get_mut(child.clone()) {
                         if let Some(atlas) = &mut sprite.texture_atlas {
                             if let Some(indices) = anim_config.animations.get(&state.0) {
-                                let start_index = indices.start;
-                                let end_index = indices.end;
+                                let (start_index, end_index) = indices.to_absolute(columns);
                                 if atlas.index < start_index || atlas.index > end_index {
                                     atlas.index = start_index;
                                 } else {
@@ -295,7 +330,10 @@ fn animate_sprite_system(
                                 atlas.index = anim_config
                                     .animations
                                     .get("Idle")
-                                    .map_or(0, |idx| idx.start);
+                                    .map_or(0, |idx| {
+                                        let (start, _) = idx.to_absolute(columns);
+                                        start
+                                    });
                             }
                         }
                     }
