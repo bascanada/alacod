@@ -106,12 +106,12 @@ pub struct DeathAnimation {
 pub fn rollback_apply_accumulated_damage(
     frame: Res<FrameCount>,
     mut commands: Commands,
-    mut query: Query<(Entity, &DamageAccumulator, &GgrsNetId, &mut Health, Option<&mut HealthRegen>), With<Rollback>>,
+    mut query: Query<(&GgrsNetId, Entity, &DamageAccumulator, &mut Health, Option<&mut HealthRegen>), With<Rollback>>,
 ) {
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "apply_damage");
     let _enter = system_span.enter();
 
-    for (entity, accumulator, g_id, mut health, opt_regen) in query.iter_mut() {
+    for (g_id, entity, accumulator, mut health, opt_regen) in order_mut_iter!(query) {
         if accumulator.total_damage > fixed_math::FIXED_ZERO {
             health.current = health.current.saturating_sub(accumulator.total_damage);
 
