@@ -152,7 +152,7 @@ pub fn rollback_apply_death(
     for (id, entity, death_info, transform, config_handle) in order_iter!(query) {
         info!("{} entity {} killed by {}", frame.as_ref(), id, death_info); // Use cloned death_info
         // Spawn a visual-only entity for the death animation
-        let config_name = global_assets.character_configs.iter().find_map(|(k, v)| if v == &config_handle.config { Some(k.clone()) } else { None }).unwrap_or("zombie_1".to_string());
+        let config_name = global_assets.character_configs.iter().find_map(|(k, v)| if v == &config_handle.config { Some(k.clone()) } else { None }).unwrap_or_else(|| { warn!("Character config not found for death animation, defaulting to 'zombie_1'"); "zombie_1".to_string() });
         spawn_death_animation_entity(
             &mut commands,
             &global_assets,
