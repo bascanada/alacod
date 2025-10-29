@@ -75,7 +75,17 @@ impl Plugin for BaseCharacterGamePlugin {
 
         app.add_systems(ReadInputs, read_local_inputs);
 
-        app.add_systems(Update, (set_sprite_flip, update_health_bars, health::advance_death_animation_system));
+        // Non-rollback systems: update visuals and process queued visual spawns
+        app.insert_resource(health::DeathSpawnQueue::default());
+        app.add_systems(
+            Update,
+            (
+                set_sprite_flip,
+                update_health_bars,
+                health::advance_death_animation_system,
+                health::process_death_spawn_queue,
+            ),
+        );
 
         app.add_systems(
             GgrsSchedule,

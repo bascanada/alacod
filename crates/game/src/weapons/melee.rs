@@ -4,7 +4,7 @@ use bevy_fixed::fixed_math;
 use bevy_ggrs::{AddRollbackCommandExtension, Rollback};
 use ggrs::PlayerHandle;
 use serde::{Deserialize, Serialize};
-use utils::{net_id::{GgrsNetId, GgrsNetIdFactory}, order_iter};
+use utils::{net_id::{GgrsNetId, GgrsNetIdFactory}, order_iter, order_mut_iter};
 
 use crate::{
     character::{
@@ -415,11 +415,11 @@ pub fn melee_hitbox_collision_system(
     >,
     mut target_query: Query<
         (
+            &GgrsNetId,
             Entity,
             &fixed_math::FixedTransform3D,
             &Collider,
             &CollisionLayer,
-            &GgrsNetId,
             Option<&Health>,
             Option<&mut DamageAccumulator>,
             Option<&mut Velocity>,
@@ -438,7 +438,7 @@ pub fn melee_hitbox_collision_system(
     {
         // Find the attacker by their GgrsNetId
         let mut attacker_data = None;
-        for (attacker_net_id, attack_state, attacker_transform) in order_iter!(attacker_query) {
+        for (attacker_net_id, attack_state, attacker_transform) in order_mut_iter!(attacker_query) {
             if attacker_net_id == &hitbox.owner_net_id {
                 attacker_data = Some((attack_state, attacker_transform));
                 break;
@@ -450,17 +450,17 @@ pub fn melee_hitbox_collision_system(
         };
         
         for (
+            target_g_id,
             target_entity,
             target_transform,
             target_collider,
             target_layer,
-            target_g_id,
             opt_health,
             opt_accumulator_mut,
             opt_velocity_mut,
             opt_player,
             opt_enemy,
-        ) in order_iter!(target_query)
+        ) in order_mut_iter!(target_query)
         {
             // Skip if this is the attacker
             if target_entity == hitbox.owner_entity {
@@ -556,8 +556,8 @@ pub fn player_melee_attack_system(
     animation_configs: Res<Assets<animation::AnimationMapConfig>>,
     mut player_query: Query<
         (
-            Entity,
             &GgrsNetId,
+            Entity,
             &Player,
             &fixed_math::FixedTransform3D,
             &FacingDirection,
@@ -571,8 +571,8 @@ pub fn player_melee_attack_system(
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "player_melee_attack");
     let _enter = system_span.enter();
     
-    for (entity, net_id, player, transform, facing_direction, children, mut attack_state) in
-        order_iter!(player_query)
+    for (net_id, entity, player, transform, facing_direction, children, mut attack_state) in
+        order_mut_iter!(player_query)
     {
         let (input, _status) = inputs[player.handle];
         
@@ -645,8 +645,8 @@ pub fn enemy_melee_attack_system(
     animation_configs: Res<Assets<animation::AnimationMapConfig>>,
     mut enemy_query: Query<
         (
-            Entity,
             &GgrsNetId,
+            Entity,
             &fixed_math::FixedTransform3D,
             &FacingDirection,
             &Children,
@@ -660,7 +660,7 @@ pub fn enemy_melee_attack_system(
     let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "enemy_melee_attack");
     let _enter = system_span.enter();
     
-    for (entity, net_id, transform, facing_direction, children, mut attack_state) in order_iter!(enemy_query)
+    for (net_id, entity, transform, facing_direction, children, mut attack_state) in order_mut_iter!(enemy_query)
     {
         // Find melee weapon in children
         let mut melee_weapon_opt: Option<&MeleeWeapon> = None;
