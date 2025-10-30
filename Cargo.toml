@@ -6,7 +6,9 @@ edition = "2021"
 exclude = ["assets/*", "repo/*", "scripts/*"]
 
 [features]
-default = []
+default = ["lighting"]
+
+lighting = ["game/lighting"]
 
 native = [
   "bevy/file_watcher",

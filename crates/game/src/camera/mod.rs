@@ -3,7 +3,10 @@ pub mod ui;
 use bevy::{prelude::*, scene::ron::de};
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_kira_audio::SpatialAudioReceiver;
+
+#[cfg(feature = "lighting")]
 use bevy_light_2d::light::AmbientLight2d;
+
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
 use ui::CameraDebugUIPlugin;
@@ -510,18 +513,35 @@ impl Rect {
 // Example of how to set up the camera in your game
 pub fn setup_camera(mut commands: Commands, settings: Res<CameraSettings>) {
     // Spawn the camera itself
-    commands.spawn((
-        Camera2d::default(),
-        SpatialAudioReceiver,
-        AmbientLight2d{
-            brightness: 0.4,
-            ..Default::default()
-        },
-        GameCamera {
-            mode: CameraMode::PlayerLock,
-            target_player_id: None,
-            target_position: Vec2::ZERO,
-            target_zoom: settings.default_player_zoom, // Use the default player zoom
-        },
-    ));
+    #[cfg(feature = "lighting")]
+    {
+        commands.spawn((
+            Camera2d::default(),
+            SpatialAudioReceiver,
+            AmbientLight2d{
+                brightness: 0.4,
+                ..Default::default()
+            },
+            GameCamera {
+                mode: CameraMode::PlayerLock,
+                target_player_id: None,
+                target_position: Vec2::ZERO,
+                target_zoom: settings.default_player_zoom, // Use the default player zoom
+            },
+        ));
+    }
+    
+    #[cfg(not(feature = "lighting"))]
+    {
+        commands.spawn((
+            Camera2d::default(),
+            SpatialAudioReceiver,
+            GameCamera {
+                mode: CameraMode::PlayerLock,
+                target_player_id: None,
+                target_position: Vec2::ZERO,
+                target_zoom: settings.default_player_zoom, // Use the default player zoom
+            },
+        ));
+    }
 }

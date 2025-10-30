@@ -22,11 +22,6 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-      - name: Free up disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
       - name: Install sccache
         run: |
           sudo apt-get update
@@ -44,6 +39,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Dependency
         run: sudo apt-get install g++ make pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libwayland-dev libxkbcommon-dev && rustup component add rustfmt
+      - name: Install wasm-opt
+        run: |
+          wget https://github.com/WebAssembly/binaryen/releases/download/version_119/binaryen-version_119-x86_64-linux.tar.gz
+          tar -xzf binaryen-version_119-x86_64-linux.tar.gz
+          sudo cp binaryen-version_119/bin/wasm-opt /usr/local/bin/
+          wasm-opt --version
       - name: Dependencies
         run: cargo vendor && (make dep_web || echo "ok")
       - name: Test

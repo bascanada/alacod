@@ -10,7 +10,7 @@ ggrs = "0.11.1"
 bevy_ggrs = "0.18.0"
 bevy_kira_audio ={ version = "0.23" }
 bevy_matchbox = { version = "0.12", features = ["ggrs"] }
-bevy_light_2d = "0.6"
+bevy_light_2d = { version = "0.6", optional = true }
 leafwing-input-manager = "0.17.0"
 bevy_common_assets = { version = "0.13", features = ["ron"]}
 
@@ -46,3 +46,6 @@ features = [
 [features]
 # Enable debug UI (Egui / World Inspector) for development builds
 debug_ui = ["bevy-inspector-egui"]
+# Enable lighting system (disabled by default for wasm to improve performance)
+lighting = ["bevy_light_2d"]
+
