@@ -55,10 +55,12 @@ jobs:
         run:  make build_docker_website TARGET=web PROFILE=prod
       - name: Publish docker website
         run: make push_docker_website
+      - name: Copy build files from container
+        run: make export_docker_website
       - name: Publish to Cloudflare Pages
       - uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: 'alacod' # The name of your project in Cloudflare
-          directory: 'website/build' # The directory your build step created
+          directory: './build' # The directory your build step created

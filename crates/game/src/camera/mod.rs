@@ -192,7 +192,7 @@ fn camera_control_system(
     };
 
     let (mut camera, mut camera_transform, mut projection) =
-        if let Ok(cam) = camera_query.get_single_mut() {
+        if let Ok(cam) = camera_query.single_mut() {
             cam
         } else {
             return;

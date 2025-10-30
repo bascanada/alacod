@@ -1,5 +1,5 @@
 use animation::{create_child_sprite, AnimationBundle, SpriteSheetConfig};
-use bevy::prelude::*;
+use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_fixed::fixed_math;
 use bevy_kira_audio::prelude::*;
 use utils::net_id::GgrsNetIdFactory;
@@ -21,13 +21,95 @@ use super::{
     Character,
 };
 
+/// Spawns the visual components (sprites, animations) for a character.
+/// Returns the spawned entity ID and the animation bundle info for further customization.
+/// 
+/// This function handles:
+/// - Loading character config and assets
+/// - Creating animation bundle
+/// - Spawning base entity with transform and visibility
+/// - Creating child sprites for each layer
+/// 
+/// # Returns
+/// A tuple of (entity_id, animation_state_name) where animation_state_name can be set on the entity
+pub fn spawn_character_visuals(
+    commands: &mut Commands,
+    global_assets: &GlobalAsset,
+    character_asset: &Assets<CharacterConfig>,
+    asset_server: &Res<AssetServer>,
+    texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
+    spritesheet_assets: &Assets<SpriteSheetConfig>,
+    config_name: &str,
+    skin: Option<&str>,
+    translation: fixed_math::FixedVec3,
+    scale_override: Option<fixed_math::Fixed>,
+) -> (Entity, HashMap<String, String>) {
+    let handle = global_assets.character_configs.get(config_name).unwrap();
+    let config = character_asset.get(handle).unwrap();
+
+    let map_layers = global_assets
+        .spritesheets
+        .get(&config.asset_name_ref)
+        .unwrap()
+        .clone();
+    let animation_handle = global_assets
+        .animations
+        .get(&config.asset_name_ref)
+        .unwrap()
+        .clone();
+
+    let starting_layer = config
+        .skins
+        .get(skin.unwrap_or(&config.starting_skin))
+        .unwrap()
+        .layers
+        .clone();
+
+    let animation_bundle = AnimationBundle::new(
+        map_layers.clone(),
+        animation_handle.clone(),
+        0,
+        starting_layer.clone(),
+    );
+
+    let scale = scale_override.unwrap_or(config.scale);
+    let transform_fixed = fixed_math::FixedTransform3D::new(
+        translation,
+        fixed_math::FixedMat3::IDENTITY,
+        fixed_math::FixedVec3::splat(scale),
+    );
+
+    let entity = commands.spawn((
+        transform_fixed.to_bevy_transform(),
+        Visibility::default(),
+        animation_bundle,
+    ));
+    
+    let entity = entity.id();
+
+    // Create child sprites for each layer
+    for k in starting_layer.keys() {
+        let spritesheet_config = spritesheet_assets.get(map_layers.get(k).unwrap()).unwrap();
+        create_child_sprite(
+            commands,
+            asset_server,
+            texture_atlas_layouts,
+            entity,
+            spritesheet_config,
+            0,
+        );
+    }
+
+    (entity, starting_layer)
+}
+
 pub fn create_character(
     commands: &mut Commands,
     global_assets: &Res<GlobalAsset>,
     character_asset: &Res<Assets<CharacterConfig>>,
     asset_server: &Res<AssetServer>,
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
-    sprint_sheet_assets: &Res<Assets<SpriteSheetConfig>>,
+    spritesheet_assets: &Res<Assets<SpriteSheetConfig>>,
 
     config_name: String,
 
@@ -41,34 +123,24 @@ pub fn create_character(
     let handle = global_assets.character_configs.get(&config_name).unwrap();
     let config = character_asset.get(handle).unwrap();
 
-    let map_layers = global_assets
-        .spritesheets
-        .get(&config.asset_name_ref)
-        .unwrap()
-        .clone();
-    let animation_handle = global_assets
-        .animations
-        .get(&config.asset_name_ref)
-        .unwrap()
-        .clone();
     let player_config_handle = global_assets
         .character_configs
         .get(&config.asset_name_ref)
         .unwrap()
         .clone();
 
-    let starting_layer = config
-        .skins
-        .get(skin.as_ref().unwrap_or(&config.starting_skin))
-        .unwrap()
-        .layers
-        .clone();
-
-    let animation_bundle = AnimationBundle::new(
-        map_layers.clone(),
-        animation_handle.clone(),
-        0,
-        starting_layer.clone(),
+    // Spawn visual components using shared function
+    let (entity, _starting_layer) = spawn_character_visuals(
+        commands,
+        global_assets.as_ref(),
+        character_asset.as_ref(),
+        asset_server,
+        texture_atlas_layouts,
+        spritesheet_assets.as_ref(),
+        &config_name,
+        skin.as_deref(),
+        translation,
+        None, // Use default scale from config
     );
 
     let transform_fixed = fixed_math::FixedTransform3D::new(
@@ -94,10 +166,10 @@ pub fn create_character(
     collider.offset.z = collider.offset.z.saturating_mul(config.scale);
     
     let health: Health = config.base_health.clone().into();
-    let mut entity = commands.spawn((
-        transform_fixed.to_bevy_transform(),
+    
+    // Add gameplay components to the visual entity
+    commands.entity(entity).insert((
         transform_fixed,
-        Visibility::default(),
         SpatialAudioEmitter { instances: vec![] },
         Velocity { main: fixed_math::FixedVec2::ZERO, knockback: fixed_math::FixedVec2::ZERO },
         SprintState::default(),
@@ -110,7 +182,6 @@ pub fn create_character(
         CharacterConfigHandles {
             config: player_config_handle.clone(),
         },
-        animation_bundle,
         id_factory.next(config_name),
     ));
 
@@ -118,14 +189,15 @@ pub fn create_character(
     if let (Some(regen_rate), Some(regen_delay_frames)) = 
         (config.base_health.regen_rate, config.base_health.regen_delay_frames) 
     {
-        entity.insert(HealthRegen {
+        commands.entity(entity).insert(HealthRegen {
             last_damage_frame: 0,
             regen_rate,
             regen_delay_frames,
         });
     }
 
-    let entity = entity.with_children(|parent| {
+    // Add health bar as child
+    commands.entity(entity).with_children(|parent| {
         parent
             .spawn((
                 HealthBar,
@@ -139,19 +211,7 @@ pub fn create_character(
             .add_rollback();
     });
 
-    let entity = entity.add_rollback().id();
-
-    for k in starting_layer.keys() {
-        let spritesheet_config = sprint_sheet_assets.get(map_layers.get(k).unwrap()).unwrap();
-        create_child_sprite(
-            commands,
-            asset_server,
-            texture_atlas_layouts,
-            entity,
-            spritesheet_config,
-            0,
-        );
-    }
+    commands.entity(entity).add_rollback();
 
     entity
 }

@@ -21,7 +21,7 @@ pub fn spawn_enemy(
     characters_asset: &Res<Assets<CharacterConfig>>,
     asset_server: &Res<AssetServer>,
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
-    sprint_sheet_assets: &Res<Assets<SpriteSheetConfig>>,
+    spritesheet_assets: &Res<Assets<SpriteSheetConfig>>,
 
     global_assets: &Res<GlobalAsset>,
     collision_settings: &Res<CollisionSettings>,
@@ -34,7 +34,7 @@ pub fn spawn_enemy(
         characters_asset,
         asset_server,
         texture_atlas_layouts,
-        sprint_sheet_assets,
+        spritesheet_assets,
         enemy_type_name,
         None,
         (LinearRgba::RED).into(),
@@ -45,16 +45,9 @@ pub fn spawn_enemy(
 
     let inventory = WeaponInventory::default();
 
-    // Give the enemy a melee weapon (zombie claws)
+    // Give the enemy a melee weapon (zombie claws, fallback to bare hands)
     if let Some(melee_weapons_config) = melee_weapons_asset.get(&global_assets.melee_weapons) {
-        // Try to give them zombie_claws, or fallback to bare_hands
-        let weapon_name = if melee_weapons_config.0.contains_key("zombie_claws") {
-            "zombie_claws"
-        } else {
-            "bare_hands"
-        };
-        
-        if let Some(weapon) = melee_weapons_config.0.get(weapon_name) {
+        if let Some(weapon) = melee_weapons_config.0.get("zombie_claws").or_else(|| melee_weapons_config.0.get("bare_hands")) {
             spawn_melee_weapon_for_character(
                 commands,
                 entity,
