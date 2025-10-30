@@ -150,6 +150,9 @@ build_website: build_wasm_apps
 build_docker_website: build_wasm_apps
 	docker build --build-arg APP_VERSION=$(VERSION) -f ./website/Dockerfile ./website -t ghcr.io/bascanada/alacod:latest
 
+build_docker_builder:
+	docker build -f ./Dockerfile.builder ./ -t ghcr.io/bascanada/alacod-builder:latest
+
 export_docker_website:
 	docker create --name tmp ghcr.io/bascanada/alacod:latest
     docker cp tmp:/usr/share/nginx/html ./build
@@ -158,6 +161,8 @@ export_docker_website:
 push_docker_website:
 	docker push ghcr.io/bascanada/alacod:latest
 
+push_docker_builder:
+	docker push ghcr.io/bascanada/alacod-builder:latest
 
 print_version:
 	@echo "Current Tag: $(CURRENT_TAG)"
