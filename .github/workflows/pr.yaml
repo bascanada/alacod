@@ -15,9 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/bascanada/alacod-builder:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
+      
       - name: Cache sccache
         uses: actions/cache@v4
         with:
@@ -25,13 +29,17 @@ jobs:
           key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-sccache-
+
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
-      - name: Dependencies
-        run: cargo vendor && (make dep_web || echo "ok")
+      
       - name: Test
         run: make test
+      
       - name: Style Check
         run: make format
+      
       - name: Build web
         run: make build_website TARGET=web PROFILE=dev
+        env:
+          CARGO_BUILD_JOBS: 1
