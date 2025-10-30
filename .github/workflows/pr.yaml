@@ -16,8 +16,8 @@ jobs:
     container:
       image: ghcr.io/bascanada/alacod-builder:latest
       credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        username: wquintal
+        password: ${{ secrets.ACCESS_TOKEN }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
