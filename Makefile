@@ -151,7 +151,7 @@ build_docker_website: build_wasm_apps
 	docker build --build-arg APP_VERSION=$(VERSION) -f ./website/Dockerfile ./website -t ghcr.io/bascanada/alacod:latest
 
 build_docker_builder:
-	docker build -f ./Dockerfile.builder ./ -t ghcr.io/bascanada/alacod-builder:latest
+	docker build --platform linux/amd64 -f ./Dockerfile.builder ./ -t ghcr.io/bascanada/alacod-builder:latest
 
 export_docker_website:
 	docker create --name tmp ghcr.io/bascanada/alacod:latest

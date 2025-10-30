@@ -18,6 +18,12 @@ RUN apt-get update && apt-get install -y \
 # Install sccache
 RUN apt-get update && apt-get install -y sccache && rm -rf /var/lib/apt/lists/*
 
+# Switch to nightly toolchain to match rust-toolchain.toml
+RUN rustup default nightly
+
+# Install rustfmt and clippy first
+RUN rustup component add rustfmt clippy
+
 # Add wasm target
 RUN rustup target add wasm32-unknown-unknown
 
@@ -29,9 +35,6 @@ RUN wget https://github.com/WebAssembly/binaryen/releases/download/version_119/b
     tar -xzf binaryen-version_119-x86_64-linux.tar.gz && \
     cp binaryen-version_119/bin/wasm-opt /usr/local/bin/ && \
     rm -rf binaryen-version_119 binaryen-version_119-x86_64-linux.tar.gz
-
-# Install rustfmt and clippy
-RUN rustup component add rustfmt clippy
 
 # Set up sccache
 ENV RUSTC_WRAPPER=sccache
