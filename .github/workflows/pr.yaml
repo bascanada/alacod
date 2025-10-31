@@ -40,8 +40,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sccache-
 
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo registry and git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
       
       - name: Test
         run: make test
