@@ -26,8 +26,8 @@ use crate::{
             Enemy,
         },
         health::{
-            rollback_apply_accumulated_damage, rollback_apply_death, ui::update_health_bars,
-            DamageAccumulator, Death, Health,
+            rollback_apply_accumulated_damage, rollback_apply_death, rollback_health_regeneration, 
+            ui::update_health_bars, DamageAccumulator, Death, Health, HealthRegen,
         },
         movement::{apply_knockback_damping, KnockbackDampingConfig, SprintState, Velocity},
         player::{
@@ -64,6 +64,7 @@ impl Plugin for BaseCharacterGamePlugin {
             .rollback_component_with_clone::<EnemyPath>()
             .rollback_resource_with_copy::<PointerWorldPosition>()
             .rollback_component_with_clone::<Health>()
+            .rollback_component_with_clone::<HealthRegen>()
             .rollback_component_with_clone::<DamageAccumulator>()
             .rollback_component_with_clone::<DashState>()
             .rollback_component_with_clone::<SprintState>()
@@ -74,7 +75,14 @@ impl Plugin for BaseCharacterGamePlugin {
 
         app.add_systems(ReadInputs, read_local_inputs);
 
-        app.add_systems(Update, (set_sprite_flip, update_health_bars));
+        // Non-rollback systems: update visuals
+        app.add_systems(
+            Update,
+            (
+                set_sprite_flip,
+                update_health_bars,
+            ),
+        );
 
         app.add_systems(
             GgrsSchedule,
@@ -87,7 +95,8 @@ impl Plugin for BaseCharacterGamePlugin {
                 // HEALTH
                 (
                     rollback_apply_accumulated_damage,
-                    rollback_apply_death.after(rollback_apply_accumulated_damage),
+                    rollback_health_regeneration.after(rollback_apply_accumulated_damage),
+                    rollback_apply_death.after(rollback_health_regeneration),
                 )
                     .in_set(RollbackSystemSet::DeathManagement),
                 // KNOCKBACK DAMPING - Apply after weapons (which apply knockback) but before animation/AI

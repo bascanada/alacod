@@ -32,7 +32,6 @@ endif
 ifeq ($(PROFILE), prod)
 	export MODE_DIR := release
 	export RELEASE := --release
-
 endif
 
 ifeq ($(TARGET), native)
@@ -43,9 +42,10 @@ endif
 ifeq ($(TARGET), web)
 	export RUSTFLAGS := --cfg=web_sys_unstable_apis
 	export CARGO_TARGET_DIR := ./target_wasm
+	ifeq ($(PROFILE), prod)
+		export CARGO_TARGET_DIR := ./target_wasm_prod
+	endif
 endif
-
-
 
 
 # ALL
@@ -127,16 +127,25 @@ cp_asset:
 	cp -r ./assets/* ./website/static/$(VERSION)/assets/
 
 build_map_preview_web:
-	APP_VERSION=$(VERSION) cargo build --example map_preview --target wasm32-unknown-unknown --features bevy_ecs_tilemap/atlas $(RELEASE)
+	APP_VERSION=$(VERSION) cargo build --example map_preview --target wasm32-unknown-unknown --no-default-features --features bevy_ecs_tilemap/atlas $(RELEASE)
 	wasm-bindgen --out-dir ./website/static/$(VERSION)/map_preview --out-name wasm --target web $(CARGO_TARGET_DIR)/wasm32-unknown-unknown/$(MODE_DIR)/examples/map_preview.wasm
+ifeq ($(PROFILE), prod)
+	wasm-opt -Oz --vacuum ./website/static/$(VERSION)/map_preview/wasm_bg.wasm -o ./website/static/$(VERSION)/map_preview/wasm_bg.wasm
+endif
 
 build_character_tester_web:
-	APP_VERSION=$(VERSION) cargo build --example character_tester --target wasm32-unknown-unknown $(RELEASE)
+	APP_VERSION=$(VERSION) cargo build --example character_tester --target wasm32-unknown-unknown --no-default-features $(RELEASE)
 	wasm-bindgen --out-dir ./website/static/$(VERSION)/character_tester --out-name wasm --target web $(CARGO_TARGET_DIR)/wasm32-unknown-unknown/$(MODE_DIR)/examples/character_tester.wasm
+ifeq ($(PROFILE), prod)
+	wasm-opt -Oz --vacuum ./website/static/$(VERSION)/character_tester/wasm_bg.wasm -o ./website/static/$(VERSION)/character_tester/wasm_bg.wasm
+endif
 
 build_ldtk_map_explorer_web:
-	APP_VERSION=$(VERSION) cargo build --example map_explorer --target wasm32-unknown-unknown $(RELEASE)
+	APP_VERSION=$(VERSION) cargo build --example map_explorer --target wasm32-unknown-unknown --no-default-features $(RELEASE)
 	wasm-bindgen --out-dir ./website/static/$(VERSION)/map_explorer --out-name wasm --target web $(CARGO_TARGET_DIR)/wasm32-unknown-unknown/$(MODE_DIR)/examples/map_explorer.wasm
+ifeq ($(PROFILE), prod)
+	wasm-opt -Oz --vacuum ./website/static/$(VERSION)/map_explorer/wasm_bg.wasm -o ./website/static/$(VERSION)/map_explorer/wasm_bg.wasm
+endif
 
 
 build_wasm_apps: cp_asset build_map_preview_web build_character_tester_web build_ldtk_map_explorer_web
@@ -147,11 +156,19 @@ build_website: build_wasm_apps
 build_docker_website: build_wasm_apps
 	docker build --build-arg APP_VERSION=$(VERSION) -f ./website/Dockerfile ./website -t ghcr.io/bascanada/alacod:latest
 
+build_docker_builder:
+	docker build --platform linux/amd64 -f ./Dockerfile.builder ./ -t ghcr.io/bascanada/alacod-builder:latest
+
+export_docker_website:
+	docker create --name tmp ghcr.io/bascanada/alacod:latest
+    docker cp tmp:/usr/share/nginx/html ./build
 
 # Publish
 push_docker_website:
 	docker push ghcr.io/bascanada/alacod:latest
 
+push_docker_builder:
+	docker push ghcr.io/bascanada/alacod-builder:latest
 
 print_version:
 	@echo "Current Tag: $(CURRENT_TAG)"

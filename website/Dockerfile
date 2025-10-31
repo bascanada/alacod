@@ -28,6 +28,6 @@ COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
 
-LABEL org.opencontainers.image.source=https://github.com/bascanada/zombie-alacod
+LABEL org.opencontainers.image.source=https://github.com/bascanada/alacod
 LABEL org.opencontainers.image.description="Container image for the website with the wasm"
 

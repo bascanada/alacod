@@ -1,6 +1,6 @@
-use std::{hash::{Hash, Hasher}, ops::{Deref, DerefMut}};
+use std::hash::{Hash, Hasher};
 
-use bevy::{ecs::reflect, math::Affine3A, prelude::*};
+use bevy::{math::Affine3A, prelude::*};
 use fixed::{
     types::extra::{U16, U32},
     FixedI32, FixedI64,
@@ -41,13 +41,13 @@ pub struct FixedVec3 {
 // --- The Wrapper Type for Reflection ---
 impl std::fmt::Display for FixedVec2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "( {} {} )", self.x, self.y)
+        write!(f, "( {:.3} {:.3} )", self.x.to_num::<f32>(), self.y.to_num::<f32>())
     }
 }
 
 impl std::fmt::Display for FixedVec3 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "( {} {} {} )", self.x, self.y, self.z)
+        write!(f, "( {:.3} {:.3} {:.3} )", self.x.to_num::<f32>(), self.y.to_num::<f32>(), self.z.to_num::<f32>())
     }
 }
 
@@ -893,5 +893,40 @@ pub fn sync_bevy_transforms_from_fixed(mut query: Query<(&FixedTransform3D, &mut
         // or matrices with shear. Ensure your FixedMat3 correctly represents a pure rotation.
         // If your primary fixed-point rotation representation is Euler angles or a fixed-point quaternion,
         // converting from that to Bevy's Quat might be more direct or stable.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fixed_vec2_display_precision() {
+        // Test with values that have many decimal places
+        let vec = FixedVec2::from_f32(-30.34894123, -53.05115789);
+        let display = format!("{}", vec);
+        
+        // Should only show 3 decimal places
+        assert!(display.contains("-30.349"), "FixedVec2 display should show 3 decimal places for x: {}", display);
+        assert!(display.contains("-53.051"), "FixedVec2 display should show 3 decimal places for y: {}", display);
+        
+        // Should not contain more than 3 decimal places
+        assert!(!display.contains("-30.3489"), "FixedVec2 display should not show more than 3 decimal places: {}", display);
+        
+        println!("FixedVec2 display: {}", display);
+    }
+
+    #[test]
+    fn test_fixed_vec3_display_precision() {
+        // Test with values that have many decimal places
+        let vec = FixedVec3::from_f32(-22.27951234, 15.12345678, -100.99999999);
+        let display = format!("{}", vec);
+        
+        // Should only show 3 decimal places
+        assert!(display.contains("-22.280"), "FixedVec3 display should show 3 decimal places for x: {}", display);
+        assert!(display.contains("15.123"), "FixedVec3 display should show 3 decimal places for y: {}", display);
+        assert!(display.contains("-101.000"), "FixedVec3 display should show 3 decimal places for z: {}", display);
+        
+        println!("FixedVec3 display: {}", display);
     }
 }

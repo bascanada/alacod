@@ -1,6 +1,9 @@
 use animation::SpriteSheetConfig;
 use bevy::prelude::*;
-use bevy_light_2d::light::{AmbientLight2d, PointLight2d};
+
+#[cfg(feature = "lighting")]
+use bevy_light_2d::light::PointLight2d;
+
 use leafwing_input_manager::{prelude::ActionState, InputManagerBundle};
 use utils::net_id::GgrsNetIdFactory;
 
@@ -100,20 +103,37 @@ pub fn create_player(
         }
     }
 
-    commands.entity(entity).insert((
-        inventory,
-        CursorPosition::default(),
-        super::input::InteractionInput::default(),
-        crate::interaction::Interactor,
-        Player {
-            handle,
-            color: PLAYER_COLORS[handle].into(),
-        },
-        PointLight2d {
-            radius: 200.,
-            cast_shadows: false,
-            falloff: 4.,
-            ..default()
-        },
-    ));
+    #[cfg(feature = "lighting")]
+    {
+        commands.entity(entity).insert((
+            inventory,
+            CursorPosition::default(),
+            super::input::InteractionInput::default(),
+            crate::interaction::Interactor,
+            Player {
+                handle,
+                color: PLAYER_COLORS[handle].into(),
+            },
+            PointLight2d {
+                radius: 200.,
+                cast_shadows: false,
+                falloff: 4.,
+                ..default()
+            },
+        ));
+    }
+    
+    #[cfg(not(feature = "lighting"))]
+    {
+        commands.entity(entity).insert((
+            inventory,
+            CursorPosition::default(),
+            super::input::InteractionInput::default(),
+            crate::interaction::Interactor,
+            Player {
+                handle,
+                color: PLAYER_COLORS[handle].into(),
+            },
+        ));
+    }
 }

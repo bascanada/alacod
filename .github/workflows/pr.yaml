@@ -10,28 +10,28 @@ on:
       - synchronize
       - reopened
 
-env: 
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
-  RUSTC_WRAPPER: "sccache"
-
-
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/bascanada/alacod-builder:latest
+      credentials:
+        username: wquintal
+        password: ${{ secrets.ACCESS_TOKEN }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
-      - name: Free up disk space
+      - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: false
+          
           android: true
-      - name: Install sccache
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sccache
-
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
       - name: Cache sccache
         uses: actions/cache@v4
         with:
@@ -40,15 +40,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sccache-
 
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-      - name: Dependency
-        run: sudo apt-get install g++ make pkg-config libx11-dev libasound2-dev libudev-dev libxkbcommon-x11-0 libwayland-dev libxkbcommon-dev && rustup component add rustfmt
-      - name: Dependencies
-        run: cargo vendor && (make dep_web || echo "ok")
+      - name: Cache cargo registry and git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
       - name: Test
         run: make test
+      
       - name: Style Check
         run: make format
+      
       - name: Build web
         run: make build_website TARGET=web PROFILE=dev
+        env:
+          CARGO_BUILD_JOBS: 1
