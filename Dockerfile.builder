@@ -15,6 +15,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Node.js and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install sccache
 RUN apt-get update && apt-get install -y sccache && rm -rf /var/lib/apt/lists/*
 
@@ -46,7 +51,9 @@ RUN rustc --version && \
     cargo --version && \
     wasm-bindgen --version && \
     wasm-opt --version && \
-    sccache --version
+    sccache --version && \
+    node --version && \
+    npm --version
 
 WORKDIR /workspace
 
