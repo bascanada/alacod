@@ -19,14 +19,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Maximize Build Space
-        uses: easimon/maximize-build-space-action@v10
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
         with:
-          # Removes a ton of pre-installed tools
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-large-packages: 'true'
+          tool-cache: false
+          
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
       - name: Cache sccache
         uses: actions/cache@v4
         with:
@@ -35,8 +38,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-sccache-
 
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Cache cargo registry and git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
       - name: Login docker
         run: docker login https://ghcr.io -u wquintal -p $GITHUB_ACCESS_TOKEN
         env:
