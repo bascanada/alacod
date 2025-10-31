@@ -21,14 +21,17 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-      - name: Maximize Build Space
-        uses: easimon/maximize-build-space-action@v10
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
         with:
-          # Removes a ton of pre-installed tools
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-large-packages: 'true'
+          tool-cache: false
+          
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
       - name: Cache sccache
         uses: actions/cache@v4
         with:
