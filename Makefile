@@ -160,8 +160,8 @@ build_docker_builder:
 	docker build --platform linux/amd64 -f ./Dockerfile.builder ./ -t ghcr.io/bascanada/alacod-builder:latest
 
 export_docker_website:
-	docker create --name tmp ghcr.io/bascanada/alacod:latest
-    docker cp tmp:/usr/share/nginx/html ./build
+	docker create --name $(VERSION) ghcr.io/bascanada/alacod:latest && \
+    docker cp $(VERSION):/usr/share/nginx/html ./build
 
 # Publish
 push_docker_website:
