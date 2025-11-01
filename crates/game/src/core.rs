@@ -1,7 +1,7 @@
 
 use animation::D2AnimationPlugin;
 use bevy::{
-    app::PluginGroupBuilder, asset::AssetMetaCheck, log::LogPlugin, prelude::*,
+    app::PluginGroupBuilder, asset::AssetMetaCheck, diagnostic::FrameTimeDiagnosticsPlugin, log::LogPlugin, prelude::*,
     window::WindowResolution,
 };
 use bevy_fixed::{
@@ -73,6 +73,7 @@ pub struct CoreSetupPlugin(pub CoreSetupConfig);
 
 impl Plugin for CoreSetupPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(FrameTimeDiagnosticsPlugin::default());
         app.add_plugins(ZLightPlugin);
         app.add_plugins(ZAudioPlugin);
         app.add_plugins(WebPlugin);

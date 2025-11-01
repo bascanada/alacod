@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin}, prelude::*};
 use utils::frame::FrameCount;
 
 use crate::core::GameInfo;
@@ -38,13 +38,22 @@ fn setup_frame_counter_ui(mut commands: Commands, asset_server: Res<AssetServer>
 fn update_frame_counter_text(
     frame_count: Res<FrameCount>, // Access the FrameCount resource
     game_info: Res<GameInfo>,
+    diagnostics: Res<DiagnosticsStore>,
     mut query: Query<&mut Text, With<FrameCountText>>, // Query for mutable Text components with our marker
 ) {
-    if let Ok(mut text) = query.get_single_mut() {
-        text.0 = format!("{} : {}", game_info.version, frame_count.frame);
+    for mut text in &mut query {
+    
+    let fps_text = if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
+        if let Some(value) = fps.smoothed() {
+            format!("{:.1}", value)
+        } else {
+            "...".to_string()
+        }
     } else {
-        // Optional: Log a warning if the text entity wasn't found or multiple exist.
-        warn!("Could not find unique FrameCountText entity to update.");
+        "...".to_string()
+    };
+        
+        text.0 = format!("{} : {} | FPS: {}", game_info.version, frame_count.frame, fps_text);
     }
 }
 
