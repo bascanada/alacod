@@ -62,6 +62,8 @@ jobs:
         run:  make build_docker_website TARGET=web PROFILE=prod
       - name: Publish docker website
         run: make push_docker_website
+      - name: Mark Git workspace as safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Copy build files from container
         run: make export_docker_website
       - name: Publish to Cloudflare Pages
