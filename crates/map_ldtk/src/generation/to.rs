@@ -9,7 +9,7 @@ use bevy_fixed::rng::RollbackRng;
 use serde_json::Value;
 
 use map::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::{
-    entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
+    entity::{door::DoorConfig, enemy_spawn::EnemySpawnConfig, location::EntityLocation, window::WindowConfig},
     room::{Room, RoomConnection},
     IMapGenerator,
 }};
@@ -371,5 +371,23 @@ impl IMapGenerator for GeneratedMap {
                 )
             ]);
         }
+    }
+
+    fn add_enemy_spawns(&mut self, rng: &mut RollbackRng, enemy_spawns: &Vec<(EntityLocation, EnemySpawnConfig)>) {
+        println!("Adding {} enemy spawns to map", enemy_spawns.len());
+        
+        for (location, _spawn) in enemy_spawns.iter() {
+            println!("  Enemy spawn at ({}, {}) in level {}",
+                     location.position.0, location.position.1, location.level_iid);
+            
+            self.add_entity_to_level(
+                rng,
+                location,
+                map_const::ENTITY_ZOMBIE_SPAWN_LOCATION,
+                vec![],
+            );
+        }
+        
+        println!("Enemy spawn generation complete\n");
     }
 }

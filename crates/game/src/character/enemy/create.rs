@@ -59,5 +59,11 @@ pub fn spawn_enemy(
 
     commands
         .entity(entity)
-        .insert((inventory, EnemyPath::default(), Enemy::default()));
+        .insert((
+            inventory,
+            EnemyPath::default(),
+            Enemy::default(),
+            super::ai::combat::ZombieState::default(),
+            super::ai::combat::ZombieTarget::default(),
+        ));
 }

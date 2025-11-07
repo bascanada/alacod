@@ -476,6 +476,7 @@ impl Plugin for InteractionPlugin {
                 interaction_detection_system,
                 handle_door_interaction,
                 handle_window_repair,
+                handle_zombie_window_damage,
             )
                 .chain()
                 .after(RollbackSystemSet::Input)
@@ -690,6 +691,126 @@ pub fn display_interaction_prompts(
         // Clear the text if no interactable is in range for any local player
         if let Ok(mut text) = text_query.single_mut() {
             text.0.clear();
+        }
+    }
+}
+
+/// System that handles zombie attacks on windows (damage from zombies)
+/// This is separate from player repairs and runs in the GGRS schedule
+pub fn handle_zombie_window_damage(
+    frame: Res<FrameCount>,
+    mut event_reader: EventReader<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>,
+    mut window_repaired_writer: EventWriter<WindowRepairedEvent>,
+    mut commands: Commands,
+    mut window_query: Query<
+        (
+            Entity,
+            &GgrsNetId,
+            &map::game::entity::MapRollbackItem,
+            &mut map::game::entity::map::window::WindowHealth,
+            Option<&Collider>,
+            Option<&CollisionLayer>,
+        ),
+        With<Rollback>,
+    >,
+    collision_settings: Res<crate::collider::CollisionSettings>,
+) {
+    let system_span = span!(Level::INFO, "ggrs", f = frame.frame, s = "handle_zombie_window_damage_system");
+    let _enter = system_span.enter();
+
+    for event in event_reader.read() {
+        info!(
+            "{} [GGRS] zombie {} attacking window {}",
+            frame.as_ref(),
+            event.zombie_net_id,
+            event.window_net_id
+        );
+
+        if let Ok((window_entity, window_net_id, rollback_item, mut window_health, collider_opt, collision_layer_opt)) =
+            window_query.get_mut(event.window_entity)
+        {
+            info!(
+                "{} [GGRS] window {} state before damage: health={}/{}, has_collider={}, has_layer={}",
+                frame.as_ref(),
+                window_net_id,
+                window_health.current,
+                window_health.max,
+                collider_opt.is_some(),
+                collision_layer_opt.is_some()
+            );
+
+            // Apply damage
+            let old_health = window_health.current;
+            window_health.current = window_health.current.saturating_sub(event.damage);
+
+            info!(
+                "{} [GGRS] window {} DAMAGED: health {}→{}/{}",
+                frame.as_ref(),
+                window_net_id,
+                old_health,
+                window_health.current,
+                window_health.max
+            );
+
+            // If window health reaches 0, remove collision so zombies can pass through
+            if window_health.current == 0 && old_health > 0 {
+                info!(
+                    "{} [GGRS] window {} DESTROYED - removing collision",
+                    frame.as_ref(),
+                    window_net_id
+                );
+                
+                // Remove collider and collision layer to allow zombies to pass
+                commands.entity(window_entity)
+                    .remove::<Collider>()
+                    .remove::<CollisionLayer>();
+            }
+            // If window was broken but now has health (shouldn't happen from damage, but for completeness)
+            else if window_health.current > 0 && old_health == 0 {
+                info!(
+                    "{} [GGRS] window {} RESTORED - adding collision",
+                    frame.as_ref(),
+                    window_net_id
+                );
+                
+                // Restore collider if it doesn't exist
+                if collider_opt.is_none() {
+                    commands.entity(window_entity).insert((
+                        Collider {
+                            shape: crate::collider::ColliderShape::Rectangle {
+                                width: fixed_math::new(32.0),
+                                height: fixed_math::new(32.0),
+                            },
+                            offset: fixed_math::FixedVec3::ZERO,
+                        },
+                        CollisionLayer(collision_settings.window_layer),
+                    ));
+                }
+            }
+
+            // Send event for visual feedback
+            window_repaired_writer.write(WindowRepairedEvent {
+                window_net_id: window_net_id.clone(),
+                visual_entity: rollback_item.parent,
+                new_health: window_health.current,
+                max_health: window_health.max,
+            });
+
+            info!(
+                "{} [GGRS] window {} state after damage: health={}/{}, entity={:?}",
+                frame.as_ref(),
+                window_net_id,
+                window_health.current,
+                window_health.max,
+                window_entity
+            );
+        } else {
+            warn!(
+                "{} [GGRS] zombie window attack FAILED: window entity {:?} (net_id {}) not found",
+                frame.as_ref(),
+                event.window_entity,
+                event.window_net_id
+            );
         }
     }
 }

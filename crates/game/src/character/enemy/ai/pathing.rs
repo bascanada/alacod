@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_fixed::rng::RollbackRng;
 use std::collections::VecDeque;
-use utils::frame::FrameCount;
+use utils::{frame::FrameCount, net_id::GgrsNetId};
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct EnemyPath {
@@ -78,52 +78,83 @@ impl Default for PathfindingConfig {
 }
 
 // System to find closest player and set as target
+// Now also considers zombie targets (windows or players) from the combat system
 pub fn update_enemy_targets(
-    player_query: Query<(&fixed_math::FixedTransform3D, &Player)>, // Assuming Player uses FixedTransform3D
-    mut enemy_query: Query<(&fixed_math::FixedTransform3D, &mut EnemyPath), With<Enemy>>,
+    player_query: Query<(&GgrsNetId, &fixed_math::FixedTransform3D, &Player)>,
+    mut enemy_query: Query<
+        (
+            &fixed_math::FixedTransform3D,
+            &mut EnemyPath,
+            Option<&super::combat::ZombieTarget>,
+        ),
+        With<Enemy>,
+    >,
+    window_query: Query<(&GgrsNetId, &fixed_math::FixedTransform3D), With<crate::collider::Window>>,
     frame: Res<FrameCount>,
     config: Res<PathfindingConfig>,
 ) {
-    // Get all player positions
-    let player_positions: Vec<fixed_math::FixedVec2> = player_query // Changed Vec<Vec2>
+    // Get all player positions with their net IDs
+    let player_positions: Vec<(GgrsNetId, fixed_math::FixedVec2)> = player_query
         .iter()
-        .map(|(fixed_transform, _)| fixed_transform.translation.truncate()) // .truncate() is correct
+        .map(|(net_id, fixed_transform, _)| (net_id.clone(), fixed_transform.translation.truncate()))
         .collect();
 
-    if player_positions.is_empty() {
-        return;
-    }
-
     // Update each enemy's target
-    for (enemy_fixed_transform, mut path) in enemy_query.iter_mut() {
+    for (enemy_fixed_transform, mut path, zombie_target_opt) in enemy_query.iter_mut() {
         // Only update periodically to save performance
         if frame.frame % config.recalculation_interval != 0 {
             continue;
         }
 
-        // Find the closest player
         let enemy_pos_v2 = enemy_fixed_transform.translation.truncate();
-        // Initialize with the first player, assuming player_positions is not empty (checked above)
-        let mut closest_player_pos_v2 = player_positions[0];
-        let mut closest_distance_sq = enemy_pos_v2.distance_squared(&closest_player_pos_v2); // Use distance_squared for comparison
 
-        for player_pos_v2 in player_positions.iter().skip(1) {
-            // Iterate from the second element
-            let distance_sq = enemy_pos_v2.distance_squared(player_pos_v2);
-            if distance_sq < closest_distance_sq {
-                closest_distance_sq = distance_sq;
-                closest_player_pos_v2 = *player_pos_v2;
+        // If zombie has a specific target (window or player), use that
+        if let Some(zombie_target) = zombie_target_opt {
+            if let Some(ref target_net_id) = zombie_target.target {
+                // Try to get target position based on type
+                let target_pos_opt = match zombie_target.target_type {
+                    super::combat::TargetType::Player => {
+                        // Find player by net ID
+                        player_positions
+                            .iter()
+                            .find(|(net_id, _)| net_id == target_net_id)
+                            .map(|(_, pos)| *pos)
+                    }
+                    super::combat::TargetType::Window => {
+                        // Get window position by net ID
+                        window_query
+                            .iter()
+                            .find(|(net_id, _)| *net_id == target_net_id)
+                            .map(|(_, transform)| transform.translation.truncate())
+                    }
+                    super::combat::TargetType::None => None,
+                };
+
+                if let Some(target_pos) = target_pos_opt {
+                    path.target_position = target_pos;
+                    path.recalculate_ticks = frame.frame;
+                    continue;
+                }
             }
         }
 
-        // Set the target
-        path.target_position = closest_player_pos_v2;
+        // Fallback: find closest player if no zombie target or target is invalid
+        if !player_positions.is_empty() {
+            // Initialize with the first player
+            let mut closest_player_pos_v2 = player_positions[0].1;
+            let mut closest_distance_sq = enemy_pos_v2.distance_squared(&closest_player_pos_v2);
 
-        // Mark for path recalculation
-        path.recalculate_ticks = frame.frame; // This seems to be setting it to current frame, not a timer
-                                              // Consider if you want path.path_status = PathStatus::CalculatingPath; here
-                                              // or if recalculate_ticks is used differently.
-                                              // For now, matching original logic.
+            for (_, player_pos_v2) in player_positions.iter().skip(1) {
+                let distance_sq = enemy_pos_v2.distance_squared(player_pos_v2);
+                if distance_sq < closest_distance_sq {
+                    closest_distance_sq = distance_sq;
+                    closest_player_pos_v2 = *player_pos_v2;
+                }
+            }
+
+            path.target_position = closest_player_pos_v2;
+            path.recalculate_ticks = frame.frame;
+        }
     }
 }
 

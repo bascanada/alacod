@@ -18,15 +18,21 @@ use crate::{
         config::CharacterConfig,
         dash::DashState,
         enemy::{
-            ai::pathing::{
-                calculate_paths, check_direct_paths, move_enemies, update_enemy_targets, EnemyPath,
-                PathfindingConfig,
+            ai::{
+                combat::{
+                    zombie_attack_system, zombie_target_selection, ZombieCombatConfig, ZombieState,
+                    ZombieTarget,
+                },
+                pathing::{
+                    calculate_paths, check_direct_paths, move_enemies, update_enemy_targets,
+                    EnemyPath, PathfindingConfig,
+                },
             },
             spawning::{enemy_spawn_from_spawners_system, EnemySpawnerState},
             Enemy,
         },
         health::{
-            rollback_apply_accumulated_damage, rollback_apply_death, rollback_health_regeneration, 
+            rollback_apply_accumulated_damage, rollback_apply_death, rollback_health_regeneration,
             ui::update_health_bars, DamageAccumulator, Death, Health, HealthRegen,
         },
         movement::{apply_knockback_damping, KnockbackDampingConfig, SprintState, Velocity},
@@ -56,12 +62,16 @@ impl Plugin for BaseCharacterGamePlugin {
 
         app.init_resource::<PathfindingConfig>();
         app.init_resource::<KnockbackDampingConfig>();
+    app.init_resource::<ZombieCombatConfig>();
+    app.add_event::<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>();
 
         app.rollback_resource_with_clone::<PathfindingConfig>()
             .rollback_resource_with_clone::<KnockbackDampingConfig>()
             .rollback_component_with_clone::<EnemySpawnerComponent>()
             .rollback_component_with_clone::<EnemySpawnerState>()
             .rollback_component_with_clone::<EnemyPath>()
+            .rollback_component_with_clone::<ZombieState>()
+            .rollback_component_with_clone::<ZombieTarget>()
             .rollback_resource_with_copy::<PointerWorldPosition>()
             .rollback_component_with_clone::<Health>()
             .rollback_component_with_clone::<HealthRegen>()
@@ -108,12 +118,14 @@ impl Plugin for BaseCharacterGamePlugin {
                 (update_animation_state,).in_set(RollbackSystemSet::AnimationUpdates),
                 // SPAWING
                 (enemy_spawn_from_spawners_system,).in_set(RollbackSystemSet::EnemySpawning),
-                // LOGIC OF ENEMY
+                // ZOMBIE TARGET SELECTION + ATTACKS
                 (
-                    update_enemy_targets,
+                    zombie_target_selection,
+                    update_enemy_targets.after(zombie_target_selection),
                     check_direct_paths.after(update_enemy_targets),
                     calculate_paths.after(check_direct_paths),
                     move_enemies.after(calculate_paths),
+                    zombie_attack_system.after(move_enemies),
                 )
                     .in_set(RollbackSystemSet::EnemyAI),
             ),

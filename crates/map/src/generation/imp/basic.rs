@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::{game::entity::map::player_spawn::PlayerSpawnConfig, generation::{
     context::{AvailableLevel, LevelType, MapGenerationContext, MapGenerationData},
-    entity::{door::DoorConfig, location::EntityLocation, window::WindowConfig},
+    entity::{door::DoorConfig, enemy_spawn::EnemySpawnConfig, location::EntityLocation, window::WindowConfig},
     position::Position,
     room::{ConnectionTo, RoomConnection},
     IMapGeneration, Room, LEVEL_PROPERTIES_SPAWN_NAME,
@@ -465,6 +465,29 @@ impl IMapGeneration for BasicMapGeneration {
                         )
                     })
                     .collect::<Vec<(EntityLocation, PlayerSpawnConfig)>>()
+            })
+            .collect()
+    }
+
+    fn get_enemy_spawns(&mut self, rng: &mut RollbackRng,) -> Vec<(EntityLocation, EnemySpawnConfig)> {
+        self.map
+            .rooms
+            .iter()
+            .flat_map(|room| {
+                room.entity_locations
+                    .zombie_spawns
+                    .iter()
+                    .map(|location| {
+                        (
+                            EntityLocation {
+                                position: location.position,
+                                size: location.size,
+                                level_iid: room.level_iid.clone(),
+                            },
+                            EnemySpawnConfig {},
+                        )
+                    })
+                    .collect::<Vec<(EntityLocation, EnemySpawnConfig)>>()
             })
             .collect()
     }
