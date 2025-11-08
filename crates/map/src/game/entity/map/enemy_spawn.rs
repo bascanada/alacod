@@ -15,7 +15,7 @@ impl Default for EnemySpawnerComponent {
         Self {
             spawn_radius: fixed_math::new(50.0),
             min_spawn_distance: fixed_math::new(200.0),
-            max_cooldown: 600, // 10 seconds at 60fps (slower spawn rate)
+            max_cooldown: 1800, // 30 seconds at 60fps (much slower spawn rate)
             max_enemies: 3,    // Per spawner
             enemy_types: vec!["zombie_full".to_string()],
         }

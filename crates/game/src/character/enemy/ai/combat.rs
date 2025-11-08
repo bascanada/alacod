@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;
 use serde::{Deserialize, Serialize};
-use utils::{frame::FrameCount, net_id::GgrsNetId};
+use utils::{frame::FrameCount, net_id::GgrsNetId, order_mut_iter};
 
 use crate::{
     character::{
@@ -90,9 +90,7 @@ impl Default for ZombieCombatConfig {
 /// Event for zombie attacking a window
 #[derive(Event, Clone, Debug)]
 pub struct ZombieWindowAttackEvent {
-    pub zombie_entity: Entity,
     pub zombie_net_id: GgrsNetId,
-    pub window_entity: Entity,
     pub window_net_id: GgrsNetId,
     pub damage: u8,
 }
@@ -120,7 +118,7 @@ pub fn zombie_target_selection(
     >,
     config: Res<ZombieCombatConfig>,
 ) {
-    for (zombie_net_id, zombie_transform, mut target, mut state) in zombie_query.iter_mut() {
+    for (zombie_net_id, zombie_transform, mut target, mut state) in order_mut_iter!(zombie_query) {
         let zombie_pos = zombie_transform.translation.truncate();
 
         // Check current state - don't retarget if already attacking or breaching
@@ -207,19 +205,19 @@ pub fn zombie_attack_system(
     frame: Res<FrameCount>,
     mut zombie_query: Query<
         (
-            Entity,
             &GgrsNetId,
+            Entity,
             &fixed_math::FixedTransform3D,
-            &ZombieTarget,
+            &mut ZombieTarget,
             &mut ZombieState,
         ),
         With<Enemy>,
     >,
-    player_query: Query<(Entity, &GgrsNetId, &fixed_math::FixedTransform3D), (With<Player>, Without<Enemy>)>,
+    player_query: Query<(&GgrsNetId, Entity, &fixed_math::FixedTransform3D), (With<Player>, Without<Enemy>)>,
     window_query: Query<
         (
-            Entity,
             &GgrsNetId,
+            Entity,
             &fixed_math::FixedTransform3D,
             &map::game::entity::map::window::WindowHealth,
         ),
@@ -229,7 +227,7 @@ pub fn zombie_attack_system(
     mut player_damage_query: Query<&mut DamageAccumulator>,
     config: Res<ZombieCombatConfig>,
 ) {
-    for (zombie_entity, zombie_net_id, zombie_transform, target, mut state) in zombie_query.iter_mut() {
+    for (zombie_net_id, zombie_entity, zombie_transform, mut target, mut state) in order_mut_iter!(zombie_query) {
         let zombie_pos = zombie_transform.translation.truncate();
 
         // Update state based on target
@@ -238,7 +236,7 @@ pub fn zombie_attack_system(
                 if let Some(ref target_net_id) = target.target {
                     // Find window by net ID
                     let mut window_found = false;
-                    for (window_entity, window_net_id, window_transform, window_health) in window_query.iter() {
+                    for (window_net_id, window_entity, window_transform, window_health) in window_query.iter() {
                         if window_net_id == target_net_id {
                             window_found = true;
                             let window_pos = window_transform.translation.truncate();
@@ -250,6 +248,11 @@ pub fn zombie_attack_system(
                                     *state = ZombieState::Breaching {
                                         breach_start_frame: frame.frame,
                                     };
+                                } else {
+                                    // Window is destroyed but not in breach range - clear target and find new one
+                                    target.target = None;
+                                    target.target_type = TargetType::None;
+                                    *state = ZombieState::Pathing;
                                 }
                             }
                             // If in range of window, attack it
@@ -269,9 +272,7 @@ pub fn zombie_attack_system(
                                 if should_attack {
                                     // Send attack event
                                     window_damage_events.write(ZombieWindowAttackEvent {
-                                        zombie_entity,
                                         zombie_net_id: zombie_net_id.clone(),
-                                        window_entity,
                                         window_net_id: window_net_id.clone(),
                                         damage: config.window_damage,
                                     });
@@ -298,7 +299,9 @@ pub fn zombie_attack_system(
                     }
                     
                     if !window_found {
-                        // Window no longer exists
+                        // Window no longer exists - clear target
+                        target.target = None;
+                        target.target_type = TargetType::None;
                         *state = ZombieState::Pathing;
                     }
                 }
@@ -307,7 +310,7 @@ pub fn zombie_attack_system(
                 if let Some(ref target_net_id) = target.target {
                     // Find player by net ID
                     let mut player_found = false;
-                    for (player_entity, player_net_id, player_transform) in player_query.iter() {
+                    for (player_net_id, player_entity, player_transform) in player_query.iter() {
                         if player_net_id == target_net_id {
                             player_found = true;
                             let player_pos = player_transform.translation.truncate();
@@ -362,7 +365,9 @@ pub fn zombie_attack_system(
         // Handle breaching state
         if let ZombieState::Breaching { breach_start_frame } = *state {
             if frame.frame >= breach_start_frame + config.breach_duration_frames {
-                // Finished breaching
+                // Finished breaching - clear window target so zombie can find new target
+                target.target = None;
+                target.target_type = TargetType::None;
                 *state = ZombieState::Pathing;
                 info!(
                     "{} Zombie {} finished breaching",

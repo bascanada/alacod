@@ -2,7 +2,7 @@ use bevy::{log::{tracing::span, Level}, prelude::*};
 use bevy_fixed::fixed_math;
 use bevy_ggrs::{GgrsSchedule, Rollback, RollbackApp};
 use serde::{Deserialize, Serialize};
-use utils::{frame::FrameCount, net_id::GgrsNetId, order_iter};
+use utils::{frame::FrameCount, net_id::GgrsNetId, order_iter, order_mut_iter};
 
 use crate::{
     collider::{Collider, CollisionLayer},
@@ -704,8 +704,8 @@ pub fn handle_zombie_window_damage(
     mut commands: Commands,
     mut window_query: Query<
         (
-            Entity,
             &GgrsNetId,
+            Entity,
             &map::game::entity::MapRollbackItem,
             &mut map::game::entity::map::window::WindowHealth,
             Option<&Collider>,
@@ -726,17 +726,24 @@ pub fn handle_zombie_window_damage(
             event.window_net_id
         );
 
-        if let Ok((window_entity, window_net_id, rollback_item, mut window_health, collider_opt, collision_layer_opt)) =
-            window_query.get_mut(event.window_entity)
-        {
+        // Find the window entity by its net ID
+        let mut found_window = None;
+        for (window_net_id, window_entity, rollback_item, window_health, collider_opt, collision_layer_opt) in order_mut_iter!(window_query) {
+            if window_net_id == &event.window_net_id {
+                found_window = Some((window_entity, window_net_id.clone(), rollback_item.clone(), window_health, collider_opt.is_some(), collision_layer_opt.is_some()));
+                break;
+            }
+        }
+
+        if let Some((window_entity, window_net_id, rollback_item, mut window_health, has_collider, has_layer)) = found_window {
             info!(
                 "{} [GGRS] window {} state before damage: health={}/{}, has_collider={}, has_layer={}",
                 frame.as_ref(),
                 window_net_id,
                 window_health.current,
                 window_health.max,
-                collider_opt.is_some(),
-                collision_layer_opt.is_some()
+                has_collider,
+                has_layer
             );
 
             // Apply damage
@@ -774,7 +781,7 @@ pub fn handle_zombie_window_damage(
                 );
                 
                 // Restore collider if it doesn't exist
-                if collider_opt.is_none() {
+                if !has_collider {
                     commands.entity(window_entity).insert((
                         Collider {
                             shape: crate::collider::ColliderShape::Rectangle {
@@ -806,9 +813,8 @@ pub fn handle_zombie_window_damage(
             );
         } else {
             warn!(
-                "{} [GGRS] zombie window attack FAILED: window entity {:?} (net_id {}) not found",
+                "{} [GGRS] zombie window attack FAILED: window entity={} not found",
                 frame.as_ref(),
-                event.window_entity,
                 event.window_net_id
             );
         }

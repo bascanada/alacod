@@ -54,6 +54,11 @@ pub fn enemy_spawn_from_spawners_system(
 
     mut id_factory: ResMut<GgrsNetIdFactory>,
 ) {
+    let spawner_count = spawner_query.iter().count();
+    if frame.frame % 600 == 0 {
+        println!("Frame {}: Found {} spawners", frame.frame, spawner_count);
+    }
+
     let player_positions: Vec<fixed_math::FixedVec2> = player_query
         .iter()
         .map(|transform| transform.translation.truncate())
@@ -115,6 +120,7 @@ pub fn enemy_spawn_from_spawners_system(
             // to be in candidate_spawner_entities. state.cooldown_remaining was already decremented if needed.
 
             let spawner_pos_v2 = spawner_fixed_transform.translation.truncate(); // Already FixedVec2
+            let spawner_z = spawner_fixed_transform.translation.z;
 
             let final_spawn_pos_v3 = if config.spawn_radius > fixed_math::FIXED_ZERO {
                 // RNG is now consumed in a deterministic order due to sorted entity iteration
@@ -132,7 +138,7 @@ pub fn enemy_spawn_from_spawners_system(
                 fixed_math::FixedVec3::new(
                     spawner_pos_v2.x.saturating_add(offset_v2.x),
                     spawner_pos_v2.y.saturating_add(offset_v2.y),
-                    fixed_math::FIXED_ZERO,
+                    spawner_z, // Use the spawner's Z position, not FIXED_ZERO
                 )
             } else {
                 spawner_fixed_transform.translation

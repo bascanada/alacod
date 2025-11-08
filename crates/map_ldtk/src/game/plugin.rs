@@ -21,6 +21,7 @@ pub struct LdtkMapEntityLoading {
     pub sprite_size: Option<Vec2>,
     pub door_config: Option<DoorConfig>,
     pub door_grid_position: Option<DoorGridPosition>,
+    pub enemy_spawner_component: Option<map::game::entity::map::enemy_spawn::EnemySpawnerComponent>,
 }
 
 #[derive(Resource, Clone)]
@@ -107,7 +108,7 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: EventWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>), With<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>, Option<&map::game::entity::map::enemy_spawn::EnemySpawnerComponent>), With<MapRollbackMarker>>,
 
     collision_settings: Res<CollisionSettings>,
 
@@ -125,7 +126,7 @@ fn wait_for_all_map_rollback_entity(
 
     // Collect and sort entities by their marker name and position for deterministic order
     let mut entities_to_process: Vec<_> = query_map_entity.iter()
-        .filter(|(e, _, _, _, _, _)| !entity_registery.registered_entities.contains(e))
+        .filter(|(e, _, _, _, _, _, _)| !entity_registery.registered_entities.contains(e))
         .collect();
     
     // Sort by marker name first, then by position (x, y) for determinism
@@ -142,7 +143,7 @@ fn wait_for_all_map_rollback_entity(
             .then_with(|| pos_a.y.partial_cmp(&pos_b.y).unwrap_or(std::cmp::Ordering::Equal))
     });
 
-    for (e, global_transform, rollback_marker, ldtk_size, door_component, door_grid_pos) in entities_to_process {
+    for (e, global_transform, rollback_marker, ldtk_size, door_component, door_grid_pos, enemy_spawner_component) in entities_to_process {
         // Skip if already registered (should not happen due to filter above, but keeping for safety)
         if entity_registery.registered_entities.contains(&e) {
             continue;
@@ -156,6 +157,7 @@ fn wait_for_all_map_rollback_entity(
             let sprite_size = ldtk_size.map(|s| Vec2::new(s.width, s.height));
             let door_config = door_component.map(|dc| dc.config.clone());
             let door_grid_position = door_grid_pos.cloned();
+            let enemy_spawner_comp = enemy_spawner_component.cloned();
             info!("Found {} entity {:?} at position {} with LDTK size {:?} and door config {:?}", 
                   rollback_marker.0, e, translation, sprite_size, door_config);
             
@@ -167,6 +169,7 @@ fn wait_for_all_map_rollback_entity(
                 sprite_size,
                 door_config,
                 door_grid_position,
+                enemy_spawner_component: enemy_spawner_comp,
             });
             entity_registery.registered_entities.insert(e);
         }
@@ -209,7 +212,7 @@ fn wait_for_all_map_rollback_entity(
             info!("spawning rollback map item {} at {} (fixed: {:?}) for parent {}", 
                   id, world_position, fixed_transform.translation, item.entity);
             let mut cmd = commands.spawn((
-                fixed_transform,
+                fixed_transform.clone(),
                 rollback_item,
                 id,
             ));
@@ -297,6 +300,20 @@ fn wait_for_all_map_rollback_entity(
                     ));
                     info!("adding collider and health to window entity with size {}x{}, interaction range {}", 
                           width, height, interaction_range);
+                },
+                "enemy_spawn" => {
+                    // Add EnemySpawnerComponent and EnemySpawnerState to make the spawner functional
+                    use game::character::enemy::spawning::EnemySpawnerState;
+                    
+                    let spawner_component = item.enemy_spawner_component.clone()
+                        .unwrap_or_else(|| map::game::entity::map::enemy_spawn::EnemySpawnerComponent::default());
+                    
+                    cmd.insert((
+                        spawner_component,
+                        EnemySpawnerState::default(),
+                    ));
+                    
+                    info!("Adding EnemySpawner components to rollback entity at {:?}", fixed_transform.translation);
                 },
                 _ => {}
             }

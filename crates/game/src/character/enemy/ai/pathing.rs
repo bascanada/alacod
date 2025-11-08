@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_fixed::rng::RollbackRng;
 use std::collections::VecDeque;
-use utils::{frame::FrameCount, net_id::GgrsNetId};
+use utils::{frame::FrameCount, net_id::GgrsNetId, order_mut_iter};
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct EnemyPath {
@@ -21,6 +21,10 @@ pub struct EnemyPath {
     pub recalculate_ticks: u32,
     // Path status
     pub path_status: PathStatus,
+    // Last position to detect if stuck
+    pub last_position: fixed_math::FixedVec2,
+    // Frames since last significant movement
+    pub frames_stuck: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -68,10 +72,10 @@ impl Default for PathfindingConfig {
             direct_path_threshold: fixed_math::new(200.0),
             node_size: fixed_math::new(20.0),
             movement_speed: fixed_math::new(20.0),
-            waypoint_reach_distance: fixed_math::new(10.0),
+            waypoint_reach_distance: fixed_math::new(15.0), // Increased from 10 to prevent getting stuck on waypoints
             optimal_attack_distance: fixed_math::new(30.0), // Melee range - get close to players
             slow_down_distance: fixed_math::new(50.0),      // Start slowing down very close
-            enemy_separation_force: fixed_math::new(2.0),    // Much stronger separation force
+            enemy_separation_force: fixed_math::new(3.0),    // Increased to push enemies apart more
             enemy_separation_distance: fixed_math::new(80.0), // Larger separation distance
         }
     }
@@ -442,8 +446,10 @@ pub fn calculate_paths(
 pub fn move_enemies(
     mut enemy_query: Query<
         (
+            &GgrsNetId,
             Entity,
             &mut fixed_math::FixedTransform3D,
+            &Collider,
             &mut Velocity, // Assuming Velocity.0 is FixedVec2
             &mut EnemyPath,
             &mut FacingDirection,
@@ -453,24 +459,27 @@ pub fn move_enemies(
     >,
     // Assuming Player also uses FixedTransform3D for its logical position
     player_query: Query<&fixed_math::FixedTransform3D, (With<Player>, Without<Enemy>)>,
+    wall_query: Query<(&fixed_math::FixedTransform3D, &Collider), (With<Wall>, Without<Enemy>)>,
     character_configs: Res<Assets<CharacterConfig>>, // Assuming max_speed is Fixed
     config: Res<PathfindingConfig>,
 ) {
     // First pass - collect all enemy positions for separation calculation
     let enemy_positions: Vec<(Entity, fixed_math::FixedVec2)> = enemy_query
         .iter()
-        .map(|(entity, fixed_transform, ..)| (entity, fixed_transform.translation.truncate()))
+        .map(|(_net_id, entity, fixed_transform, ..)| (entity, fixed_transform.translation.truncate()))
         .collect();
 
     // Second pass - calculate and apply movement
     for (
+        _net_id,
         entity,
         mut fixed_transform,
+        enemy_collider,
         mut velocity_component,
         mut path,
         mut facing_direction,
         config_handles,
-    ) in enemy_query.iter_mut()
+    ) in order_mut_iter!(enemy_query)
     {
         let enemy_pos_v2 = fixed_transform.translation.truncate();
 
@@ -598,20 +607,102 @@ pub fn move_enemies(
         // Apply movement using both main and knockback velocities
         let total_velocity = velocity_component.main + velocity_component.knockback;
         if total_velocity.length_squared() > fixed_math::new(0.01) {
-            fixed_transform.translation.x = fixed_transform
+            // Calculate new position
+            let new_x = fixed_transform
                 .translation
                 .x
                 .saturating_add(total_velocity.x * fixed_math::new(FIXED_TIMESTEP));
-            fixed_transform.translation.y = fixed_transform
+            let new_y = fixed_transform
                 .translation
                 .y
                 .saturating_add(total_velocity.y * fixed_math::new(FIXED_TIMESTEP));
-            // Z remains unchanged for 2D movement
+            
+            // Create a test transform at the new position
+            let test_transform = fixed_math::FixedTransform3D {
+                translation: fixed_math::FixedVec3::new(new_x, new_y, fixed_transform.translation.z),
+                rotation: fixed_transform.rotation.clone(),
+                scale: fixed_transform.scale.clone(),
+            };
+            
+            // Check collision with walls
+            let mut collides_with_wall = false;
+            for (wall_transform, wall_collider) in wall_query.iter() {
+                if is_colliding(&test_transform.translation, enemy_collider, &wall_transform.translation, wall_collider) {
+                    collides_with_wall = true;
+                    break;
+                }
+            }
+            
+            // Only apply movement if not colliding with walls
+            if !collides_with_wall {
+                fixed_transform.translation.x = new_x;
+                fixed_transform.translation.y = new_y;
+                // Z remains unchanged for 2D movement
+            } else {
+                // Try sliding along walls - try X movement only
+                let test_x_only = fixed_math::FixedTransform3D {
+                    translation: fixed_math::FixedVec3::new(new_x, fixed_transform.translation.y, fixed_transform.translation.z),
+                    rotation: fixed_transform.rotation.clone(),
+                    scale: fixed_transform.scale.clone(),
+                };
+                
+                let mut can_move_x = true;
+                for (wall_transform, wall_collider) in wall_query.iter() {
+                    if is_colliding(&test_x_only.translation, enemy_collider, &wall_transform.translation, wall_collider) {
+                        can_move_x = false;
+                        break;
+                    }
+                }
+                
+                if can_move_x {
+                    fixed_transform.translation.x = new_x;
+                }
+                
+                // Try Y movement only
+                let test_y_only = fixed_math::FixedTransform3D {
+                    translation: fixed_math::FixedVec3::new(fixed_transform.translation.x, new_y, fixed_transform.translation.z),
+                    rotation: fixed_transform.rotation.clone(),
+                    scale: fixed_transform.scale.clone(),
+                };
+                
+                let mut can_move_y = true;
+                for (wall_transform, wall_collider) in wall_query.iter() {
+                    if is_colliding(&test_y_only.translation, enemy_collider, &wall_transform.translation, wall_collider) {
+                        can_move_y = false;
+                        break;
+                    }
+                }
+                
+                if can_move_y {
+                    fixed_transform.translation.y = new_y;
+                }
+            }
 
             // Update facing direction based on main velocity (not knockback)
             if velocity_component.main.length_squared() > fixed_math::new(0.01) {
                 *facing_direction = FacingDirection::from_fixed_vector(velocity_component.main);
             }
         }
+        
+        // Detect if stuck and reset path
+        let current_pos = fixed_transform.translation.truncate();
+        let movement_threshold = fixed_math::new(1.0); // Minimum movement per frame
+        let moved_distance = current_pos.distance(&path.last_position);
+        
+        if moved_distance < movement_threshold {
+            path.frames_stuck += 1;
+            
+            // If stuck for more than 2 seconds (120 frames at 60 FPS), reset path
+            if path.frames_stuck > 120 {
+                info!("Enemy stuck for {} frames at {:?}, resetting path", path.frames_stuck, current_pos);
+                path.waypoints.clear();
+                path.path_status = PathStatus::CalculatingPath;
+                path.frames_stuck = 0;
+            }
+        } else {
+            path.frames_stuck = 0;
+        }
+        
+        path.last_position = current_pos;
     }
 }
