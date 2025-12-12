@@ -20,6 +20,14 @@ opt-level = 'z'
 lto = true
 codegen-units = 1
 
+# Workaround for macOS 26 (Sequoia) objc2-foundation issue
+# Disable debug assertions in objc2 to avoid runtime panics
+# See: https://github.com/madsmtm/objc2/issues/765
+[profile.dev.package.objc2]
+debug-assertions = false
+
+[profile.dev.package.objc2-encode]
+debug-assertions = false
 
 [workspace]
 members = [ "crates/*" ]
@@ -33,10 +41,6 @@ bevy = { version = "0.16", default-features = false, features = [
 bevy_ggrs = "0.18.0"
 
 serde_json = "1.0"
-
-# Workaround for macOS 26 (Sequoia) objc2-foundation issue
-# See: https://github.com/madsmtm/objc2/issues/765
-objc2 = { version = "0.5.2", features = ["relax-sign-encoding"] }
 
 utils = { path = "./crates/utils" }
 map = { path = "./crates/map" }

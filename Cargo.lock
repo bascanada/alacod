@@ -166,7 +166,6 @@ dependencies = [
  "game",
  "map",
  "map_ldtk",
- "objc2 0.5.2",
  "serde_json",
  "utils",
 ]
