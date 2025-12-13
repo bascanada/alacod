@@ -1,5 +1,4 @@
-name: PR 
-
+name: Build & Deploy
 
 on:
   push:
@@ -7,7 +6,8 @@ on:
       - main
 
 jobs:
-  build_and_test:
+  test:
+    name: Tests & Format
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/bascanada/alacod-builder:latest
@@ -17,26 +17,6 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-      - name: Cache sccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/sccache
-          key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-sccache-
 
       - name: Cache cargo registry and git
         uses: actions/cache@v4
@@ -47,23 +27,68 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      
+
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-sccache-
+
+      - name: Test
+        run: make test
+
+      - name: Style Check
+        run: make format
+
+  build:
+    name: Build WASM & Deploy
+    runs-on: [self-hosted, alacod-builder]
+    needs: test
+    environment: production
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Login docker
         run: docker login https://ghcr.io -u wquintal -p $GITHUB_ACCESS_TOKEN
         env:
-          GITHUB_ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }} 
-      - name: Dependencies
-        run: cargo vendor
-      - name: Test
-        run: make test
-      - name: Style Check
-        run: make format
-      - name: Build web
-        run:  make build_docker_website TARGET=web PROFILE=prod
-      - name: Publish docker website
-        run: make push_docker_website
-      - name: Copy build files from container
-        run: make export_docker_website
+          GITHUB_ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+
+      - name: Build WASM in container
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "$HOME/.cargo/registry:/root/.cargo/registry" \
+            -v "$HOME/.cargo/git:/root/.cargo/git" \
+            -v "$HOME/.cache/sccache:/root/.cache/sccache" \
+            -w /workspace \
+            -e SCCACHE_DIR=/root/.cache/sccache \
+            -e RUSTC_WRAPPER=sccache \
+            -e CARGO_INCREMENTAL=0 \
+            ghcr.io/bascanada/alacod-builder:latest \
+            bash -c "cargo vendor && make build_docker_website TARGET=web PROFILE=prod"
+
+      - name: Push docker website
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -w /workspace \
+            -e GITHUB_ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }} \
+            ghcr.io/bascanada/alacod-builder:latest \
+            bash -c "docker login https://ghcr.io -u wquintal -p \$GITHUB_ACCESS_TOKEN && make push_docker_website"
+
+      - name: Export build files
+        run: |
+          VERSION=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "$(git describe --tags --abbrev=0 2>/dev/null || echo 'v0.0.0')-$(git rev-parse --short HEAD)")
+          docker create --name $VERSION ghcr.io/bascanada/alacod:latest
+          docker cp $VERSION:/usr/share/nginx/html ./build
+          docker rm $VERSION
+
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:

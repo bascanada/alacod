@@ -1,5 +1,4 @@
-name: PR 
-
+name: PR
 
 on:
   pull_request:
@@ -11,7 +10,8 @@ on:
       - reopened
 
 jobs:
-  build_and_test:
+  test:
+    name: Tests & Format
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/bascanada/alacod-builder:latest
@@ -21,24 +21,6 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-      - name: Cache sccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/sccache
-          key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-sccache-
 
       - name: Cache cargo registry and git
         uses: actions/cache@v4
@@ -49,14 +31,17 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-      
+
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/sccache
+          key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-sccache-
+
       - name: Test
         run: make test
-      
+
       - name: Style Check
         run: make format
-      
-      - name: Build web
-        run: make build_website TARGET=web PROFILE=dev
-        env:
-          CARGO_BUILD_JOBS: 1
