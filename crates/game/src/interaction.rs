@@ -63,7 +63,7 @@ pub enum InteractionType {
 pub struct Interactor;
 
 /// Event sent when an interaction is triggered
-#[derive(Event, Clone, Debug)]
+#[derive(Event, Message, Clone, Debug)]
 pub struct InteractionEvent {
     /// The entity performing the interaction
     pub interactor: Entity,
@@ -79,7 +79,7 @@ pub struct InteractionEvent {
 
 /// Event sent when a door is opened (for visual feedback)
 /// This event is sent from GGRS schedule to Update schedule
-#[derive(Event, Clone, Debug)]
+#[derive(Event, Message, Clone, Debug)]
 pub struct DoorOpenedEvent {
     /// The GGRS net ID of the door that was opened
     pub door_net_id: GgrsNetId,
@@ -89,7 +89,7 @@ pub struct DoorOpenedEvent {
 
 /// Event sent when a window is repaired (for visual feedback)
 /// This event is sent from GGRS schedule to Update schedule
-#[derive(Event, Clone, Debug)]
+#[derive(Event, Message, Clone, Debug)]
 pub struct WindowRepairedEvent {
     /// The GGRS net ID of the window that was repaired
     pub window_net_id: GgrsNetId,
@@ -104,7 +104,7 @@ pub struct WindowRepairedEvent {
 /// System that detects interactions within the GGRS schedule
 pub fn interaction_detection_system(
     frame: Res<FrameCount>,
-    mut event_writer: EventWriter<InteractionEvent>,
+    mut event_writer: MessageWriter<InteractionEvent>,
     interactors: Query<
         (&GgrsNetId, Entity, &fixed_math::FixedTransform3D, &crate::character::player::input::InteractionInput),
         (With<Interactor>, With<Rollback>),
@@ -241,8 +241,8 @@ fn point_to_collider_surface_distance_sq(
 /// System that handles door interactions
 pub fn handle_door_interaction(
     frame: Res<FrameCount>,
-    mut event_reader: EventReader<InteractionEvent>,
-    mut door_opened_writer: EventWriter<DoorOpenedEvent>,
+    mut event_reader: MessageReader<InteractionEvent>,
+    mut door_opened_writer: MessageWriter<DoorOpenedEvent>,
     mut commands: Commands,
     door_query: Query<(Entity, &map::game::entity::MapRollbackItem, &map::game::entity::map::door::DoorComponent), (With<Interactable>, With<Rollback>)>,
     all_doors_query: Query<(Entity, &GgrsNetId, &map::game::entity::MapRollbackItem, &map::game::entity::map::door::DoorComponent, &map::game::entity::map::door::DoorGridPosition), With<Rollback>>,
@@ -324,8 +324,8 @@ pub fn handle_door_interaction(
 /// System that handles window repair interactions
 pub fn handle_window_repair(
     frame: Res<FrameCount>,
-    mut event_reader: EventReader<InteractionEvent>,
-    mut window_repaired_writer: EventWriter<WindowRepairedEvent>,
+    mut event_reader: MessageReader<InteractionEvent>,
+    mut window_repaired_writer: MessageWriter<WindowRepairedEvent>,
     repair_config: Res<WindowRepairConfig>,
     mut window_query: Query<
         (
@@ -454,9 +454,9 @@ pub struct InteractionPlugin;
 impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         // Register events
-        app.add_event::<InteractionEvent>();
-        app.add_event::<DoorOpenedEvent>();
-        app.add_event::<WindowRepairedEvent>();
+        app.add_message::<InteractionEvent>();
+        app.add_message::<DoorOpenedEvent>();
+        app.add_message::<WindowRepairedEvent>();
 
         // Initialize window repair config
         app.init_resource::<WindowRepairConfig>();
@@ -503,7 +503,7 @@ impl Plugin for InteractionPlugin {
 /// This runs outside the GGRS schedule for visual feedback only
 /// Uses the visual entity (parent) from MapRollbackItem to directly update the LDTK entity
 pub fn update_door_visuals(
-    mut door_opened_events: EventReader<DoorOpenedEvent>,
+    mut door_opened_events: MessageReader<DoorOpenedEvent>,
     mut door_query: Query<&mut Visibility>,
 ) {
     for event in door_opened_events.read() {
@@ -526,7 +526,7 @@ pub struct WindowHealthBar;
 /// System that updates window health bar visuals based on window repaired events
 /// This runs outside the GGRS schedule for visual feedback only
 pub fn update_window_health_bars(
-    mut window_repaired_events: EventReader<WindowRepairedEvent>,
+    mut window_repaired_events: MessageReader<WindowRepairedEvent>,
     children_query: Query<&Children>,
     mut health_bar_query: Query<&mut Sprite, With<WindowHealthBar>>,
 ) {
@@ -569,7 +569,7 @@ fn setup_interaction_ui(mut commands: Commands, asset_server: Res<AssetServer>) 
             ..Default::default()
         },
         TextColor(Color::srgb(1.0, 1.0, 0.0)),
-        TextLayout::new_with_justify(JustifyText::Center),
+        TextLayout::new_with_justify(Justify::Center),
         Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(40.0), // Position in the upper-middle of the screen
@@ -699,8 +699,8 @@ pub fn display_interaction_prompts(
 /// This is separate from player repairs and runs in the GGRS schedule
 pub fn handle_zombie_window_damage(
     frame: Res<FrameCount>,
-    mut event_reader: EventReader<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>,
-    mut window_repaired_writer: EventWriter<WindowRepairedEvent>,
+    mut event_reader: MessageReader<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>,
+    mut window_repaired_writer: MessageWriter<WindowRepairedEvent>,
     mut commands: Commands,
     mut window_query: Query<
         (

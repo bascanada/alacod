@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::text::JustifyText;
+use bevy::text::Justify;
 
 use crate::camera::{CameraMode, GameCamera};
 
@@ -18,7 +18,7 @@ fn setup_camera_debug_ui(mut commands: Commands, asset_server: Res<AssetServer>)
             font_size: 16.0,
             ..Default::default()
         },
-        TextLayout::new_with_justify(JustifyText::Left),
+        TextLayout::new_with_justify(Justify::Left),
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(5.0),

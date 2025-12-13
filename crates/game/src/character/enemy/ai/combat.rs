@@ -88,7 +88,7 @@ impl Default for ZombieCombatConfig {
 }
 
 /// Event for zombie attacking a window
-#[derive(Event, Clone, Debug)]
+#[derive(Event, Message, Clone, Debug)]
 pub struct ZombieWindowAttackEvent {
     pub zombie_entity: Entity,
     pub zombie_net_id: GgrsNetId,
@@ -225,7 +225,7 @@ pub fn zombie_attack_system(
         ),
         (With<Window>, With<Rollback>),
     >,
-    mut window_damage_events: EventWriter<ZombieWindowAttackEvent>,
+    mut window_damage_events: MessageWriter<ZombieWindowAttackEvent>,
     mut player_damage_query: Query<&mut DamageAccumulator>,
     config: Res<ZombieCombatConfig>,
 ) {

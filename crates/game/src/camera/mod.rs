@@ -108,13 +108,13 @@ fn camera_input_system(
     mut camera_query: Query<&mut GameCamera>,
     _player_query: Query<(Entity, &Player)>,
 ) {
-    let action_state = if let Ok(state) = action_query.get_single() {
+    let action_state = if let Ok(state) = action_query.single() {
         state
     } else {
         return;
     };
 
-    let mut camera = if let Ok(cam) = camera_query.get_single_mut() {
+    let mut camera = if let Ok(cam) = camera_query.single_mut() {
         cam
     } else {
         return;
@@ -474,7 +474,7 @@ fn player_indicator_system(
 }
 
 fn character_visuals_update_system(
-    mut ev_asset: EventReader<AssetEvent<CameraSettingsAsset>>,
+    mut ev_asset: MessageReader<AssetEvent<CameraSettingsAsset>>,
     camera_asset: Res<Assets<CameraSettingsAsset>>,
     mut r_camera: ResMut<CameraSettings>,
     _asset_server: Res<AssetServer>,

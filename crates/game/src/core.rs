@@ -8,7 +8,7 @@ use bevy_fixed::{
     fixed_math::{self, sync_bevy_transforms_from_fixed},
     rng::RollbackRng,
 };
-use bevy_ggrs::{GgrsApp, GgrsPlugin, GgrsSchedule, RollbackApp};
+use bevy_ggrs::{GgrsPlugin, GgrsSchedule, RollbackApp};
 #[cfg(feature = "debug_ui")]
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use serde::{Deserialize, Serialize};
@@ -89,7 +89,7 @@ impl Plugin for CoreSetupPlugin {
         app.add_plugins(crate::interaction::InteractionPlugin);
 
         #[cfg(feature = "debug_ui")]
-        app.add_plugins(EguiPlugin { enable_multipass_for_primary_context: true });
+        app.add_plugins(EguiPlugin::default());
 
         #[cfg(feature = "debug_ui")]
         app.add_plugins(WorldInspectorPlugin::new());
@@ -100,7 +100,7 @@ impl Plugin for CoreSetupPlugin {
         app.init_resource::<FrameCount>();
 
         app.init_state::<AppState>();
-        app.set_rollback_schedule_fps(60);
+        // app.set_rollback_schedule_fps(60);
 
         app.rollback_resource_with_copy::<RollbackRng>()
             .rollback_resource_with_clone::<GgrsNetIdFactory>()
@@ -131,9 +131,15 @@ impl Plugin for CoreSetupPlugin {
         app.add_systems(
             Update,
             (
-                sync_bevy_transforms_from_fixed.run_if(in_state(AppState::InGame)),
                 loading_asset_system.run_if(in_state(AppState::Loading)),
             ),
+        );
+
+        // Sync FixedTransform3D to Transform after GGRS schedule runs
+        // This ensures visual representation matches the rollback simulation state
+        app.add_systems(
+            PostUpdate,
+            sync_bevy_transforms_from_fixed.run_if(in_state(AppState::InGame)),
         );
 
 
@@ -163,7 +169,7 @@ impl CoreSetupPlugin {
         let window_plugin = WindowPlugin {
             primary_window: Some(Window {
                 title: self.0.app_name.to_string(),
-                resolution: WindowResolution::new(800., 600.),
+                resolution: WindowResolution::new(800, 600),
 
                 resizable: true,
                 #[cfg(target_arch = "wasm32")]

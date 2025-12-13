@@ -50,7 +50,7 @@ impl Default for LdtkMapEntityLoadingRegistry {
     }
 }
 
-#[derive(Event, Default, Debug)]
+#[derive(Event, Message, Default, Debug)]
 pub struct LdtkMapLoadingEvent;
 
 impl Plugin for LdtkMapLoadingPlugin {
@@ -60,7 +60,7 @@ impl Plugin for LdtkMapLoadingPlugin {
         app.register_asset_loader(level_loader);
 
         app.init_resource::<LdtkMapEntityLoadingRegistry>();
-        app.add_event::<LdtkMapLoadingEvent>();
+        app.add_message::<LdtkMapLoadingEvent>();
 
         app.add_systems(OnEnter(AppState::GameLoading), setup_generated_map);
         app.add_systems(Update, (
@@ -70,9 +70,9 @@ impl Plugin for LdtkMapLoadingPlugin {
         ).run_if(in_state(AppState::GameLoading)));
 
         // Transition from GameLoading to GameStarting when map loading is complete
-        app.add_systems(Update, transition_to_game_starting.run_if(on_event::<LdtkMapLoadingEvent>));
+        app.add_systems(Update, transition_to_game_starting.run_if(on_message::<LdtkMapLoadingEvent>));
 
-        app.add_systems(Update, create_wall_colliders_from_ldtk.run_if(on_event::<LdtkMapLoadingEvent>));
+        app.add_systems(Update, create_wall_colliders_from_ldtk.run_if(on_message::<LdtkMapLoadingEvent>));
     }
 }
 
@@ -105,7 +105,7 @@ fn populate_door_level_iids(
 fn wait_for_all_map_rollback_entity(
     mut commands: Commands,
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
-    mut ev_loading_map: EventWriter<LdtkMapLoadingEvent>,
+    mut ev_loading_map: MessageWriter<LdtkMapLoadingEvent>,
 
     query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>), With<MapRollbackMarker>>,
 
@@ -332,7 +332,7 @@ fn wait_for_all_map_rollback_entity(
 /// System to transition from GameLoading to GameStarting when the map finishes loading
 fn transition_to_game_starting(
     mut app_state: ResMut<NextState<AppState>>,
-    mut ev_map_loaded: EventReader<LdtkMapLoadingEvent>,
+    mut ev_map_loaded: MessageReader<LdtkMapLoadingEvent>,
 ) {
     for _event in ev_map_loaded.read() {
         info!("Map loading complete, transitioning to GameStarting state");

@@ -6,7 +6,7 @@ use map::{
 };
 
 pub fn add_room_component_to_ldtk_level(
-    mut level_events: EventReader<LevelEvent>,
+    mut level_events: MessageReader<LevelEvent>,
     levels: Query<(Entity, &LevelIid)>,
     projects: Query<&LdtkProjectHandle>,
     project_assets: Res<Assets<LdtkProject>>,

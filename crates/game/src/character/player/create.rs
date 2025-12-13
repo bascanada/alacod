@@ -4,7 +4,7 @@ use bevy::prelude::*;
 #[cfg(feature = "lighting")]
 use bevy_light_2d::light::PointLight2d;
 
-use leafwing_input_manager::{prelude::ActionState, InputManagerBundle};
+use leafwing_input_manager::prelude::ActionState;
 use utils::net_id::GgrsNetIdFactory;
 
 use crate::{
@@ -63,10 +63,8 @@ pub fn create_player(
     if local {
         commands.entity(entity).insert((
             LocalPlayer {},
-            InputManagerBundle::<PlayerAction> {
-                action_state: ActionState::default(),
-                input_map: get_input_map(),
-            },
+            ActionState::<PlayerAction>::default(),
+            get_input_map(),
         ));
     }
 

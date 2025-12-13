@@ -5,8 +5,8 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-bevy = "0.16"
-bevy_ecs_ldtk = { version = "0.12", default-features = true }
+bevy = "0.17"
+bevy_ecs_ldtk = { version = "0.13", default-features = true }
 
 bevy_fixed = { path = "../bevy_fixed"}
 utils = { path = "../utils"}

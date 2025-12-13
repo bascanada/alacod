@@ -19,7 +19,7 @@ fn main() {
     let window_plugin = WindowPlugin {
         primary_window: Some(Window {
             title: "zrl-map-preview".to_string(),
-            resolution: WindowResolution::new(800., 600.),
+            resolution: WindowResolution::new(800, 600),
 
             resizable: true,
             #[cfg(target_arch = "wasm32")]
@@ -86,7 +86,8 @@ fn keyinput(
 ) {
     if input.just_pressed(KeyCode::KeyR) {
         for level_entity in &level_query {
-            commands.entity(level_entity).despawn_recursive()
+            // TODO: Use despawn_recursive when bevy_hierarchy is available
+            commands.entity(level_entity).despawn();
         }
         let start = SystemTime::now();
         let since_the_epoch = start

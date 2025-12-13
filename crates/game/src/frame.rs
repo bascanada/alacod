@@ -25,7 +25,7 @@ fn setup_frame_counter_ui(mut commands: Commands, asset_server: Res<AssetServer>
             font_size: 16.0,
             ..Default::default()
         },
-        TextLayout::new_with_justify(JustifyText::Center),
+        TextLayout::new_with_justify(Justify::Center),
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(5.0),
@@ -45,15 +45,17 @@ fn update_frame_counter_text(
     
     let fps_text = if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
         if let Some(value) = fps.smoothed() {
-            format!("{:.1}", value)
+            // Fixed width format: always 5 characters (e.g., " 60.0", "120.0")
+            format!("{:>5.1}", value)
         } else {
-            "...".to_string()
+            "  ...".to_string()
         }
     } else {
-        "...".to_string()
+        "  ...".to_string()
     };
         
-        text.0 = format!("{} : {} | FPS: {}", game_info.version, frame_count.frame, fps_text);
+        // Fixed width format for frame count (8 characters) to prevent layout shifts
+        text.0 = format!("{} : {:>8} | FPS: {}", game_info.version, frame_count.frame, fps_text);
     }
 }
 

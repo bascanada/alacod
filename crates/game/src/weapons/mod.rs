@@ -1101,7 +1101,7 @@ pub fn weapons_config_update_system(
 
     weapons_config: Res<Assets<WeaponsConfig>>,
 
-    mut ev_asset: EventReader<AssetEvent<WeaponsConfig>>,
+    mut ev_asset: MessageReader<AssetEvent<WeaponsConfig>>,
 
     mut query_weapons: Query<(&Children, Entity, &mut Weapon)>,
 ) {

@@ -26,7 +26,7 @@ fn setup_weapon_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             font_size: 16.0,
             ..Default::default()
         },
-        TextLayout::new_with_justify(JustifyText::Center),
+        TextLayout::new_with_justify(Justify::Center),
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(37.0),
@@ -43,7 +43,7 @@ fn setup_weapon_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             font_size: 16.0,
             ..Default::default()
         },
-        TextLayout::new_with_justify(JustifyText::Center),
+        TextLayout::new_with_justify(Justify::Center),
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(20.0),
@@ -60,7 +60,7 @@ fn setup_weapon_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             font_size: 16.0,
             ..Default::default()
         },
-        TextLayout::new_with_justify(JustifyText::Center),
+        TextLayout::new_with_justify(Justify::Center),
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(3.0),
@@ -85,24 +85,24 @@ fn update_weapons_text(
         ),
     >,
 ) {
-    if let Ok(inventory) = q_player.get_single() {
+    if let Ok(inventory) = q_player.single() {
         let active_weapon = inventory.active_weapon();
         if let Ok((state, modes_state)) = weapon_query.get(active_weapon.0) {
             let active_weapon_state = modes_state.modes.get(&state.active_mode).unwrap();
-            if let Ok(mut text) = q_weapon.get_single_mut() {
+            if let Ok(mut text) = q_weapon.single_mut() {
                 text.0 = format!(
                     "Weapon: {} - {}",
                     active_weapon.1.config.name, state.active_mode
                 );
             }
-            if let Ok(mut text) = q_ammo.get_single_mut() {
+            if let Ok(mut text) = q_ammo.single_mut() {
                 text.0 = format!(
                     "Ammo: {} / {}",
                     active_weapon_state.mag_ammo, active_weapon_state.mag_quantity
                 )
             }
 
-            if let Ok(mut text) = q_reloading.get_single_mut() {
+            if let Ok(mut text) = q_reloading.single_mut() {
                 text.0 = if inventory.is_reloading() {
                     format!(
                         "{:.2}s",

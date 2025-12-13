@@ -83,7 +83,7 @@ test:
 
 dep_web:
 	rustup target add wasm32-unknown-unknown
-	cargo install -f wasm-bindgen-cli --version 0.2.100
+	cargo install -f wasm-bindgen-cli --version 0.2.106
 
 dep_format:
 	rustup component add rustfmt

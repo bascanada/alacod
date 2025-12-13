@@ -26,15 +26,15 @@ pub enum ConfigurableAnchor {
 impl ConfigurableAnchor {
     pub fn to_anchor(&self) -> Anchor {
         match self {
-            ConfigurableAnchor::Center => Anchor::Center,
-            ConfigurableAnchor::BottomLeft => Anchor::BottomLeft,
-            ConfigurableAnchor::BottomCenter => Anchor::BottomCenter,
-            ConfigurableAnchor::BottomRight => Anchor::BottomRight,
-            ConfigurableAnchor::CenterLeft => Anchor::CenterLeft,
-            ConfigurableAnchor::CenterRight => Anchor::CenterRight,
-            ConfigurableAnchor::TopLeft => Anchor::TopLeft,
-            ConfigurableAnchor::TopCenter => Anchor::TopCenter,
-            ConfigurableAnchor::TopRight => Anchor::TopRight,
+            ConfigurableAnchor::Center => Anchor::CENTER,
+            ConfigurableAnchor::BottomLeft => Anchor::BOTTOM_LEFT,
+            ConfigurableAnchor::BottomCenter => Anchor::BOTTOM_CENTER,
+            ConfigurableAnchor::BottomRight => Anchor::BOTTOM_RIGHT,
+            ConfigurableAnchor::CenterLeft => Anchor::CENTER_LEFT,
+            ConfigurableAnchor::CenterRight => Anchor::CENTER_RIGHT,
+            ConfigurableAnchor::TopLeft => Anchor::TOP_LEFT,
+            ConfigurableAnchor::TopCenter => Anchor::TOP_CENTER,
+            ConfigurableAnchor::TopRight => Anchor::TOP_RIGHT,
             // Add Custom case here if you defined it
         }
     }
@@ -345,7 +345,7 @@ fn animate_sprite_system(
 
 // Updates animation timer duration if AnimationMapConfig reloads
 fn check_animation_config_reload_system(
-    mut ev_asset: EventReader<AssetEvent<AnimationMapConfig>>,
+    mut ev_asset: MessageReader<AssetEvent<AnimationMapConfig>>,
     animation_configs: Res<Assets<AnimationMapConfig>>,
     mut query: Query<(&CharacterAnimationHandles, &mut AnimationTimer)>,
     asset_server: Res<AssetServer>,
@@ -394,9 +394,9 @@ fn character_visuals_update_system(
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
     spritesheet_configs: Res<Assets<SpriteSheetConfig>>,
-    mut ev_asset: EventReader<AssetEvent<SpriteSheetConfig>>,
+    mut ev_asset: MessageReader<AssetEvent<SpriteSheetConfig>>,
     query: Query<(&Children, Entity, &CharacterAnimationHandles)>,
-    mut query_sprite: Query<(&mut Sprite, &mut Transform, &LayerName)>,
+    mut query_sprite: Query<(&mut Sprite, &mut Transform, &mut Anchor, &LayerName)>,
 ) {
     for event in ev_asset.read() {
         if let AssetEvent::Modified { id } | AssetEvent::Added { id } = event {
@@ -415,7 +415,7 @@ fn character_visuals_update_system(
                             );
 
                             for child in childs.iter() {
-                                if let Ok((mut sprite, mut transform, layer_name)) =
+                                if let Ok((mut sprite, mut transform, mut anchor, layer_name)) =
                                     query_sprite.get_mut(child.clone())
                                 {
                                     if layer_name.name == new_config.name {
@@ -428,7 +428,7 @@ fn character_visuals_update_system(
                                         transform.translation.y = new_config.offset_y;
                                         transform.scale = Vec3::splat(new_config.scale);
                                         sprite.image = asset_server.load(&new_config.path);
-                                        sprite.anchor = new_config.anchor.to_anchor();
+                                        *anchor = new_config.anchor.to_anchor();
                                     }
                                 }
                             }
@@ -485,9 +485,9 @@ pub fn create_child_sprite(
                 layout: layout_handle.clone(),
                 index: current_frame_index,
             }),
-            anchor: spritesheet_config.anchor.to_anchor(),
             ..default()
         },
+        spritesheet_config.anchor.to_anchor(),
         Transform::from_scale(Vec3::splat(spritesheet_config.scale)).with_translation(Vec3::new(
             spritesheet_config.offset_x,
             spritesheet_config.offset_y,

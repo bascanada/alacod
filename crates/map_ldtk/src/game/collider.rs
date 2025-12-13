@@ -8,7 +8,6 @@ use utils::net_id::GgrsNetIdFactory;
 /// System that creates optimized wall colliders from LDTK IntGrid tiles
 pub fn create_wall_colliders_from_ldtk(
     mut commands: Commands,
-    mut level_events: EventReader<LevelEvent>,
     levels: Query<(Entity, &LevelIid, &Transform)>,
     projects: Query<&LdtkProjectHandle>,
     project_assets: Res<Assets<LdtkProject>>,
