@@ -48,18 +48,11 @@ jobs:
     needs: test
     environment: production
     steps:
-      - name: Clean workspace
+      - name: Fix permissions
         run: |
-          # Remove build artifacts with proper permissions
-          if [ -d "${{ github.workspace }}/target_wasm_prod" ]; then
-            chmod -R u+w "${{ github.workspace }}/target_wasm_prod" || true
-            rm -rf "${{ github.workspace }}/target_wasm_prod" || true
+          if [ -d "." ]; then
+            sudo chown -R $USER:$USER . || true
           fi
-          # Clean any other target directories
-          find "${{ github.workspace }}" -type d -name "target*" -exec chmod -R u+w {} \; 2>/dev/null || true
-          find "${{ github.workspace }}" -type d -name "target*" -exec rm -rf {} \; 2>/dev/null || true
-        continue-on-error: true
-
       - name: Check out
         uses: actions/checkout@v4
         with:
@@ -74,6 +67,7 @@ jobs:
       - name: Build WASM in container
         run: |
           docker run --rm \
+            -u "$(id -u):$(id -g)" \
             -v "${{ github.workspace }}:/workspace" \
             -v "$HOME/.cargo/registry:/root/.cargo/registry" \
             -v "$HOME/.cargo/git:/root/.cargo/git" \
