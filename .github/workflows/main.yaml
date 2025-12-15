@@ -98,13 +98,14 @@ jobs:
             -w /workspace \
             -e RUSTC_WRAPPER=sccache \
             -e CARGO_INCREMENTAL=0 \
-            ghcr.io/bascanada/alacod-builder:0.2.106 \
+            ghcr.io/bascanada/alacod-builder:1.0.0 \
             bash -c "cargo vendor && make build_docker_website TARGET=web PROFILE=prod"
 
       - name: Push docker website
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
+            --group-add "$DOCKER_GID" \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -w /workspace \
             -e GITHUB_ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }} \
