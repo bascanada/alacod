@@ -48,11 +48,6 @@ jobs:
     needs: test
     environment: production
     steps:
-      - name: Fix permissions
-        run: |
-          if [ -d "." ]; then
-            sudo chown -R $USER:$USER . || true
-          fi
       - name: Check out
         uses: actions/checkout@v4
         with:
@@ -69,11 +64,12 @@ jobs:
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "${{ github.workspace }}:/workspace" \
-            -v "$HOME/.cargo/registry:/root/.cargo/registry" \
-            -v "$HOME/.cargo/git:/root/.cargo/git" \
-            -v "$HOME/.cache/sccache:/root/.cache/sccache" \
+            -e CARGO_HOME=/cargo \
+            -v "$HOME/.cargo/registry:/cargo/registry" \
+            -v "$HOME/.cargo/git:/cargo/git" \
+            -e SCCACHE_DIR=/sccache \
+            -v "$HOME/.cache/sccache:/sccache" \
             -w /workspace \
-            -e SCCACHE_DIR=/root/.cache/sccache \
             -e RUSTC_WRAPPER=sccache \
             -e CARGO_INCREMENTAL=0 \
             ghcr.io/bascanada/alacod-builder:latest \
