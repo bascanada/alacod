@@ -73,8 +73,20 @@ jobs:
             bash -c "chown -R $(id -u):$(id -g) /cargo_cache /sccache_cache"
       - name: Build WASM in container
         run: |
+          # 1. Get the Group ID (GID) of the docker socket
+          DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+
           docker run --rm \
             -u "$(id -u):$(id -g)" \
+            --group-add "$DOCKER_GID" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e HOME=/tmp \
+            ghcr.io/bascanada/alacod-builder:1.0.0 \
+            docker version
+
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            --group-add "$DOCKER_GID" \
             -v "${{ github.workspace }}:/workspace" \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -e HOME=/tmp \
@@ -86,7 +98,7 @@ jobs:
             -w /workspace \
             -e RUSTC_WRAPPER=sccache \
             -e CARGO_INCREMENTAL=0 \
-            ghcr.io/bascanada/alacod-builder:1.0.0 \
+            ghcr.io/bascanada/alacod-builder:0.2.106 \
             bash -c "cargo vendor && make build_docker_website TARGET=web PROFILE=prod"
 
       - name: Push docker website
