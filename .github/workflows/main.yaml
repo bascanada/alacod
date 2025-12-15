@@ -48,6 +48,11 @@ jobs:
     needs: test
     environment: production
     steps:
+      - name: Clean workspace with sudo
+        run: |
+          if [ -d "${{ github.workspace }}" ]; then
+            sudo chown -R $USER:$USER ${{ github.workspace }}
+          fi
       - name: Check out
         uses: actions/checkout@v4
         with:
@@ -58,7 +63,14 @@ jobs:
         run: docker login https://ghcr.io -u wquintal -p $GITHUB_ACCESS_TOKEN
         env:
           GITHUB_ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-
+      - name: Fix host cache permissions
+        run: |
+          # Use a root container to chown the host's cache directories back to the current user
+          docker run --rm \
+            -v "$HOME/.cargo:/cargo_cache" \
+            -v "$HOME/.cache/sccache:/sccache_cache" \
+            ghcr.io/bascanada/alacod-builder:latest \
+            bash -c "chown -R $(id -u):$(id -g) /cargo_cache /sccache_cache"
       - name: Build WASM in container
         run: |
           docker run --rm \
