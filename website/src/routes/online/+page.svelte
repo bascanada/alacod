@@ -17,8 +17,7 @@
 		const params = new URLSearchParams();
 		params.set('online', 'true');
 		params.set('id', id);
-		params.set('lobby', lobbyId);
-		params.set('token', token);
+		params.set('lobby', token);
 		params.set('size', players.length.toString());
 
 		goto(`/play?${params.toString()}`);
