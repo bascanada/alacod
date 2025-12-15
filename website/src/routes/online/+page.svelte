@@ -1,6 +1,9 @@
 <script>
 	import { AllumetteLobbies } from '@bascanada/allumette-web';
 	import { goto } from '$app/navigation';
+	import applications from '$lib/game/applications.json';
+
+	const onlineGames = applications.filter((app) => app.online);
 
 	// @ts-ignore
 	function handleJoinLobby({ lobbyId, token, players, isPrivate, gameId }) {
@@ -24,6 +27,6 @@
 
 <div class="h-full w-full overflow-hidden relative">
 	<div class="h-full w-full overflow-y-auto p-4">
-		<AllumetteLobbies onJoinLobby={handleJoinLobby} />
+		<AllumetteLobbies onJoinLobby={handleJoinLobby} availableGames={onlineGames} />
 	</div>
 </div>
