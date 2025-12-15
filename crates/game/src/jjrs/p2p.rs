@@ -15,11 +15,31 @@ use crate::{
 // For matchbox socket connection
 
 pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessionConfiguration>) {
+    use bevy_matchbox::matchbox_socket::{WebRtcSocketBuilder, RtcIceServerConfig, ChannelConfig};
+    
     let url = format!(
         "{}/{}",
         ggrs_config.matchbox_url, ggrs_config.lobby
     );
-    commands.insert_resource(MatchboxSocket::new_unreliable(url));
+    
+    // Configure ICE servers including STUN and TURN for better NAT traversal
+    let ice_server = RtcIceServerConfig {
+        urls: vec![
+            "stun://stun.l.google.com:19302".to_string(),
+            "stun://stun1.l.google.com:19302".to_string(),
+            "turn://bascanada.org:3478".to_string(),
+            "turns://bascanada.org:5349".to_string(),
+        ],
+        username: Some("gameuser".to_string()),
+        credential: Some("WaRCraft420".to_string()),
+    };
+    
+    let socket = WebRtcSocketBuilder::new(url)
+        .ice_server(ice_server)
+        .add_channel(ChannelConfig::unreliable())
+        .build();
+    
+    commands.insert_resource(MatchboxSocket::from(socket));
 
     info!("start p2p connection with CID={}", ggrs_config.cid);
 }
