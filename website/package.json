@@ -31,9 +31,10 @@
 		"vite-plugin-wasm": "^3.5.0"
 	},
 	"dependencies": {
-		"@bascanada/allumette-web": "^0.0.5",
+		"@bascanada/allumette-web": "^0.0.6",
 		"@humanspeak/svelte-markdown": "^0.8.3",
 		"@lucide/svelte": "^0.507.0",
-		"@sveltejs/adapter-static": "^3.0.8"
+		"@sveltejs/adapter-static": "^3.0.8",
+		"argon2-browser": "^1.18.0"
 	}
 }

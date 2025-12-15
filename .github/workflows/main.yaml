@@ -69,13 +69,15 @@ jobs:
           docker run --rm \
             -v "$HOME/.cargo:/cargo_cache" \
             -v "$HOME/.cache/sccache:/sccache_cache" \
-            ghcr.io/bascanada/alacod-builder:latest \
+            ghcr.io/bascanada/alacod-builder:1.0.0 \
             bash -c "chown -R $(id -u):$(id -g) /cargo_cache /sccache_cache"
       - name: Build WASM in container
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "${{ github.workspace }}:/workspace" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e HOME=/tmp \
             -e CARGO_HOME=/cargo \
             -v "$HOME/.cargo/registry:/cargo/registry" \
             -v "$HOME/.cargo/git:/cargo/git" \

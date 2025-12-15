@@ -46,16 +46,4 @@
 	});
 </script>
 
-<dialog
-	data-dialog
-	class="rounded-container bg-surface-100-900 text-inherit max-w-[640px] top-1/2 left-1/2 -translate-1/2 p-4 space-y-4 z-10 backdrop:bg-surface-50/75 dark:backdrop:bg-surface-950/75"
->
-	<h2 class="h3">Do you wanna play online</h2>
-	<p>To configure the lobby or matchbox server used for online go to your settings</p>
-	<form method="dialog" class="flex justify-end gap-4">
-		<button type="button" class="btn preset-tonal-primary" data-dialog-yes>Yes</button>
-		<button type="button" class="btn preset-outlined-tertiary-500" data-dialog-no>No</button>
-	</form>
-</dialog>
-
 <iframe id="app-frame" title="game iframe" {src} style="width: 100%; border: none; height: 100vh"></iframe>
