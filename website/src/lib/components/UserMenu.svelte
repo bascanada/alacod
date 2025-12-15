@@ -10,7 +10,7 @@
 	<User />
 </Navigation.Tile>
 
-<Modal bind:open={openState} contentBase="card p-4 space-y-4 shadow-xl w-full max-w-sm variant-filled-surface">
+<Modal bind:open={openState} contentBase="card p-4 space-y-4 shadow-xl w-full max-w-sm bg-surface-100 dark:bg-surface-900">
 	{#snippet content()}
 		<header class="flex justify-between items-center">
 			<h2 class="h3">Account</h2>
