@@ -4,11 +4,13 @@ import { writable } from 'svelte/store';
 
 export interface Settings {
   allumetteServerUrl: string;
+  matchboxServer: string;
 }
 
 // Default settings
 const defaultSettings: Settings = {
   allumetteServerUrl: 'https://allumette.bascanada.org',
+  matchboxServer: 'wss://allumette.bascanada.org',
 };
 
 // Create a writable store with default values

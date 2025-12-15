@@ -4,7 +4,7 @@
 	import type { Settings } from './settingsStore.js';
 	import { toaster } from '$lib/toaster.js';
 
-	let settings: Settings = { allumetteServerUrl: '' };
+	let settings: Settings = { allumetteServerUrl: '', matchboxServer: '' };
 
 	const unsubscribe = settingsStore.subscribe((value) => {
 		settings = { ...value };
@@ -56,7 +56,15 @@
 					<span>Allumette Server URL</span>
 				</label>
 				<input class="input" type="text" id="allumetteServerUrl" bind:value={settings.allumetteServerUrl} placeholder="Enter server URL" />
-				<p class="text-sm text-slate-500">The URL for the Allumette/Matchbox server</p>
+				<p class="text-sm text-slate-500">The URL for the Allumette lobby server</p>
+			</div>
+
+			<div class="form-group mt-4">
+				<label class="label" for="matchboxServer">
+					<span>Matchbox Server URL</span>
+				</label>
+				<input class="input" type="text" id="matchboxServer" bind:value={settings.matchboxServer} placeholder="Enter matchbox server URL" />
+				<p class="text-sm text-slate-500">The WebSocket URL for the P2P matchbox connection</p>
 			</div>
 
 			<div class="grid grid-cols-2 gap-4 mt-8">

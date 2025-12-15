@@ -12,7 +12,7 @@ LOG_DIR := ./logs
 LOG_PREFFIX := game_run
 FILTERED_LOG_DIR := ./logs/filtered
 GREP_FILTER := 'ggrs{'
-MATCHBOX_URL := wss://matchbox.bascanada.org
+MATCHBOX_URL := wss://allumette.bascanada.org
 
 
 ifeq ($(CURRENT_TAG),)
