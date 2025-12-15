@@ -103,15 +103,22 @@ jobs:
 
       - name: Push docker website
         run: |
+          # 1. Calculer le GID du socket Docker (comme à l'étape précédente)
+          DOCKER_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null || \
+                       python3 -c "import os; print(os.stat('/var/run/docker.sock').st_gid)" 2>/dev/null || \
+                       echo "0")
+
           docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
+            -u "$(id -u):$(id -g)" \
             --group-add "$DOCKER_GID" \
+            -v "${{ github.workspace }}:/workspace" \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -w /workspace \
+            -e HOME=/tmp \
             -e GITHUB_ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }} \
             ghcr.io/bascanada/alacod-builder:1.0.0 \
             bash -c "docker login https://ghcr.io -u wquintal -p \$GITHUB_ACCESS_TOKEN && make push_docker_website"
-
+      
       - name: Export build files
         run: |
           VERSION=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "$(git describe --tags --abbrev=0 2>/dev/null || echo 'v0.0.0')-$(git rev-parse --short HEAD)")
