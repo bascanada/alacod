@@ -157,7 +157,7 @@ build_docker_website: build_wasm_apps
 	docker build --build-arg APP_VERSION=$(VERSION) -f ./website/Dockerfile ./website -t ghcr.io/bascanada/alacod:latest
 
 build_docker_builder:
-	docker build --platform linux/amd64 -f ./Dockerfile.builder ./ -t ghcr.io/bascanada/alacod-builder:latest
+	docker build --platform linux/amd64 -f ./Dockerfile.builder ./ -t ghcr.io/bascanada/alacod-builder:$(VERSION)
 
 export_docker_website:
 	docker create --name $(VERSION) ghcr.io/bascanada/alacod:latest && \
@@ -168,7 +168,7 @@ push_docker_website:
 	docker push ghcr.io/bascanada/alacod:latest
 
 push_docker_builder:
-	docker push ghcr.io/bascanada/alacod-builder:latest
+	docker push ghcr.io/bascanada/alacod-builder:$(VERSION)
 
 print_version:
 	@echo "Current Tag: $(CURRENT_TAG)"

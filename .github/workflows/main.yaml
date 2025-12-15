@@ -10,7 +10,7 @@ jobs:
     name: Tests & Format
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/bascanada/alacod-builder:latest
+      image: ghcr.io/bascanada/alacod-builder:1.0.0
       credentials:
         username: wquintal
         password: ${{ secrets.ACCESS_TOKEN }}
@@ -48,18 +48,11 @@ jobs:
     needs: test
     environment: production
     steps:
-      - name: Clean workspace
+      - name: Clean workspace with sudo
         run: |
-          # Remove build artifacts with proper permissions
-          if [ -d "${{ github.workspace }}/target_wasm_prod" ]; then
-            chmod -R u+w "${{ github.workspace }}/target_wasm_prod" || true
-            rm -rf "${{ github.workspace }}/target_wasm_prod" || true
+          if [ -d "${{ github.workspace }}" ]; then
+            sudo chown -R $USER:$USER ${{ github.workspace }}
           fi
-          # Clean any other target directories
-          find "${{ github.workspace }}" -type d -name "target*" -exec chmod -R u+w {} \; 2>/dev/null || true
-          find "${{ github.workspace }}" -type d -name "target*" -exec rm -rf {} \; 2>/dev/null || true
-        continue-on-error: true
-
       - name: Check out
         uses: actions/checkout@v4
         with:
@@ -70,19 +63,28 @@ jobs:
         run: docker login https://ghcr.io -u wquintal -p $GITHUB_ACCESS_TOKEN
         env:
           GITHUB_ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-
+      - name: Fix host cache permissions
+        run: |
+          # Use a root container to chown the host's cache directories back to the current user
+          docker run --rm \
+            -v "$HOME/.cargo:/cargo_cache" \
+            -v "$HOME/.cache/sccache:/sccache_cache" \
+            ghcr.io/bascanada/alacod-builder:latest \
+            bash -c "chown -R $(id -u):$(id -g) /cargo_cache /sccache_cache"
       - name: Build WASM in container
         run: |
           docker run --rm \
+            -u "$(id -u):$(id -g)" \
             -v "${{ github.workspace }}:/workspace" \
-            -v "$HOME/.cargo/registry:/root/.cargo/registry" \
-            -v "$HOME/.cargo/git:/root/.cargo/git" \
-            -v "$HOME/.cache/sccache:/root/.cache/sccache" \
+            -e CARGO_HOME=/cargo \
+            -v "$HOME/.cargo/registry:/cargo/registry" \
+            -v "$HOME/.cargo/git:/cargo/git" \
+            -e SCCACHE_DIR=/sccache \
+            -v "$HOME/.cache/sccache:/sccache" \
             -w /workspace \
-            -e SCCACHE_DIR=/root/.cache/sccache \
             -e RUSTC_WRAPPER=sccache \
             -e CARGO_INCREMENTAL=0 \
-            ghcr.io/bascanada/alacod-builder:latest \
+            ghcr.io/bascanada/alacod-builder:1.0.0 \
             bash -c "cargo vendor && make build_docker_website TARGET=web PROFILE=prod"
 
       - name: Push docker website
@@ -92,7 +94,7 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             -w /workspace \
             -e GITHUB_ACCESS_TOKEN=${{ secrets.ACCESS_TOKEN }} \
-            ghcr.io/bascanada/alacod-builder:latest \
+            ghcr.io/bascanada/alacod-builder:1.0.0 \
             bash -c "docker login https://ghcr.io -u wquintal -p \$GITHUB_ACCESS_TOKEN && make push_docker_website"
 
       - name: Export build files
