@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (matchbox && matchbox.length > 0) {
       let canvas = document.getElementById("bevy-canvas");
       canvas.setAttribute("data-matchbox", matchbox);
+      canvas.setAttribute("data-lobby", lobby);
       canvas.setAttribute("data-number-player", lobby_size || 2);
 
       console.log("MATCHBOX " + matchbox + " NUMBER " + lobby_size + " LOBBY " + lobby);

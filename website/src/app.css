@@ -13,23 +13,26 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 body {
-	/* OPTIONAL: Background Mesh Gradient */
-	/* https://next.skeleton.dev/docs/design/themes#backgrounds */
-	/* prettier-ignore */
-	background-attachment: fixed;
-	/* prettier-ignore */
-	background-image:
-      radial-gradient(at 0% 25%, color-mix(in oklab, var(--color-primary-500) 10%, transparent) 0px, transparent 30%),
-      radial-gradient(at 15% 06%, color-mix(in oklab, var(--color-success-500) 5%, transparent) 0px, transparent 30%);
+  /* OPTIONAL: Background Mesh Gradient */
+  /* https://next.skeleton.dev/docs/design/themes#backgrounds */
+  /* prettier-ignore */
+  background-attachment: fixed;
+  /* prettier-ignore */
+  background-image:
+    radial-gradient(at 0% 25%, color-mix(in oklab, var(--color-primary-500) 10%, transparent) 0px, transparent 30%),
+    radial-gradient(at 15% 06%, color-mix(in oklab, var(--color-success-500) 5%, transparent) 0px, transparent 30%);
 }
 
 html,
 body,
 /* If you have a specific mounting point like <div id="app"> in your app.html/index.html */
-#app { /* Or whatever your root Svelte element is */
+#app {
+  /* Or whatever your root Svelte element is */
   height: 100%;
-  margin: 0; /* Good practice to remove default margins */
-  padding: 0; /* Good practice to remove default padding */
+  margin: 0;
+  /* Good practice to remove default margins */
+  padding: 0;
+  /* Good practice to remove default padding */
 }
 
 
@@ -37,4 +40,3 @@ body,
 .font-metal-mania {
   font-family: 'Metal Mania', cursive;
 }
-

@@ -3,26 +3,14 @@ import { writable } from 'svelte/store';
 
 
 export interface Settings {
-  matchboxServer: string,
-  lobbyName: string,
-  playerCount: number
-}
-
-function generateRandomString(length: number) {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        const randomIndex = Math.floor(Math.random() * characters.length);
-        result += characters.charAt(randomIndex);
-    }
-    return result;
+  allumetteServerUrl: string;
+  matchboxServer: string;
 }
 
 // Default settings
 const defaultSettings: Settings = {
-  matchboxServer: 'wss://matchbox.bascanada.org',
-  lobbyName: generateRandomString(6),
-  playerCount: 2
+  allumetteServerUrl: 'https://allumette.bascanada.org',
+  matchboxServer: 'wss://allumette.bascanada.org',
 };
 
 // Create a writable store with default values
