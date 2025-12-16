@@ -125,6 +125,10 @@ jobs:
           docker create --name $VERSION ghcr.io/bascanada/alacod:latest
           docker cp $VERSION:/usr/share/nginx/html ./build
           docker rm $VERSION
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
