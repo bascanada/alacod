@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_fixed::rng::RollbackRng;
 use std::collections::VecDeque;
-use utils::{frame::FrameCount, net_id::GgrsNetId};
+use utils::{frame::FrameCount, net_id::GgrsNetId, order_iter, order_mut_iter};
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct EnemyPath {
@@ -62,7 +62,7 @@ pub struct PathfindingConfig {
 impl Default for PathfindingConfig {
     fn default() -> Self {
         Self {
-            recalculation_interval: 30, // Recalculate every half second (at 60 FPS)
+            recalculation_interval: 10, // Recalculate every ~166ms (at 60 FPS) for fresher target tracking
             max_iterations: 1000,
             max_path_length: 50,
             direct_path_threshold: fixed_math::new(200.0),
@@ -94,10 +94,12 @@ pub fn update_enemy_targets(
     config: Res<PathfindingConfig>,
 ) {
     // Get all player positions with their net IDs
-    let player_positions: Vec<(GgrsNetId, fixed_math::FixedVec2)> = player_query
+    // GGRS CRITICAL: Sort by net_id for deterministic tie-breaking when multiple players at equal distance
+    let mut player_positions: Vec<(GgrsNetId, fixed_math::FixedVec2)> = player_query
         .iter()
         .map(|(net_id, fixed_transform, _)| (net_id.clone(), fixed_transform.translation.truncate()))
         .collect();
+    player_positions.sort_unstable_by_key(|(net_id, _)| net_id.0);
 
     // Update each enemy's target
     for (enemy_fixed_transform, mut path, zombie_target_opt) in enemy_query.iter_mut() {
@@ -258,13 +260,15 @@ pub fn check_direct_paths(
 
 // System to calculate paths around obstacles when needed
 pub fn calculate_paths(
-    mut enemy_query: Query<(Entity, &fixed_math::FixedTransform3D, &mut EnemyPath), With<Enemy>>,
+    mut enemy_query: Query<(&GgrsNetId, Entity, &fixed_math::FixedTransform3D, &mut EnemyPath), With<Enemy>>,
     wall_query: Query<(&fixed_math::FixedTransform3D, &Collider), With<Wall>>,
     mut rng: ResMut<RollbackRng>,
     config: Res<PathfindingConfig>,
 ) {
     // --- Step 1: Collect entities and categorize them ---
+    // GGRS CRITICAL: Use net_id for sorting, NOT entity.to_bits() (entity IDs can differ across clients)
     let mut entities_needing_path_calculation_data: Vec<(
+        usize, // net_id for sorting
         Entity,
         fixed_math::FixedVec2,
         fixed_math::FixedVec2,
@@ -272,14 +276,14 @@ pub fn calculate_paths(
     let mut entities_to_set_direct: Vec<Entity> = Vec::new();
 
     // Initial immutable iteration to categorize
-    for (entity, enemy_fixed_transform, path_component) in enemy_query.iter() {
+    for (net_id, entity, enemy_fixed_transform, path_component) in enemy_query.iter() {
         if path_component.path_status == PathStatus::CalculatingPath {
             let enemy_pos_v2 = enemy_fixed_transform.translation.truncate();
             let target_v2 = path_component.target_position;
 
             // Check if already at target (or very close) using squared length for efficiency
             if (target_v2 - enemy_pos_v2).length_squared() > fixed_math::FixedWide::ZERO {
-                entities_needing_path_calculation_data.push((entity, enemy_pos_v2, target_v2));
+                entities_needing_path_calculation_data.push((net_id.0, entity, enemy_pos_v2, target_v2));
             } else {
                 // This entity is in CalculatingPath but already at its target.
                 entities_to_set_direct.push(entity);
@@ -290,19 +294,19 @@ pub fn calculate_paths(
     // --- Step 2: Update status for entities already at their target ---
     // These entities are no longer part of the main path calculation logic using RNG for this frame.
     for entity_id in entities_to_set_direct {
-        if let Ok((_, _, mut path_mut)) = enemy_query.get_mut(entity_id) {
+        if let Ok((_, _, _, mut path_mut)) = enemy_query.get_mut(entity_id) {
             path_mut.waypoints.clear();
             path_mut.path_status = PathStatus::DirectPath;
         }
     }
 
-    // --- Step 3: Sort entities that genuinely need path calculation for deterministic RNG use ---
-    entities_needing_path_calculation_data.sort_unstable_by_key(|(e, _, _)| e.to_bits());
+    // --- Step 3: Sort entities by net_id for deterministic RNG use ---
+    entities_needing_path_calculation_data.sort_unstable_by_key(|(net_id, _, _, _)| *net_id);
 
     // --- Step 4: Iterate sorted entities and perform path calculation logic (including RNG) ---
-    for (entity_id, enemy_pos_v2, target_v2) in entities_needing_path_calculation_data {
+    for (_net_id, entity_id, enemy_pos_v2, target_v2) in entities_needing_path_calculation_data {
         // Get mutable access to the path component for the current entity
-        if let Ok((_fetched_entity, _fetched_transform, mut path)) = enemy_query.get_mut(entity_id)
+        if let Ok((_, _fetched_entity, _fetched_transform, mut path)) = enemy_query.get_mut(entity_id)
         {
             // The entity should still be in PathStatus::CalculatingPath because we filtered
             // and processed the "already at target" cases separately. A defensive check can be added if necessary.
@@ -440,37 +444,50 @@ pub fn calculate_paths(
 }
 
 pub fn move_enemies(
+    frame: Res<FrameCount>,
     mut enemy_query: Query<
         (
+            &GgrsNetId,
             Entity,
             &mut fixed_math::FixedTransform3D,
-            &mut Velocity, // Assuming Velocity.0 is FixedVec2
+            &mut Velocity,
             &mut EnemyPath,
             &mut FacingDirection,
             &CharacterConfigHandles,
+            &Collider,
+            &crate::collider::CollisionLayer,
         ),
         With<Enemy>,
     >,
-    // Assuming Player also uses FixedTransform3D for its logical position
     player_query: Query<&fixed_math::FixedTransform3D, (With<Player>, Without<Enemy>)>,
-    character_configs: Res<Assets<CharacterConfig>>, // Assuming max_speed is Fixed
+    character_configs: Res<Assets<CharacterConfig>>,
     config: Res<PathfindingConfig>,
+    collision_settings: Res<crate::collider::CollisionSettings>,
+    wall_collider_query: Query<
+        (&fixed_math::FixedTransform3D, &Collider, &crate::collider::CollisionLayer),
+        (With<Wall>, Without<Enemy>, Without<Player>),
+    >,
+    flow_field_cache: Res<super::navigation::FlowFieldCache>,
 ) {
     // First pass - collect all enemy positions for separation calculation
-    let enemy_positions: Vec<(Entity, fixed_math::FixedVec2)> = enemy_query
+    // GGRS CRITICAL: Use order_iter! for deterministic iteration order
+    let enemy_positions: Vec<(Entity, fixed_math::FixedVec2)> = order_iter!(enemy_query)
         .iter()
-        .map(|(entity, fixed_transform, ..)| (entity, fixed_transform.translation.truncate()))
+        .map(|(_, entity, transform, ..)| (*entity, transform.translation.truncate()))
         .collect();
 
-    // Second pass - calculate and apply movement
+    // Second pass - calculate and apply movement in deterministic order
     for (
+        net_id,
         entity,
         mut fixed_transform,
         mut velocity_component,
         mut path,
         mut facing_direction,
         config_handles,
-    ) in enemy_query.iter_mut()
+        enemy_collider,
+        enemy_collision_layer,
+    ) in order_mut_iter!(enemy_query)
     {
         let enemy_pos_v2 = fixed_transform.translation.truncate();
 
@@ -482,13 +499,23 @@ pub fn move_enemies(
                 config.movement_speed // Fallback is also Fixed
             };
 
-        let current_target_v2 = if let Some(waypoint_v2) = path.waypoints.front() {
-            *waypoint_v2
-        } else {
-            path.target_position
-        };
+        // Get the current player position from flow field cache (most up-to-date)
+        let flow_field_target = flow_field_cache.target_pos.to_fixed();
 
-        let direction_to_target_v2 = (current_target_v2 - enemy_pos_v2).normalize_or_zero();
+        // Use flow field for navigation (pathfinds around walls)
+        let direction_to_target_v2 = if let Some(flow_field) = flow_field_cache.get_flow_field(super::navigation::NavProfile::Ground) {
+            // Get direction from flow field
+            match flow_field.get_direction_vector(enemy_pos_v2) {
+                Some(dir) => dir,
+                None => {
+                    // Not in flow field range, move directly toward player
+                    (flow_field_target - enemy_pos_v2).normalize_or_zero()
+                }
+            }
+        } else {
+            // No flow field, fall back to direct path toward player
+            (flow_field_target - enemy_pos_v2).normalize_or_zero()
+        };
 
         // Calculate distance to nearest player (for attack range check)
         // Initialize with FixedWide::MAX because distance_squared now returns FixedWide
@@ -549,64 +576,117 @@ pub fn move_enemies(
                 * config.enemy_separation_force;
         }
 
-        let mut desired_move_velocity_v2 = fixed_math::FixedVec2::ZERO;
+        // Calculate base velocity using flow field direction
+        let base_velocity_v2 = direction_to_target_v2 * movement_speed;
 
-        match path.path_status {
-            PathStatus::DirectPath | PathStatus::FollowingPath => {
-                let base_velocity_v2 = direction_to_target_v2 * movement_speed;
-
-                let speed_factor_fixed =
-                    if distance_to_nearest_player < config.optimal_attack_distance {
-                        fixed_math::FIXED_ZERO // Stop when in melee range (don't back up)
-                    } else if distance_to_nearest_player < config.slow_down_distance {
-                        let range = config.slow_down_distance - config.optimal_attack_distance;
-                        if range > fixed_math::FIXED_ZERO {
-                            // Avoid division by zero
-                            let t = (distance_to_nearest_player - config.optimal_attack_distance)
-                                / range;
-                            t.clamp(fixed_math::FIXED_ZERO, fixed_math::FIXED_ONE)
-                        } else {
-                            fixed_math::FIXED_ONE // At optimal or closer than slow_down, but range is zero
-                        }
-                    } else {
-                        fixed_math::FIXED_ONE // Full speed
-                    };
-
-                desired_move_velocity_v2 = base_velocity_v2 * speed_factor_fixed;
-
-                if let PathStatus::FollowingPath = path.path_status {
-                    if let Some(waypoint_v2) = path.waypoints.front() {
-                        if enemy_pos_v2.distance(waypoint_v2) < config.waypoint_reach_distance {
-                            path.waypoints.pop_front();
-                            if path.waypoints.is_empty() {
-                                path.path_status = PathStatus::DirectPath; // Reached end of waypoint list
-                            }
-                        }
-                    } else {
-                        // Should not happen if FollowingPath, means waypoints became empty
-                        path.path_status = PathStatus::DirectPath;
-                    }
+        // Slow down when near player (for attack positioning)
+        let speed_factor_fixed =
+            if distance_to_nearest_player < config.optimal_attack_distance {
+                fixed_math::FIXED_ZERO // Stop when in melee range
+            } else if distance_to_nearest_player < config.slow_down_distance {
+                let range = config.slow_down_distance - config.optimal_attack_distance;
+                if range > fixed_math::FIXED_ZERO {
+                    let t = (distance_to_nearest_player - config.optimal_attack_distance) / range;
+                    t.clamp(fixed_math::FIXED_ZERO, fixed_math::FIXED_ONE)
+                } else {
+                    fixed_math::FIXED_ONE
                 }
-            }
-            _ => { /* Idle, CalculatingPath, Blocked - no target-based movement */ }
-        }
+            } else {
+                fixed_math::FIXED_ONE // Full speed
+            };
+
+        let desired_move_velocity_v2 = base_velocity_v2 * speed_factor_fixed;
 
         // Combine movement and separation for AI intent
         let final_movement_v2 = desired_move_velocity_v2 + separation_v2;
         velocity_component.main = final_movement_v2;
 
+        // GGRS debug trace - log enemy movement decisions for desync debugging
+        trace!(
+            "[Frame {}] Enemy {:?} (net_id={:?}): pos=({}, {}), flow_dir=({}, {}), vel=({}, {}), sep_count={}",
+            frame.frame,
+            entity,
+            net_id.0,
+            enemy_pos_v2.x.to_num::<i32>(),
+            enemy_pos_v2.y.to_num::<i32>(),
+            direction_to_target_v2.x.to_num::<i32>(),
+            direction_to_target_v2.y.to_num::<i32>(),
+            final_movement_v2.x.to_num::<i32>(),
+            final_movement_v2.y.to_num::<i32>(),
+            separation_count,
+        );
+
         // Apply movement using both main and knockback velocities
         let total_velocity = velocity_component.main + velocity_component.knockback;
         if total_velocity.length_squared() > fixed_math::new(0.01) {
-            fixed_transform.translation.x = fixed_transform
-                .translation
-                .x
-                .saturating_add(total_velocity.x * fixed_math::new(FIXED_TIMESTEP));
-            fixed_transform.translation.y = fixed_transform
-                .translation
-                .y
-                .saturating_add(total_velocity.y * fixed_math::new(FIXED_TIMESTEP));
-            // Z remains unchanged for 2D movement
+            let delta_x = total_velocity.x * fixed_math::new(FIXED_TIMESTEP);
+            let delta_y = total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
+
+            // Helper to check collision at a position
+            let check_wall_collision = |pos: &fixed_math::FixedVec3| -> bool {
+                for (wall_transform, wall_collider, wall_layer) in wall_collider_query.iter() {
+                    if !collision_settings.layer_matrix[enemy_collision_layer.0][wall_layer.0] {
+                        continue;
+                    }
+                    if is_colliding(pos, enemy_collider, &wall_transform.translation, wall_collider) {
+                        return true;
+                    }
+                }
+                false
+            };
+
+            // Try full movement (X + Y)
+            let full_pos = fixed_math::FixedVec3::new(
+                fixed_transform.translation.x.saturating_add(delta_x),
+                fixed_transform.translation.y.saturating_add(delta_y),
+                fixed_transform.translation.z,
+            );
+
+            if !check_wall_collision(&full_pos) {
+                fixed_transform.translation = full_pos;
+            } else {
+                // Full movement blocked - try sliding along walls
+                let mut moved_x = false;
+                let mut moved_y = false;
+
+                // Try X only
+                if delta_x != fixed_math::FIXED_ZERO {
+                    let x_only_pos = fixed_math::FixedVec3::new(
+                        fixed_transform.translation.x.saturating_add(delta_x),
+                        fixed_transform.translation.y,
+                        fixed_transform.translation.z,
+                    );
+                    if !check_wall_collision(&x_only_pos) {
+                        fixed_transform.translation.x = x_only_pos.x;
+                        moved_x = true;
+                    }
+                }
+
+                // Try Y only
+                if delta_y != fixed_math::FIXED_ZERO {
+                    let y_only_pos = fixed_math::FixedVec3::new(
+                        fixed_transform.translation.x, // Use potentially updated X
+                        fixed_transform.translation.y.saturating_add(delta_y),
+                        fixed_transform.translation.z,
+                    );
+                    if !check_wall_collision(&y_only_pos) {
+                        fixed_transform.translation.y = y_only_pos.y;
+                        moved_y = true;
+                    }
+                }
+
+                // If completely stuck, zero velocity
+                if !moved_x && !moved_y {
+                    velocity_component.main = fixed_math::FixedVec2::ZERO;
+                    trace!(
+                        "[Frame {}] Enemy {:?} STUCK at ({}, {})",
+                        frame.frame,
+                        entity,
+                        fixed_transform.translation.x.to_num::<i32>(),
+                        fixed_transform.translation.y.to_num::<i32>(),
+                    );
+                }
+            }
 
             // Update facing direction based on main velocity (not knockback)
             if velocity_component.main.length_squared() > fixed_math::new(0.01) {

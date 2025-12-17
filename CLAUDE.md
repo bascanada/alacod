@@ -1,0 +1,408 @@
+# CLAUDE.md - Alacod Engine Context
+
+## Vision
+
+Alacod est un **engine 2D modulaire** pour roguelikes/shooters inspiré de :
+- Binding of Isaac
+- Enter the Gungeon
+- Nuclear Throne
+- Call of Duty Zombies
+
+L'objectif est de créer un moteur **data-driven** où les comportements sont définis en fichiers RON et assemblés à partir de modules codés dans l'engine.
+
+## Architecture Data-Driven
+
+### Philosophie
+- **Code = Behaviors/Systems** : L'engine fournit des behaviors réutilisables
+- **RON = Configuration/Assembly** : Les designers assemblent les behaviors sans coder
+- **Plugins = Extensions** : Nouveaux behaviors peuvent être ajoutés via plugins
+
+### Pattern Actuel (Armes)
+
+```ron
+// weapons.ron - Exemple de composition
+"shotgun": (
+    config: (
+        firing_mode: Shotgun(pellet_count: 8, spread_angle: "0.4"),
+        bullet_type: Piercing(damage: "10.0", penetration: 1),
+        // ...
+    )
+)
+```
+
+Les enums `Shotgun`, `Piercing`, `Combo`, etc. sont des **behaviors** codés en Rust.
+
+## Contraintes Techniques
+
+### Déterminisme (GGRS Rollback) - RÈGLES CRITIQUES
+
+Le rollback GGRS exige que **tous les clients produisent exactement les mêmes résultats** pour les mêmes inputs. Toute source de non-déterminisme cause des desyncs.
+
+#### 1. Fixed-Point Math UNIQUEMENT
+```rust
+// ❌ INTERDIT - f32/f64 dans GgrsSchedule
+let speed: f32 = 10.0;
+let pos = pos + Vec2::new(speed, 0.0);
+
+// ✅ CORRECT - Fixed point
+let speed: Fixed = fixed_math::new(10.0);
+let pos = pos + FixedVec2::new(speed, Fixed::ZERO);
+```
+
+#### 2. Itération Ordonnée par GgrsNetId - OBLIGATOIRE
+
+**JAMAIS** itérer sur une Query sans ordonner si le résultat affecte le rollback.
+
+```rust
+// ❌ INTERDIT - Ordre non-déterministe
+for (entity, component) in query.iter() { ... }
+for item in query.iter().next() { ... }  // Sélection aléatoire!
+
+// ✅ CORRECT - Utiliser les macros (GgrsNetId DOIT être en premier dans la Query)
+use utils::{order_iter, order_mut_iter};
+
+// Query avec GgrsNetId EN PREMIER
+Query<(&GgrsNetId, Entity, &mut Transform, ...), With<Enemy>>
+
+for (net_id, entity, transform, ..) in order_iter!(query) { ... }
+for (net_id, entity, mut transform, ..) in order_mut_iter!(query) { ... }
+```
+
+#### 3. JAMAIS Entity.to_bits() pour Ordonner
+
+```rust
+// ❌ INTERDIT - Entity IDs diffèrent entre clients!
+entities.sort_by_key(|e| e.to_bits());
+
+// ✅ CORRECT - Utiliser GgrsNetId.0
+entities.sort_by_key(|(net_id, _)| net_id.0);
+```
+
+#### 4. Sélection Déterministe (Plusieurs Candidats)
+
+Quand on doit choisir UN élément parmi plusieurs (ex: joueur le plus proche):
+
+```rust
+// ❌ INTERDIT - Premier dans l'ordre arbitraire
+let target = player_query.iter().next();
+
+// ✅ CORRECT - Trier puis prendre le premier
+let mut players: Vec<_> = player_query.iter().collect();
+players.sort_by_key(|(net_id, _)| net_id.0);
+let target = players.first();
+
+// ✅ CORRECT - Tie-breaking déterministe pour "plus proche"
+let should_update = match &closest {
+    None => true,
+    Some((closest_id, closest_dist)) => {
+        distance < *closest_dist ||
+        (distance == *closest_dist && net_id.0 < closest_id.0)  // Tie-break par net_id
+    }
+};
+```
+
+#### 5. Collections Déterministes
+
+```rust
+// ❌ INTERDIT - HashMap/HashSet ont un ordre d'itération aléatoire
+use std::collections::{HashMap, HashSet};
+
+// ✅ CORRECT - BTreeMap/BTreeSet garantissent l'ordre
+use std::collections::{BTreeMap, BTreeSet};
+
+// Note: Les types clés doivent implémenter Ord
+#[derive(PartialOrd, Ord)]  // Ajouter ces derives
+pub enum MyType { ... }
+```
+
+#### 6. RNG Déterministe
+
+```rust
+// ❌ INTERDIT - RNG système
+use rand::random;
+
+// ✅ CORRECT - RollbackRng (synchronisé par GGRS)
+fn my_system(mut rng: ResMut<RollbackRng>) {
+    let value = rng.next_fixed();  // Déterministe
+}
+
+// IMPORTANT: Consommer RNG dans un ordre déterministe (après tri par net_id)
+```
+
+#### 7. Pas de Conversion f32 dans la Simulation
+
+```rust
+// ❌ DANGER - Perte de précision, résultats peuvent varier
+let fixed_val = Fixed::from_num(some_fixed_wide.to_num::<f32>());
+
+// ✅ CORRECT - Rester en fixed-point
+let fixed_val = Fixed::from_fixed_wide(some_fixed_wide);
+```
+
+#### 8. Logging Déterministe (pour comparaison des traces)
+
+Les logs GGRS doivent être comparables entre clients. **JAMAIS** logger des valeurs non-déterministes.
+
+```rust
+// ❌ INTERDIT - Entity IDs diffèrent entre clients, logs incomparables
+info!("Enemy {:?} attacked at frame {}", entity, frame);
+info!("Spawned hitbox for entity {:?}", entity);
+
+// ✅ CORRECT - Utiliser GgrsNetId (identique sur tous les clients)
+info!("Enemy {} attacked at frame {}", net_id, frame);
+info!("Spawned hitbox for {}", net_id);
+
+// ✅ CORRECT - Autres valeurs déterministes acceptées
+info!("Player {} attacked", player.handle);  // Handle GGRS
+info!("Frame {}: damage {} applied", frame.frame, damage);  // Valeurs de jeu
+```
+
+**Pourquoi?** On compare les logs entre clients avec `diff` pour détecter les desyncs.
+Si les logs contiennent des Entity IDs, le diff montrera des différences même si la simulation est synchronisée.
+
+### Checklist pour Nouveau Système GGRS
+
+- [ ] Query a `&GgrsNetId` en PREMIER si itération affecte l'état
+- [ ] Utilise `order_iter!` ou `order_mut_iter!` pour itérer
+- [ ] Trie par `net_id.0` (pas `entity.to_bits()`) avant traitement
+- [ ] Utilise `BTreeMap`/`BTreeSet` (pas `HashMap`/`HashSet`)
+- [ ] Tie-breaking déterministe quand plusieurs candidats à distance égale
+- [ ] Pas de `.iter().next()` sans tri préalable
+- [ ] Pas de `f32`/`f64` - uniquement `Fixed`/`FixedWide`
+- [ ] RNG via `RollbackRng` consommé dans ordre déterministe
+- [ ] Resource registered avec `rollback_resource_with_clone` si mutable
+- [ ] Logs utilisent `GgrsNetId`/`player.handle` (pas `Entity`) pour comparaison
+
+### Schedules
+- `GgrsSchedule` : Simulation rollback (tout le gameplay)
+- `PostUpdate` : Sync visual (`FixedTransform3D` -> `Transform`)
+
+## Système IA (En Refonte)
+
+### Problème Actuel
+- `ZombieState` hardcode les comportements spécifiques (Window, Player)
+- Pathfinding individuel par ennemi (coûteux pour hordes)
+
+### Nouvelle Architecture
+
+#### Flow Field Navigation
+```rust
+// Shared pathfinding - O(1) lookup per enemy
+// GGRS: Utilise BTreeMap pour itération déterministe
+#[derive(Resource, Clone)]  // Clone requis pour rollback
+pub struct FlowFieldCache {
+    pub layers: BTreeMap<NavProfile, FlowField>,
+    pub blocked_cells: BTreeMap<ObstacleType, BTreeSet<GridPos>>,
+    pub wall_cells: BTreeSet<GridPos>,
+    // ...
+}
+
+// GGRS: Ord requis pour BTreeMap
+#[derive(Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NavProfile {
+    Ground,        // Respecte tous obstacles
+    GroundBreaker, // Ignore obstacles cassables
+    Flying,        // Ignore Water/Pit
+    Phasing,       // Ignore tout sauf Wall
+}
+```
+
+#### Obstacles Génériques
+```rust
+#[derive(Component)]
+pub struct Obstacle {
+    pub obstacle_type: ObstacleType,
+    pub blocks_movement: bool,
+    pub allows_attack_through: bool,
+    pub breakable: bool,
+}
+
+pub enum ObstacleType {
+    Wall,      // Jamais cassable
+    Window,    // Cassable, permet attaque through
+    Barricade, // Cassable, bloque attaque
+    Water,     // Bloque Ground, pas Flying
+    Pit,       // Bloque tout sauf Flying
+}
+```
+
+#### Configuration Ennemi (RON)
+```ron
+// enemies/zombie_runner.ron
+(
+    movement: (...),
+    collider: (...),
+
+    // NEW: AI Configuration
+    ai: (
+        movement_type: Ground,
+        aggro_range: "300.0",
+        attack_range: "35.0",
+
+        // Obstacles que cet ennemi peut casser
+        can_break: [Window, Barricade],
+
+        // Peut attaquer à travers ces obstacles
+        attack_through: [Window],
+
+        // Ignore ces obstacles pour le pathfinding
+        ignores: [],
+    ),
+
+    // Behaviors additionnels (composables)
+    behaviors: [
+        ChasePlayer,
+        AttackMelee(weapon: "zombie_claws"),
+        BreakObstacles,
+    ],
+)
+
+// enemies/ghost.ron
+(
+    ai: (
+        movement_type: Phasing,  // Passe à travers tout sauf Wall
+        ignores: [Window, Barricade, Water, Pit],
+        can_break: [],
+        attack_through: [Window, Barricade],
+    ),
+    behaviors: [
+        ChasePlayer,
+        AttackMelee(weapon: "ghost_touch"),
+    ],
+)
+
+// enemies/flying_demon.ron
+(
+    ai: (
+        movement_type: Flying,
+        ignores: [Water, Pit],
+        can_break: [],
+        attack_through: [],
+    ),
+    behaviors: [
+        ChasePlayer,
+        AttackRanged(projectile: "fireball"),
+        KeepDistance(min: "100.0", max: "200.0"),
+    ],
+)
+```
+
+#### State Machine Générique
+```rust
+#[derive(Component)]
+pub enum MonsterState {
+    Idle,
+    Chasing,
+    Attacking { target: Entity, target_type: AttackTargetType, cooldown: u32 },
+    Stunned { recover_at: u32 },
+    // Extensible via plugin
+}
+```
+
+### Behaviors Engine (Futur)
+
+Liste des behaviors planifiés :
+- `ChasePlayer` - Suit le joueur via FlowField
+- `ChaseClosest` - Suit l'entité la plus proche (player ou autre)
+- `Wander` - Errance aléatoire
+- `Patrol(waypoints)` - Patrouille entre points
+- `AttackMelee(weapon)` - Attaque corps à corps
+- `AttackRanged(projectile)` - Attaque à distance
+- `KeepDistance(min, max)` - Maintient une distance
+- `BreakObstacles` - Casse les obstacles sur son chemin
+- `FleeWhenLowHealth(threshold)` - Fuit si HP bas
+- `CallReinforcements` - Appelle d'autres ennemis
+- `Explode(on_death, radius, damage)` - Explose à la mort
+
+## Debug Systems
+
+### Flow Field Visualization
+```rust
+#[derive(Resource)]
+pub struct FlowFieldDebug {
+    pub enabled: bool,
+    pub show_grid: bool,
+    pub show_arrows: bool,
+    pub show_costs: bool,
+}
+```
+- Toggle via touche (ex: F3)
+- Flèches colorées par distance au target
+- Affiche les cellules bloquées en rouge
+
+### Enemy State Debug
+- Affiche l'état actuel au-dessus de l'ennemi
+- Montre la cible actuelle
+- Visualise l'aggro range
+
+## Structure des Fichiers
+
+```
+crates/game/src/character/enemy/
+├── mod.rs
+├── create.rs              # Spawn enemies from RON config
+├── spawning.rs            # Spawner logic
+└── ai/
+    ├── mod.rs             # Re-exports + legacy modules
+    ├── combat.rs          # [LEGACY] ZombieState, ZombieTarget
+    ├── pathing.rs         # [LEGACY] Individual pathfinding
+    ├── navigation.rs      # [NEW] FlowField, GridPos, NavProfile
+    ├── obstacle.rs        # [NEW] Generic Obstacle component
+    ├── state.rs           # [NEW] MonsterState, EnemyAiConfig
+    ├── behavior.rs        # [NEW] Behavior systems
+    └── debug.rs           # [NEW] Debug visualization (F3/F4/F5)
+```
+
+## Debug Keys
+
+- **F3** : Toggle Flow Field visualization
+- **F4** : Cycle NavProfile (Ground → GroundBreaker → Flying → Phasing)
+- **F5** : Toggle Enemy State visualization
+
+## Collision Layers
+
+```
+Layer 1: Enemy
+Layer 2: Environment
+Layer 3: Player
+Layer 4: Wall
+Layer 5: Window
+Layer 6: Bullet
+```
+
+Matrix définit qui collide avec qui. Les obstacles ont leur propre layer selon type.
+
+## Notes Importantes
+
+### GGRS - Règles de Base (MÉMORISER)
+1. **Jamais de f32 dans GgrsSchedule** - Utiliser `Fixed` partout
+2. **Jamais `.iter().next()`** - Trier par `net_id.0` puis `.first()`
+3. **Jamais `entity.to_bits()` pour trier** - Utiliser `net_id.0`
+4. **Jamais `HashMap`/`HashSet`** - Utiliser `BTreeMap`/`BTreeSet`
+5. **Toujours `order_iter!`/`order_mut_iter!`** - Pour queries qui affectent l'état
+6. **Query: `&GgrsNetId` EN PREMIER** - Requis pour les macros
+7. **Jamais logger `Entity`** - Utiliser `GgrsNetId` pour logs comparables
+
+### Autres
+8. **RON strings pour Fixed** - ex: `"100.0"` pas `100.0`
+9. **Behaviors sont composables** - Un ennemi peut avoir plusieurs behaviors
+10. **FlowField par NavProfile** - Pas par ennemi individuel
+11. **Clone + rollback_resource_with_clone** - Pour Resources mutables dans GgrsSchedule
+
+## Flow Field - Implémentation Actuelle
+
+Le système utilise **BFS (Breadth-First Search)** au lieu de Dijkstra pour la performance :
+
+- **Rayon** : 60 cellules (1200 unités)
+- **Directions** : 8 (diagonales incluses pour mouvement fluide)
+- **Profil** : Ground uniquement (autres profils à ajouter si besoin)
+- **Update** : Tous les 5 frames (~83ms) pour tracking réactif
+- **Cell size** : 20 unités
+- **Data structures** : `BTreeMap`/`BTreeSet` pour déterminisme GGRS
+
+### GGRS Compliance
+- `FlowFieldCache` est `Clone` et enregistré avec `rollback_resource_with_clone`
+- Player target sélectionné par tri `net_id.0` (pas `.iter().next()`)
+- `GridPos` et `NavProfile` implémentent `Ord` pour `BTreeMap`
+
+Note: Le système legacy (`pathing.rs`) reste actif mais utilise aussi les macros `order_iter!`/`order_mut_iter!`.

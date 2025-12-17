@@ -27,15 +27,17 @@ pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessi
         urls: vec![
             "stun://stun.l.google.com:19302".to_string(),
             "stun://stun1.l.google.com:19302".to_string(),
-            "turn://bascanada.org:3478".to_string(),
-            "turns://bascanada.org:5349".to_string(),
+            //"turn://bascanada.org:3478".to_string(),
+            //"turns://bascanada.org:5349".to_string(),
         ],
-        username: Some("gameuser".to_string()),
-        credential: Some("WaRCraft420".to_string()),
+        username: None,
+        credential: None,
+        //username: Some("gameuser".to_string()),
+        //credential: Some("WaRCraft420".to_string()),
     };
     
     let socket = WebRtcSocketBuilder::new(url)
-        .ice_server(ice_server)
+        //.ice_server(ice_server)
         .add_channel(ChannelConfig::unreliable())
         .build();
     

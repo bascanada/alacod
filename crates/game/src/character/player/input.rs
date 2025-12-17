@@ -387,31 +387,107 @@ pub fn move_characters(
         (With<Collider>, Without<Player>, With<Rollback>),
     >,
 ) {
-    'mainloop: for (mut transform, mut velocity, player_collider, collision_layer) in
-        query.iter_mut()
-    {
-        let mut new_transform = transform.clone();
+    for (mut transform, mut velocity, player_collider, collision_layer) in query.iter_mut() {
         let total_velocity = velocity.main + velocity.knockback;
-        new_transform.translation.x += total_velocity.x * fixed_math::new(FIXED_TIMESTEP);
-        new_transform.translation.y += total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
+        let delta_x = total_velocity.x * fixed_math::new(FIXED_TIMESTEP);
+        let delta_y = total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
 
-        for (_target_entity, target_transform, target_collider, target_layer) in
-            collider_query.iter()
-        {
-            if !settings.layer_matrix[collision_layer.0][target_layer.0] {
-                continue;
+        // Check for HARD collisions only (walls, not enemies)
+        // Enemies are "soft" - player can push through them
+        let check_hard_collision = |pos: &fixed_math::FixedVec3| -> bool {
+            for (_target_entity, target_transform, target_collider, target_layer) in
+                collider_query.iter()
+            {
+                // Skip if layers don't collide
+                if !settings.layer_matrix[collision_layer.0][target_layer.0] {
+                    continue;
+                }
+                // Only walls are hard collisions (enemy layer is soft)
+                if target_layer.0 == settings.enemy_layer {
+                    continue;
+                }
+                if is_colliding(pos, player_collider, &target_transform.translation, target_collider) {
+                    return true;
+                }
             }
-            if is_colliding(
-                &new_transform.translation,
-                player_collider,
-                &target_transform.translation,
-                target_collider,
-            ) {
-                velocity.main = fixed_math::FixedVec2::ZERO;
-                continue 'mainloop;
+            false
+        };
+
+        // Count enemy collisions for slowdown effect
+        let count_enemy_collisions = |pos: &fixed_math::FixedVec3| -> u32 {
+            let mut count = 0u32;
+            for (_target_entity, target_transform, target_collider, target_layer) in
+                collider_query.iter()
+            {
+                if target_layer.0 != settings.enemy_layer {
+                    continue;
+                }
+                if is_colliding(pos, player_collider, &target_transform.translation, target_collider) {
+                    count += 1;
+                }
+            }
+            count
+        };
+
+        // Apply slowdown based on enemy collisions (more enemies = slower)
+        let enemy_count = count_enemy_collisions(&transform.translation);
+        let slowdown = if enemy_count > 0 {
+            // Each enemy reduces speed by 20%, min 30% speed
+            let factor = fixed_math::FIXED_ONE - fixed_math::new(0.2) * fixed_math::Fixed::from_num(enemy_count);
+            factor.max(fixed_math::new(0.3))
+        } else {
+            fixed_math::FIXED_ONE
+        };
+
+        let delta_x = delta_x * slowdown;
+        let delta_y = delta_y * slowdown;
+
+        // Try full movement (X + Y)
+        let full_pos = fixed_math::FixedVec3::new(
+            transform.translation.x + delta_x,
+            transform.translation.y + delta_y,
+            transform.translation.z,
+        );
+
+        if !check_hard_collision(&full_pos) {
+            transform.translation = full_pos;
+            continue;
+        }
+
+        // Full movement blocked by wall - try sliding
+        let mut moved_x = false;
+        let mut moved_y = false;
+
+        // Try X only
+        if delta_x != fixed_math::FIXED_ZERO {
+            let x_only_pos = fixed_math::FixedVec3::new(
+                transform.translation.x + delta_x,
+                transform.translation.y,
+                transform.translation.z,
+            );
+            if !check_hard_collision(&x_only_pos) {
+                transform.translation.x = x_only_pos.x;
+                moved_x = true;
             }
         }
-        *transform = new_transform;
+
+        // Try Y only
+        if delta_y != fixed_math::FIXED_ZERO {
+            let y_only_pos = fixed_math::FixedVec3::new(
+                transform.translation.x,
+                transform.translation.y + delta_y,
+                transform.translation.z,
+            );
+            if !check_hard_collision(&y_only_pos) {
+                transform.translation.y = y_only_pos.y;
+                moved_y = true;
+            }
+        }
+
+        // If blocked by walls on all sides, zero velocity
+        if !moved_x && !moved_y {
+            velocity.main = fixed_math::FixedVec2::ZERO;
+        }
     }
 }
 
