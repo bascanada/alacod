@@ -209,8 +209,8 @@ pub struct FlowFieldConfig {
 impl Default for FlowFieldConfig {
     fn default() -> Self {
         Self {
-            update_interval: 5,  // Update every ~83ms at 60fps for responsive tracking
-            max_search_radius: 60, // 60 cells * 20 units = 1200 units radius
+            update_interval: 10,  // Update every ~166ms at 60fps (was 5, reduced for web perf)
+            max_search_radius: 40, // 40 cells * 20 units = 800 units radius (was 60, reduced for web perf)
             use_8_directions: true, // 8 directions for smoother diagonal movement
             diagonal_cost: 14,
         }

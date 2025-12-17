@@ -158,7 +158,7 @@ fn spawn_test_enemy_spawner(commands: &mut Commands, position: Vec3) {
 fn setup_simple_background(mut commands: Commands) {
     // Background parameters - scaled down to match smaller character
     let tile_size = 100.0;
-    let grid_size = 20; // This creates a 20x20 grid of tiles
+    let grid_size = 6; // Reduced from 20 to 6 for better web performance (36 tiles instead of 400)
 
     // Create a parent entity for all background tiles
     commands
