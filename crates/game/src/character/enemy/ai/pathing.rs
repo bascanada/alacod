@@ -469,12 +469,31 @@ pub fn move_enemies(
     >,
     flow_field_cache: Res<super::navigation::FlowFieldCache>,
 ) {
-    // First pass - collect all enemy positions for separation calculation
+    // --- Optimization 1: Cache walls ---
+    // Collect walls into a Vec for faster iteration (cache locality)
+    let walls: Vec<_> = wall_collider_query.iter().collect();
+
+    // --- Optimization 2: Spatial Grid for Separation ---
     // GGRS CRITICAL: Use order_iter! for deterministic iteration order
+    // We collect (Entity, Position)
     let enemy_positions: Vec<(Entity, fixed_math::FixedVec2)> = order_iter!(enemy_query)
         .iter()
         .map(|(_, entity, transform, ..)| (*entity, transform.translation.truncate()))
         .collect();
+
+    // Build spatial grid
+    let cell_size = config.enemy_separation_distance;
+    let mut spatial_grid: std::collections::HashMap<(i32, i32), Vec<usize>> =
+        std::collections::HashMap::new();
+
+    for (index, (_, pos)) in enemy_positions.iter().enumerate() {
+        let grid_x = (pos.x / cell_size).floor().to_num::<i32>();
+        let grid_y = (pos.y / cell_size).floor().to_num::<i32>();
+        spatial_grid
+            .entry((grid_x, grid_y))
+            .or_default()
+            .push(index);
+    }
 
     // Second pass - calculate and apply movement in deterministic order
     for (
@@ -503,7 +522,9 @@ pub fn move_enemies(
         let flow_field_target = flow_field_cache.target_pos.to_fixed();
 
         // Use flow field for navigation (pathfinds around walls)
-        let direction_to_target_v2 = if let Some(flow_field) = flow_field_cache.get_flow_field(super::navigation::NavProfile::Ground) {
+        let direction_to_target_v2 = if let Some(flow_field) =
+            flow_field_cache.get_flow_field(super::navigation::NavProfile::Ground)
+        {
             // Get direction from flow field
             match flow_field.get_direction_vector(enemy_pos_v2) {
                 Some(dir) => dir,
@@ -549,24 +570,35 @@ pub fn move_enemies(
             distance_to_nearest_player = fixed_math::Fixed::MAX;
         }
 
-        // Calculate separation force (avoid other enemies)
+        // Calculate separation force (avoid other enemies) using Spatial Grid
         let mut separation_v2 = fixed_math::FixedVec2::ZERO;
         let mut separation_count: u32 = 0; // Use u32 for count
 
-        for (other_entity, other_pos_v2) in &enemy_positions {
-            if *other_entity == entity {
-                continue;
-            }
+        let grid_x = (enemy_pos_v2.x / cell_size).floor().to_num::<i32>();
+        let grid_y = (enemy_pos_v2.y / cell_size).floor().to_num::<i32>();
 
-            let dist_to_other = enemy_pos_v2.distance(other_pos_v2);
-            // Use small epsilon for distance > 0 check
-            if dist_to_other < config.enemy_separation_distance
-                && dist_to_other > fixed_math::new(0.1)
-            {
-                let repulsion_v2 = (enemy_pos_v2 - *other_pos_v2).normalize_or_zero()
-                    / dist_to_other.max(fixed_math::FIXED_ONE);
-                separation_v2 += repulsion_v2;
-                separation_count += 1;
+        // Check current cell and neighbors (3x3 area)
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                if let Some(indices) = spatial_grid.get(&(grid_x + dx, grid_y + dy)) {
+                    for &idx in indices {
+                        let (other_entity, other_pos_v2) = &enemy_positions[idx];
+                        if *other_entity == entity {
+                            continue;
+                        }
+
+                        let dist_to_other = enemy_pos_v2.distance(other_pos_v2);
+                        // Use small epsilon for distance > 0 check
+                        if dist_to_other < config.enemy_separation_distance
+                            && dist_to_other > fixed_math::new(0.1)
+                        {
+                            let repulsion_v2 = (enemy_pos_v2 - *other_pos_v2).normalize_or_zero()
+                                / dist_to_other.max(fixed_math::FIXED_ONE);
+                            separation_v2 += repulsion_v2;
+                            separation_count += 1;
+                        }
+                    }
+                }
             }
         }
 
@@ -622,9 +654,9 @@ pub fn move_enemies(
             let delta_x = total_velocity.x * fixed_math::new(FIXED_TIMESTEP);
             let delta_y = total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
 
-            // Helper to check collision at a position
+            // Helper to check collision at a position (using cached walls)
             let check_wall_collision = |pos: &fixed_math::FixedVec3| -> bool {
-                for (wall_transform, wall_collider, wall_layer) in wall_collider_query.iter() {
+                for (wall_transform, wall_collider, wall_layer) in &walls {
                     if !collision_settings.layer_matrix[enemy_collision_layer.0][wall_layer.0] {
                         continue;
                     }
