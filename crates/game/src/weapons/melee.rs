@@ -723,8 +723,8 @@ pub fn enemy_melee_attack_system(
                     );
                     
                     info!(
-                        "Enemy entity {:?} started melee attack with {} at frame {}",
-                        entity, config.name, frame.frame
+                        "Enemy {} started melee attack with {} at frame {}",
+                        net_id, config.name, frame.frame
                     );
                 }
             }

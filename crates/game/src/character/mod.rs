@@ -19,6 +19,7 @@ use crate::{
         dash::DashState,
         enemy::{
             ai::{
+                // Legacy systems (still active)
                 combat::{
                     zombie_attack_system, zombie_target_selection, ZombieCombatConfig, ZombieState,
                     ZombieTarget,
@@ -26,6 +27,15 @@ use crate::{
                 pathing::{
                     calculate_paths, check_direct_paths, move_enemies, update_enemy_targets,
                     EnemyPath, PathfindingConfig,
+                },
+                // New generic AI system
+                navigation::{FlowFieldCache, FlowFieldConfig, update_flow_field_system},
+                obstacle::{Obstacle, ObstacleAttackEvent, ObstacleDestroyedEvent, process_obstacle_damage},
+                state::{EnemyAiConfig, EnemyTarget as NewEnemyTarget, MonsterState},
+                debug::{
+                    FlowFieldDebug, EnemyStateDebug,
+                    toggle_flow_field_debug, draw_flow_field_debug,
+                    toggle_enemy_state_debug, draw_enemy_state_debug,
                 },
             },
             spawning::{enemy_spawn_from_spawners_system, EnemySpawnerState},
@@ -60,11 +70,21 @@ impl Plugin for BaseCharacterGamePlugin {
         app.add_plugins(InputManagerPlugin::<PlayerAction>::default());
         app.init_resource::<PointerWorldPosition>();
 
+        // Legacy resources
         app.init_resource::<PathfindingConfig>();
         app.init_resource::<KnockbackDampingConfig>();
-    app.init_resource::<ZombieCombatConfig>();
-    app.add_message::<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>();
+        app.init_resource::<ZombieCombatConfig>();
+        app.add_message::<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>();
 
+        // New AI system resources
+        app.init_resource::<FlowFieldCache>();
+        app.init_resource::<FlowFieldConfig>();
+        app.init_resource::<FlowFieldDebug>();
+        app.init_resource::<EnemyStateDebug>();
+        app.add_message::<ObstacleAttackEvent>();
+        app.add_message::<ObstacleDestroyedEvent>();
+
+        // Rollback registration - Legacy
         app.rollback_resource_with_clone::<PathfindingConfig>()
             .rollback_resource_with_clone::<KnockbackDampingConfig>()
             .rollback_component_with_clone::<EnemySpawnerComponent>()
@@ -83,14 +103,24 @@ impl Plugin for BaseCharacterGamePlugin {
             .rollback_component_with_reflect::<Player>()
             .rollback_component_with_reflect::<Enemy>();
 
+        // Rollback registration - New AI system
+        app.rollback_resource_with_clone::<FlowFieldCache>();
+        // Note: FlowFieldConfig is not rolled back (static configuration)
+
         app.add_systems(ReadInputs, read_local_inputs);
 
-        // Non-rollback systems: update visuals
+        // Non-rollback systems: update visuals and debug
         app.add_systems(
             Update,
             (
                 set_sprite_flip,
                 update_health_bars,
+                // Debug toggles
+                toggle_flow_field_debug,
+                toggle_enemy_state_debug,
+                // Debug drawing
+                draw_flow_field_debug,
+                draw_enemy_state_debug,
             ),
         );
 
@@ -116,9 +146,13 @@ impl Plugin for BaseCharacterGamePlugin {
                     .before(RollbackSystemSet::EnemyAI),
                 // ANIMATION CRATE
                 (update_animation_state,).in_set(RollbackSystemSet::AnimationUpdates),
-                // SPAWING
+                // SPAWNING
                 (enemy_spawn_from_spawners_system,).in_set(RollbackSystemSet::EnemySpawning),
-                // ZOMBIE TARGET SELECTION + ATTACKS
+                // FLOW FIELD UPDATE (runs before EnemyAI)
+                (update_flow_field_system,)
+                    .after(RollbackSystemSet::EnemySpawning)
+                    .before(RollbackSystemSet::EnemyAI),
+                // ZOMBIE TARGET SELECTION + ATTACKS (Legacy system - still active)
                 (
                     zombie_target_selection,
                     update_enemy_targets.after(zombie_target_selection),
@@ -128,6 +162,9 @@ impl Plugin for BaseCharacterGamePlugin {
                     zombie_attack_system.after(move_enemies),
                 )
                     .in_set(RollbackSystemSet::EnemyAI),
+                // OBSTACLE DAMAGE PROCESSING
+                (process_obstacle_damage,)
+                    .after(RollbackSystemSet::EnemyAI),
             ),
         );
     }

@@ -90,10 +90,11 @@ fn spawn_test_map(
     id_provider: &mut ResMut<GgrsNetIdFactory>,
     collision_settings: &Res<CollisionSettings>,
 ) {
+    // Walls scaled down ~4x to fit smaller character
     spawn_test_wall(
         commands,
-        Vec3::new(-1500.0, 650.0, 0.0),
-        Vec2::new(125.0, 500.0),
+        Vec3::new(-200.0, 100.0, 0.0),
+        Vec2::new(30.0, 120.0),
         collision_settings,
         Color::Srgba(ORANGE_300),
         id_provider.next("wall".into()),
@@ -101,8 +102,8 @@ fn spawn_test_map(
 
     spawn_test_wall(
         commands,
-        Vec3::new(500.0, 250.0, 0.0),
-        Vec2::new(125.0, 500.0),
+        Vec3::new(120.0, 60.0, 0.0),
+        Vec2::new(30.0, 120.0),
         collision_settings,
         Color::Srgba(PURPLE_300),
         id_provider.next("wall".into()),
@@ -110,8 +111,8 @@ fn spawn_test_map(
 
     spawn_test_wall(
         commands,
-        Vec3::new(400.0, 1450.0, 0.0),
-        Vec2::new(500.0, 125.0),
+        Vec3::new(100.0, 200.0, 0.0),
+        Vec2::new(120.0, 30.0),
         collision_settings,
         Color::Srgba(TURQUOISE),
         id_provider.next("wall".into()),
@@ -119,20 +120,19 @@ fn spawn_test_map(
 
     spawn_test_wall(
         commands,
-        Vec3::new(700.0, -1350.0, 0.0),
-        Vec2::new(500.0, 125.0),
+        Vec3::new(150.0, -180.0, 0.0),
+        Vec2::new(120.0, 30.0),
         collision_settings,
         Color::Srgba(TURQUOISE),
         id_provider.next("wall".into()),
     );
 
-
-
+    // Enemy spawners much closer to player
     let spawn_positions = [
-        Vec3::new(-1000., -1000., 0.0),
-        Vec3::new(-1000., 1000., 0.0),
-        Vec3::new(1000., -1000., 0.0),
-        Vec3::new(1000., 1000., 0.0),
+        Vec3::new(-150., -150., 0.0),
+        Vec3::new(-150., 150., 0.0),
+        Vec3::new(250., -150., 0.0),
+        Vec3::new(250., 150., 0.0),
     ];
 
     for position in spawn_positions.iter() {
@@ -156,9 +156,9 @@ fn spawn_test_enemy_spawner(commands: &mut Commands, position: Vec3) {
 
 
 fn setup_simple_background(mut commands: Commands) {
-    // Background parameters
-    let tile_size = 400.0;
-    let grid_size = 20; // This creates a 20x20 grid of tiles
+    // Background parameters - scaled down to match smaller character
+    let tile_size = 100.0;
+    let grid_size = 6; // Reduced from 20 to 6 for better web performance (36 tiles instead of 400)
 
     // Create a parent entity for all background tiles
     commands
