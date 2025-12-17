@@ -31,6 +31,7 @@ pub const INPUT_DASH: u16 = 1 << 7;
 pub const INPUT_MODIFIER: u16 = 1 << 8;
 pub const INPUT_INTERACTION: u16 = 1 << 9;
 pub const INPUT_MELEE_ATTACK: u16 = 1 << 10;
+pub const INPUT_FORCE_CRASH: u16 = 1 << 11;
 
 const PAN_FACING_THRESHOLD: i16 = 5;
 
@@ -157,6 +158,11 @@ pub fn read_local_inputs(
             input.buttons |= INPUT_MELEE_ATTACK;
         }
 
+        // F12 to force crash (debug)
+        if action_state.pressed(&PlayerAction::DebugForceCrash) {
+            input.buttons |= INPUT_FORCE_CRASH;
+        }
+
         if let Ok(window) = q_window.single() {
             if let Ok((camera, camera_transform)) = q_camera.single() {
                 if let Some(cursor_position) = window.cursor_position() {
@@ -224,6 +230,10 @@ pub fn apply_inputs(
     {
         if let Some(config) = character_configs.get(&config_handles.config) {
             let (input, _input_status) = inputs[player.handle];
+
+            if input.buttons & INPUT_FORCE_CRASH != 0 {
+                panic!("FORCED CRASH BY PLAYER {}", player.handle);
+            }
 
             dash_state.update();
 

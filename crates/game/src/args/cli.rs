@@ -18,4 +18,10 @@ pub struct Opt {
     pub spectators: Option<Vec<SocketAddr>>,
     #[clap(long)]
     pub cid: Option<String>,
+    #[clap(long)]
+    pub telemetry: bool,
+    #[clap(long, default_value = "http://localhost:5080/api/default/default/_json")]
+    pub telemetry_url: String,
+    #[clap(long, default_value = "")]
+    pub telemetry_auth: String,
 }

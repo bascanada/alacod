@@ -28,6 +28,18 @@ document.addEventListener('DOMContentLoaded', function() {
       console.log("MATCHBOX " + matchbox + " NUMBER " + lobby_size + " LOBBY " + lobby);
     }
 
+    const telemetry = urlParams.get("telemetry");
+    if (telemetry === "true") {
+      let canvas = document.getElementById("bevy-canvas");
+      canvas.setAttribute("data-telemetry", "true");
+
+      const telemetry_url = urlParams.get("telemetry_url");
+      if (telemetry_url) canvas.setAttribute("data-telemetry-url", decodeURIComponent(telemetry_url));
+
+      const telemetry_auth = urlParams.get("telemetry_auth");
+      if (telemetry_auth) canvas.setAttribute("data-telemetry-auth", decodeURIComponent(telemetry_auth));
+    }
+
     import(name).then((module) => {
       console.log(module);
       try {

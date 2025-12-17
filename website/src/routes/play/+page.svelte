@@ -28,13 +28,21 @@
 			baseSrc += `&lobby=${argLobbyName}`;
 		}
 
+		// Append telemetry settings
+		const settings = get(settingsStore);
+		if (settings.telemetryEnabled) {
+			baseSrc += `&telemetry=true`;
+			// Encode these to ensure safety in URL
+			if (settings.telemetryUrl) baseSrc += `&telemetry_url=${encodeURIComponent(settings.telemetryUrl)}`;
+			if (settings.telemetryAuth) baseSrc += `&telemetry_auth=${encodeURIComponent(settings.telemetryAuth)}`;
+		}
+
 		if (supportOnline == 'true') {
 			// If online, we expect lobby components to have passed necessary params
 			if (argSize) baseSrc += `&lobby_size=${argSize}`;
 			if (argToken) baseSrc += `&token=${argToken}`; // Passing token if loader/wasm needs it
 			
 			// Get matchbox server from settings or use provided URL as fallback
-			const settings = get(settingsStore);
 			const matchboxUrl = argMatchbox || settings.matchboxServer;
 			baseSrc += `&matchbox=${matchboxUrl}`;
 		} else {

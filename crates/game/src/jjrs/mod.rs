@@ -75,7 +75,7 @@ pub struct GgrsSessionBuilding {
 }
 
 
-pub fn log_ggrs_events(mut session: ResMut<bevy_ggrs::Session<PeerConfig>>) {
+pub fn log_ggrs_events(mut session: ResMut<bevy_ggrs::Session<PeerConfig>>, telemetry_config: Res<telemetry::TelemetryConfig>) {
     if let Session::P2P(session) = session.as_mut() {
         for event in session.events() {
             info!("GGRS Event: {:?}", event);
@@ -93,6 +93,18 @@ pub fn log_ggrs_events(mut session: ResMut<bevy_ggrs::Session<PeerConfig>>) {
                         "Desync detected on frame {} local {} remote {}@{:?}",
                         frame, local_checksum, remote_checksum, addr
                     );
+
+                    let event = telemetry::TelemetryEvent {
+                        level: "DESYNC".to_string(),
+                        message: "Desync detected between local and remote".to_string(),
+                        frame: Some(frame.try_into().unwrap_or(0)),
+                        checksum_local: Some(local_checksum),
+                        checksum_remote: Some(remote_checksum),
+                        extra: Some(format!("{:?}", addr)),
+                        timestamp: chrono::Utc::now().timestamp_micros(),
+                    };
+
+                    telemetry::send_event(&telemetry_config, event);
                 }
                 _ => (),
             }

@@ -6,6 +6,9 @@ pub struct CanvasConfig {
     pub number_player: Option<usize>,
     pub matchbox: Option<String>,
     pub lobby: Option<String>,
+    pub telemetry: bool,
+    pub telemetry_url: String,
+    pub telemetry_auth: String,
 }
 
 pub fn read_canvas_data_system() -> CanvasConfig {
@@ -22,6 +25,21 @@ pub fn read_canvas_data_system() -> CanvasConfig {
 
     config.matchbox = canvas_element.get_attribute("data-matchbox");
     config.lobby = canvas_element.get_attribute("data-lobby");
+
+    // Telemetry settings
+    if let Some(enabled) = canvas_element.get_attribute("data-telemetry") {
+        config.telemetry = enabled == "true";
+    }
+
+    if let Some(url) = canvas_element.get_attribute("data-telemetry-url") {
+        config.telemetry_url = url;
+    } else {
+        config.telemetry_url = "http://localhost:5080/api/default/default/_json".to_string();
+    }
+
+    if let Some(auth) = canvas_element.get_attribute("data-telemetry-auth") {
+        config.telemetry_auth = auth;
+    }
 
     if let Some(nbr_str) = canvas_element.get_attribute("data-number-player") {
         match nbr_str.parse::<usize>() {
