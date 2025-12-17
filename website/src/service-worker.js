@@ -58,6 +58,20 @@ self.addEventListener('fetch', (event) => {
 				throw new Error('invalid response from fetch');
 			}
 
+			if (response.redirected) {
+				const cleanResponse = new Response(response.body, {
+					status: response.status,
+					statusText: response.statusText,
+					headers: response.headers
+				});
+
+				if (response.status === 200) {
+					cache.put(event.request, cleanResponse.clone());
+				}
+
+				return cleanResponse;
+			}
+
 			if (response.status === 200) {
 				cache.put(event.request, response.clone());
 			}
