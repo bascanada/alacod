@@ -244,11 +244,15 @@ impl From<&EnemyAiConfigRon> for EnemyAiConfig {
         if let Some(ref range) = ron.aggro_range {
             if let Ok(val) = range.parse::<f32>() {
                 config.aggro_range = fixed_math::new(val);
+            } else {
+                warn!("Failed to parse aggro_range '{}' from RON config.", range);
             }
         }
         if let Some(ref range) = ron.attack_range {
             if let Ok(val) = range.parse::<f32>() {
                 config.attack_range = fixed_math::new(val);
+            } else {
+                warn!("Failed to parse attack_range '{}' from RON config.", range);
             }
         }
         if let Some(cooldown) = ron.attack_cooldown_frames {
@@ -269,11 +273,18 @@ impl From<&EnemyAiConfigRon> for EnemyAiConfig {
         if let Some(ref threshold) = ron.flee_threshold {
             if let Ok(val) = threshold.parse::<f32>() {
                 config.flee_threshold = Some(fixed_math::new(val));
+            } else {
+                warn!(
+                    "Failed to parse flee_threshold '{}' from RON config.",
+                    threshold
+                );
             }
         }
         if let Some(ref damage) = ron.attack_damage {
             if let Ok(val) = damage.parse::<f32>() {
                 config.attack_damage = fixed_math::new(val);
+            } else {
+                warn!("Failed to parse attack_damage '{}' from RON config.", damage);
             }
         }
 

@@ -7,6 +7,7 @@ use bevy_ggrs::prelude::*;
 use bevy_ggrs::LocalInputs;
 use leafwing_input_manager::prelude::*;
 use serde::{Deserialize, Serialize};
+use utils::{order_mut_iter, net_id::GgrsNetId};
 
 use crate::character::config::{CharacterConfig, CharacterConfigHandles};
 use crate::character::dash::DashState;
@@ -191,6 +192,7 @@ pub fn apply_inputs(
     character_configs: Res<Assets<CharacterConfig>>,
     mut query: Query<
         (
+            &GgrsNetId,
             Entity,
             &WeaponInventory,
             &mut fixed_math::FixedTransform3D,
@@ -208,6 +210,7 @@ pub fn apply_inputs(
     >,
 ) {
     for (
+        _net_id,
         _entity,
         _inventory,
         mut transform,
@@ -220,7 +223,7 @@ pub fn apply_inputs(
         mut interaction_input,
         config_handles,
         player,
-    ) in query.iter_mut()
+    ) in order_mut_iter!(query)
     {
         if let Some(config) = character_configs.get(&config_handles.config) {
             let (input, _input_status) = inputs[player.handle];
@@ -342,9 +345,9 @@ pub fn apply_inputs(
 pub fn apply_friction(
     inputs: Res<PlayerInputs<PeerConfig>>,
     movement_configs: Res<Assets<CharacterConfig>>,
-    mut query: Query<(&mut Velocity, &CharacterConfigHandles, &Player), With<Rollback>>,
+    mut query: Query<(&GgrsNetId, &mut Velocity, &CharacterConfigHandles, &Player), With<Rollback>>,
 ) {
-    for (mut velocity, config_handles, player) in query.iter_mut() {
+    for (_net_id, mut velocity, config_handles, player) in order_mut_iter!(query) {
         if let Some(config) = movement_configs.get(&config_handles.config) {
             let (input, _input_status) = inputs[player.handle];
 
@@ -369,6 +372,7 @@ pub fn apply_friction(
 pub fn move_characters(
     mut query: Query<
         (
+            &GgrsNetId,
             &mut fixed_math::FixedTransform3D,
             &mut Velocity,
             &Collider,
@@ -387,7 +391,7 @@ pub fn move_characters(
         (With<Collider>, Without<Player>, With<Rollback>),
     >,
 ) {
-    for (mut transform, mut velocity, player_collider, collision_layer) in query.iter_mut() {
+    for (_net_id, mut transform, mut velocity, player_collider, collision_layer) in order_mut_iter!(query) {
         let total_velocity = velocity.main + velocity.knockback;
         let delta_x = total_velocity.x * fixed_math::new(FIXED_TIMESTEP);
         let delta_y = total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
@@ -457,12 +461,14 @@ pub fn move_characters(
         // Full movement blocked by wall - try sliding
         let mut moved_x = false;
         let mut moved_y = false;
+        let start_x = transform.translation.x;
+        let start_y = transform.translation.y;
 
         // Try X only
         if delta_x != fixed_math::FIXED_ZERO {
             let x_only_pos = fixed_math::FixedVec3::new(
-                transform.translation.x + delta_x,
-                transform.translation.y,
+                start_x + delta_x,
+                start_y,
                 transform.translation.z,
             );
             if !check_hard_collision(&x_only_pos) {
@@ -474,8 +480,8 @@ pub fn move_characters(
         // Try Y only
         if delta_y != fixed_math::FIXED_ZERO {
             let y_only_pos = fixed_math::FixedVec3::new(
-                transform.translation.x,
-                transform.translation.y + delta_y,
+                start_x,
+                start_y + delta_y,
                 transform.translation.z,
             );
             if !check_hard_collision(&y_only_pos) {
@@ -491,8 +497,8 @@ pub fn move_characters(
     }
 }
 
-pub fn update_animation_state(mut query: Query<(&Velocity, &mut AnimationState), With<Rollback>>) {
-    for (velocity, mut state) in query.iter_mut() {
+pub fn update_animation_state(mut query: Query<(&GgrsNetId, &Velocity, &mut AnimationState), With<Rollback>>) {
+    for (_net_id, velocity, mut state) in order_mut_iter!(query) {
         let current_state_name = state.0.clone();
         let new_state_name = if (velocity.main + velocity.knockback).length_squared() > 0.5 {
             "Run"

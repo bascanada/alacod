@@ -6,7 +6,7 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;
-use utils::{frame::FrameCount, net_id::GgrsNetId};
+use utils::{frame::FrameCount, net_id::GgrsNetId, order_mut_iter};
 
 use crate::character::enemy::Enemy;
 use crate::character::health::DamageAccumulator;
@@ -39,7 +39,16 @@ pub fn enemy_target_selection(
         (With<Rollback>, Without<Enemy>, Without<Player>),
     >,
 ) {
-    for (enemy_net_id, enemy_transform, ai_config, mut target, mut state) in enemy_query.iter_mut()
+    // Collect and sort players for deterministic iteration
+    let mut players: Vec<_> = player_query.iter().collect();
+    players.sort_by_key(|(net_id, _)| net_id.0);
+
+    // Collect and sort obstacles
+    let mut obstacles: Vec<_> = obstacle_query.iter().collect();
+    obstacles.sort_by_key(|(net_id, _, _)| net_id.0);
+
+    for (enemy_net_id, enemy_transform, ai_config, mut target, mut state) in
+        order_mut_iter!(enemy_query)
     {
         let enemy_pos = enemy_transform.translation.truncate();
 
@@ -52,32 +61,34 @@ pub fn enemy_target_selection(
             _ => {}
         }
 
-        // Find closest player
+        // Find closest player deterministically
         let mut closest_player: Option<(GgrsNetId, fixed_math::Fixed, fixed_math::FixedVec2)> =
             None;
 
-        for (player_net_id, player_transform) in player_query.iter() {
+        for (player_net_id, player_transform) in &players {
             let player_pos = player_transform.translation.truncate();
             let distance = enemy_pos.distance(&player_pos);
 
             if distance < ai_config.aggro_range {
                 match closest_player {
                     None => {
-                        closest_player = Some((player_net_id.clone(), distance, player_pos));
+                        closest_player = Some(((*player_net_id).clone(), distance, player_pos));
                     }
-                    Some((_, closest_dist, _)) if distance < closest_dist => {
-                        closest_player = Some((player_net_id.clone(), distance, player_pos));
+                    Some((_, closest_dist, _)) => {
+                        // Strict inequality ensures first one (lowest NetId due to sort) is kept on ties
+                        if distance < closest_dist {
+                            closest_player = Some(((*player_net_id).clone(), distance, player_pos));
+                        }
                     }
-                    _ => {}
                 }
             }
         }
 
-        // Find closest blocking obstacle (that we can break)
+        // Find closest blocking obstacle (that we can break) deterministically
         let mut closest_obstacle: Option<(GgrsNetId, fixed_math::Fixed, fixed_math::FixedVec2)> =
             None;
 
-        for (obstacle_net_id, obstacle_transform, obstacle) in obstacle_query.iter() {
+        for (obstacle_net_id, obstacle_transform, obstacle) in &obstacles {
             // Only consider obstacles we can break and that are intact
             if !ai_config.can_break_obstacle(obstacle.obstacle_type) || !obstacle.is_intact() {
                 continue;
@@ -90,12 +101,16 @@ pub fn enemy_target_selection(
             if distance < ai_config.aggro_range {
                 match closest_obstacle {
                     None => {
-                        closest_obstacle = Some((obstacle_net_id.clone(), distance, obstacle_pos));
+                        closest_obstacle =
+                            Some(((*obstacle_net_id).clone(), distance, obstacle_pos));
                     }
-                    Some((_, closest_dist, _)) if distance < closest_dist => {
-                        closest_obstacle = Some((obstacle_net_id.clone(), distance, obstacle_pos));
+                    Some((_, closest_dist, _)) => {
+                        // Strict inequality ensures first one (lowest NetId) is kept on ties
+                        if distance < closest_dist {
+                            closest_obstacle =
+                                Some(((*obstacle_net_id).clone(), distance, obstacle_pos));
+                        }
                     }
-                    _ => {}
                 }
             }
         }
@@ -150,6 +165,7 @@ pub fn enemy_movement_system(
     flow_field_cache: Res<FlowFieldCache>,
     mut enemy_query: Query<
         (
+            &GgrsNetId,
             Entity,
             &mut fixed_math::FixedTransform3D,
             &mut Velocity,
@@ -165,7 +181,7 @@ pub fn enemy_movement_system(
     // Collect enemy positions for separation calculation
     let enemy_positions: Vec<(Entity, fixed_math::FixedVec2)> = enemy_query
         .iter()
-        .map(|(entity, transform, ..)| (entity, transform.translation.truncate()))
+        .map(|(_, entity, transform, ..)| (entity, transform.translation.truncate()))
         .collect();
 
     let separation_distance = fixed_math::new(40.0);
@@ -173,8 +189,8 @@ pub fn enemy_movement_system(
     let slow_down_distance = fixed_math::new(50.0);
     let optimal_attack_distance = fixed_math::new(30.0);
 
-    for (entity, mut transform, mut velocity, ai_config, target, state, mut facing) in
-        enemy_query.iter_mut()
+    for (_net_id, entity, mut transform, mut velocity, ai_config, target, state, mut facing) in
+        order_mut_iter!(enemy_query)
     {
         let enemy_pos = transform.translation.truncate();
 
@@ -293,8 +309,8 @@ pub fn enemy_attack_system(
     frame: Res<FrameCount>,
     mut enemy_query: Query<
         (
-            Entity,
             &GgrsNetId,
+            Entity,
             &fixed_math::FixedTransform3D,
             &EnemyAiConfig,
             &EnemyTarget,
@@ -313,8 +329,8 @@ pub fn enemy_attack_system(
     mut player_damage_query: Query<&mut DamageAccumulator>,
     mut obstacle_events: MessageWriter<ObstacleAttackEvent>,
 ) {
-    for (enemy_entity, enemy_net_id, enemy_transform, ai_config, target, mut state) in
-        enemy_query.iter_mut()
+    for (enemy_net_id, enemy_entity, enemy_transform, ai_config, target, mut state) in
+        order_mut_iter!(enemy_query)
     {
         let enemy_pos = enemy_transform.translation.truncate();
 
@@ -445,9 +461,9 @@ pub fn enemy_attack_system(
 /// System to handle stunned state recovery
 pub fn enemy_stun_recovery_system(
     frame: Res<FrameCount>,
-    mut enemy_query: Query<&mut MonsterState, With<Enemy>>,
+    mut enemy_query: Query<(&GgrsNetId, &mut MonsterState), With<Enemy>>,
 ) {
-    for mut state in enemy_query.iter_mut() {
+    for (_net_id, mut state) in order_mut_iter!(enemy_query) {
         if let MonsterState::Stunned { recover_at_frame } = *state {
             if frame.frame >= recover_at_frame {
                 *state = MonsterState::Idle;

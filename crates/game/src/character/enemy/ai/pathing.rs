@@ -542,7 +542,7 @@ pub fn move_enemies(
 
             // Convert the FixedWide result of sqrt back to Fixed for use in subsequent game logic
             // This relies on your Fixed::from_num and FixedWide::to_num methods.
-            distance_to_nearest_player = fixed_math::Fixed::from_num(dist_fw.to_num::<f32>());
+            distance_to_nearest_player = fixed_math::Fixed::from_num(dist_fw);
         } else {
             // No players found, or distance was effectively infinite.
             // Set to a very large Fixed value that your game logic can handle.
@@ -648,12 +648,14 @@ pub fn move_enemies(
                 // Full movement blocked - try sliding along walls
                 let mut moved_x = false;
                 let mut moved_y = false;
+                let start_x = fixed_transform.translation.x;
+                let start_y = fixed_transform.translation.y;
 
                 // Try X only
                 if delta_x != fixed_math::FIXED_ZERO {
                     let x_only_pos = fixed_math::FixedVec3::new(
-                        fixed_transform.translation.x.saturating_add(delta_x),
-                        fixed_transform.translation.y,
+                        start_x.saturating_add(delta_x),
+                        start_y,
                         fixed_transform.translation.z,
                     );
                     if !check_wall_collision(&x_only_pos) {
@@ -662,11 +664,11 @@ pub fn move_enemies(
                     }
                 }
 
-                // Try Y only
+                // Try Y only (independent of X)
                 if delta_y != fixed_math::FIXED_ZERO {
                     let y_only_pos = fixed_math::FixedVec3::new(
-                        fixed_transform.translation.x, // Use potentially updated X
-                        fixed_transform.translation.y.saturating_add(delta_y),
+                        start_x, // Use original X
+                        start_y.saturating_add(delta_y),
                         fixed_transform.translation.z,
                     );
                     if !check_wall_collision(&y_only_pos) {

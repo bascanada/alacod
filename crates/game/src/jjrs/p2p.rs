@@ -1,32 +1,28 @@
-
-
 use bevy::prelude::*;
+use bevy_fixed::rng::RollbackRng;
 use bevy_ggrs::ggrs::PlayerType;
 use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
-use bevy_fixed::rng::RollbackRng;
 
 use crate::{
     character::player::jjrs::PeerConfig,
-    core::{AppState, OnlineState}, 
-    jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding},
+    core::{AppState, OnlineState},
+    jjrs::{
+        GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding,
+    },
 };
-
 
 // For matchbox socket connection
 
 pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessionConfiguration>) {
-    use bevy_matchbox::matchbox_socket::{WebRtcSocketBuilder, RtcIceServerConfig, ChannelConfig};
-    
-    let url = format!(
-        "{}/{}",
-        ggrs_config.matchbox_url, ggrs_config.lobby
-    );
-    
+    use bevy_matchbox::matchbox_socket::{ChannelConfig, RtcIceServerConfig, WebRtcSocketBuilder};
+
+    let url = format!("{}/{}", ggrs_config.matchbox_url, ggrs_config.lobby);
+
     // Configure ICE servers including STUN and TURN for better NAT traversal
     let ice_server = RtcIceServerConfig {
         urls: vec![
-            "stun://stun.l.google.com:19302".to_string(),
-            "stun://stun1.l.google.com:19302".to_string(),
+            "stun:stun.l.google.com:19302".to_string(),
+            "stun:stun1.l.google.com:19302".to_string(),
             //"turn://bascanada.org:3478".to_string(),
             //"turns://bascanada.org:5349".to_string(),
         ],
@@ -35,12 +31,12 @@ pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessi
         //username: Some("gameuser".to_string()),
         //credential: Some("WaRCraft420".to_string()),
     };
-    
+
     let socket = WebRtcSocketBuilder::new(url)
-        //.ice_server(ice_server)
-        .add_channel(ChannelConfig::unreliable())
+        .ice_server(ice_server)
+        .add_channel(ChannelConfig::reliable())
         .build();
-    
+
     commands.insert_resource(MatchboxSocket::from(socket));
 
     info!("start p2p connection with CID={}", ggrs_config.cid);
@@ -75,28 +71,44 @@ pub fn wait_for_players(
     let players = socket.players();
 
     let num_players = ggrs_config.connection.max_player;
-    
+
     // Log the current state of player connections
     if players.len() < num_players {
-        info!("Waiting for players: {}/{} connected", players.len(), num_players);
+        info!(
+            "Waiting for players: {}/{} connected",
+            players.len(),
+            num_players
+        );
         return; // wait for more players
     }
 
     if !session_state.ready {
-        info!("All players connected ({}/{}), but waiting for session configuration to be ready", players.len(), num_players);
+        info!(
+            "All players connected ({}/{}), but waiting for session configuration to be ready",
+            players.len(),
+            num_players
+        );
         return;
     }
 
-    info!("All {} players are connected and ready, transitioning to GameLoading", num_players);
+    info!(
+        "All {} players are connected and ready, transitioning to GameLoading",
+        num_players
+    );
 
-    commands.insert_resource(GgrsSessionBuilding{
-        players: players.iter().enumerate().map(|(i, x)| GgrsPlayer { handle: i, is_local: matches!(x, PlayerType::Local)}).collect(),
+    commands.insert_resource(GgrsSessionBuilding {
+        players: players
+            .iter()
+            .enumerate()
+            .map(|(i, x)| GgrsPlayer {
+                handle: i,
+                is_local: matches!(x, PlayerType::Local),
+            })
+            .collect(),
     });
 
     app_state.set(AppState::GameLoading);
-
 }
-
 
 pub fn system_after_map_loaded(
     mut commands: Commands,
@@ -138,3 +150,4 @@ pub fn system_after_map_loaded(
 
     app_state.set(AppState::InGame);
 }
+

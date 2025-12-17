@@ -293,7 +293,7 @@ pub enum ObstacleType {
 pub enum MonsterState {
     Idle,
     Chasing,
-    Attacking { target: Entity, target_type: AttackTargetType, cooldown: u32 },
+    Attacking { target: AttackTarget, last_attack_frame: u32 },
     Stunned { recover_at: u32 },
     // Extensible via plugin
 }
