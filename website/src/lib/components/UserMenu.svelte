@@ -3,10 +3,12 @@
 	import { User } from '@lucide/svelte/icons';
 	import { AllumetteAuth, AllumetteFriendsList, isLoggedIn } from '@bascanada/allumette-web';
 
+	let { showLabel = true } = $props();
+
 	let openState = $state(false);
 </script>
 
-<Navigation.Tile label="Account" onclick={() => (openState = true)}>
+<Navigation.Tile label={showLabel ? "Account" : ""} onclick={() => (openState = true)}>
 	<User />
 </Navigation.Tile>
 

@@ -18,6 +18,8 @@
   }: Props = $props();
 
   let iframeSrc: string = $state('');
+  let container: HTMLDivElement | undefined = $state();
+  let isFullscreen = $state(false);
   
   onMount(() => {
     const modulePath = `/${version}/${name}/wasm.js`;
@@ -103,26 +105,62 @@
 
     const blob = new Blob([htmlContent], { type: 'text/html' });
     iframeSrc = URL.createObjectURL(blob);
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
   });
 
   onDestroy(() => {
     if (iframeSrc) {
       URL.revokeObjectURL(iframeSrc);
     }
+    if (typeof document !== 'undefined') {
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    }
   });
+
+  function handleFullscreenChange() {
+      isFullscreen = !!document.fullscreenElement;
+  }
+
+  async function requestFullscreen() {
+      if (!container) return;
+      try {
+          if (container.requestFullscreen) {
+              await container.requestFullscreen();
+          } else if ((container as any).webkitRequestFullscreen) {
+              await (container as any).webkitRequestFullscreen();
+          }
+          
+          if (screen.orientation && 'lock' in screen.orientation) {
+              // @ts-ignore
+              await screen.orientation.lock('landscape').catch((e) => console.warn('Orientation lock failed', e));
+          }
+          isFullscreen = true;
+      } catch (err) {
+          console.error("Fullscreen failed", err);
+          isFullscreen = true; // Allow playing even if FS fails
+      }
+  }
 </script>
 
-<iframe 
-  src={iframeSrc} 
-  title="game-frame"
-  class="game-frame"
-></iframe>
+<div class="relative w-full h-full bg-black" bind:this={container}>
+    {#if !isFullscreen}
+        <button 
+            class="absolute bottom-4 right-4 btn-icon variant-filled-primary shadow-lg z-50 opacity-70 hover:opacity-100 transition-opacity" 
+            onclick={requestFullscreen}
+            aria-label="Enter Fullscreen"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+    {/if}
 
-<style>
-  .game-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
-    display: block;
-  }
-</style>
+    <iframe 
+      src={iframeSrc} 
+      title="game-frame"
+      class="w-full h-full border-none block"
+      allow="autoplay; fullscreen"
+      allowfullscreen
+    ></iframe>
+</div>
