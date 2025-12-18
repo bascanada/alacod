@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ecs_ldtk::prelude::LevelIid;
-use game::{collider::{Collider, CollisionLayer, CollisionSettings, Wall, Window}, core::AppState};
-use map::game::entity::{map::{door::{DoorComponent, DoorGridPosition}, map_rollback::MapRollbackMarker}, MapRollbackItem};
+use game::{character::enemy::ai::Obstacle, character::enemy::spawning::EnemySpawnerState, collider::{Collider, CollisionLayer, CollisionSettings, Wall, Window}, core::AppState};
+use map::game::entity::{map::{door::{DoorComponent, DoorGridPosition}, enemy_spawn::EnemySpawnerComponent, map_rollback::MapRollbackMarker}, MapRollbackItem};
 use map::generation::entity::door::DoorConfig;
 use bevy_ggrs::AddRollbackCommandExtension;
 use utils::net_id::GgrsNetIdFactory;
@@ -21,6 +21,7 @@ pub struct LdtkMapEntityLoading {
     pub sprite_size: Option<Vec2>,
     pub door_config: Option<DoorConfig>,
     pub door_grid_position: Option<DoorGridPosition>,
+    pub spawner_config: Option<EnemySpawnerComponent>,
 }
 
 #[derive(Resource, Clone)]
@@ -107,7 +108,7 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: MessageWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>), With<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>, Option<&EnemySpawnerComponent>), With<MapRollbackMarker>>,
 
     collision_settings: Res<CollisionSettings>,
 
@@ -125,7 +126,7 @@ fn wait_for_all_map_rollback_entity(
 
     // Collect and sort entities by their marker name and position for deterministic order
     let mut entities_to_process: Vec<_> = query_map_entity.iter()
-        .filter(|(e, _, _, _, _, _)| !entity_registery.registered_entities.contains(e))
+        .filter(|(e, _, _, _, _, _, _)| !entity_registery.registered_entities.contains(e))
         .collect();
     
     // Sort by marker name first, then by position (x, y) for determinism
@@ -142,31 +143,33 @@ fn wait_for_all_map_rollback_entity(
             .then_with(|| pos_a.y.partial_cmp(&pos_b.y).unwrap_or(std::cmp::Ordering::Equal))
     });
 
-    for (e, global_transform, rollback_marker, ldtk_size, door_component, door_grid_pos) in entities_to_process {
+    for (e, global_transform, rollback_marker, ldtk_size, door_component, door_grid_pos, spawner_component) in entities_to_process {
         // Skip if already registered (should not happen due to filter above, but keeping for safety)
         if entity_registery.registered_entities.contains(&e) {
             continue;
         }
-        
+
         let translation = global_transform.translation();
-        
+
         // Only register entities with valid (non-zero) global transforms
         // GlobalTransform gets updated by Bevy's transform propagation system
         if translation.x != 0.0 || translation.y != 0.0 {
             let sprite_size = ldtk_size.map(|s| Vec2::new(s.width, s.height));
             let door_config = door_component.map(|dc| dc.config.clone());
             let door_grid_position = door_grid_pos.cloned();
-            info!("Found {} entity {:?} at position {} with LDTK size {:?} and door config {:?}", 
+            let spawner_config = spawner_component.cloned();
+            info!("Found {} entity {:?} at position {} with LDTK size {:?} and door config {:?}",
                   rollback_marker.0, e, translation, sprite_size, door_config);
-            
-            entity_registery.entities.push(LdtkMapEntityLoading { 
-                id: rollback_marker.0.clone(), 
-                kind: rollback_marker.0.clone(), 
-                entity: e.clone(), 
+
+            entity_registery.entities.push(LdtkMapEntityLoading {
+                id: rollback_marker.0.clone(),
+                kind: rollback_marker.0.clone(),
+                entity: e.clone(),
                 global_transform: *global_transform,
                 sprite_size,
                 door_config,
                 door_grid_position,
+                spawner_config,
             });
             entity_registery.registered_entities.insert(e);
         }
@@ -275,15 +278,16 @@ fn wait_for_all_map_rollback_entity(
                         info!("No sprite size for window, using default 16x16");
                         (16.0, 16.0)
                     };
-                    
+
                     let max_dimension = width.max(height);
                     let interaction_range = max_dimension * 0.8; // Smaller range for windows - need to be close
-                    
+
                     cmd.insert((
                         Window,
+                        Obstacle::window(), // For flow field pathfinding (GroundBreaker can pass)
                         Collider {
                             shape: game::collider::ColliderShape::Rectangle {
-                                width: fixed_math::Fixed::from_num(width), 
+                                width: fixed_math::Fixed::from_num(width),
                                 height: fixed_math::Fixed::from_num(height),
                             },
                             offset: fixed_math::FixedVec3::ZERO,
@@ -295,8 +299,18 @@ fn wait_for_all_map_rollback_entity(
                             interaction_type: game::interaction::InteractionType::Window,
                         },
                     ));
-                    info!("adding collider and health to window entity with size {}x{}, interaction range {}", 
+                    info!("adding collider and Obstacle to window entity with size {}x{}, interaction range {}",
                           width, height, interaction_range);
+                },
+                "enemy_spawn" => {
+                    // Get spawner config from LDTK entity, or use default
+                    let spawner = item.spawner_config.clone().unwrap_or_default();
+
+                    cmd.insert((
+                        spawner,
+                        EnemySpawnerState::default(),
+                    ));
+                    info!("adding enemy spawner at {:?}", world_position);
                 },
                 _ => {}
             }

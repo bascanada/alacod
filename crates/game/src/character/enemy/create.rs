@@ -10,7 +10,13 @@ use crate::{
     weapons::{melee::{spawn_melee_weapon_for_character, MeleeWeaponsConfig}, WeaponInventory, WeaponsConfig},
 };
 
-use super::{ai::pathing::EnemyPath, Enemy};
+use super::{
+    ai::{
+        pathing::EnemyPath,
+        state::{EnemyAiConfig, EnemyTarget, MonsterState},
+    },
+    Enemy,
+};
 
 /// Spawns an enemy entity and returns it.
 ///
@@ -67,8 +73,13 @@ pub fn spawn_enemy(
             inventory,
             EnemyPath::default(),
             Enemy::default(),
+            // Legacy components (for backward compatibility)
             super::ai::combat::ZombieState::default(),
             super::ai::combat::ZombieTarget::default(),
+            // New flow field AI components
+            EnemyAiConfig::zombie(),
+            EnemyTarget::default(),
+            MonsterState::default(),
         ));
 
     entity

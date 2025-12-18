@@ -521,20 +521,21 @@ pub fn move_enemies(
         // Get the current player position from flow field cache (most up-to-date)
         let flow_field_target = flow_field_cache.target_pos.to_fixed();
 
-        // Use flow field for navigation (pathfinds around walls)
+        // Use flow field for navigation (GroundBreaker can path through windows)
         let direction_to_target_v2 = if let Some(flow_field) =
-            flow_field_cache.get_flow_field(super::navigation::NavProfile::Ground)
+            flow_field_cache.get_flow_field(super::navigation::NavProfile::GroundBreaker)
         {
             // Get direction from flow field
             match flow_field.get_direction_vector(enemy_pos_v2) {
                 Some(dir) => dir,
                 None => {
-                    // Not in flow field range, move directly toward player
+                    // Not in flow field - always try to move toward player
+                    // Wall collision + wall-following will handle blocked paths
                     (flow_field_target - enemy_pos_v2).normalize_or_zero()
                 }
             }
         } else {
-            // No flow field, fall back to direct path toward player
+            // No flow field yet, move directly toward player
             (flow_field_target - enemy_pos_v2).normalize_or_zero()
         };
 
@@ -709,16 +710,74 @@ pub fn move_enemies(
                     }
                 }
 
-                // If completely stuck, zero velocity
+                // If completely stuck, try alternative directions from flow field neighbors
+                // This uses the flow field to find the best escape route toward the target
                 if !moved_x && !moved_y {
-                    velocity_component.main = fixed_math::FixedVec2::ZERO;
-                    trace!(
-                        "[Frame {}] Enemy {:?} STUCK at ({}, {})",
-                        frame.frame,
-                        entity,
-                        fixed_transform.translation.x.to_num::<i32>(),
-                        fixed_transform.translation.y.to_num::<i32>(),
-                    );
+                    let move_magnitude = (delta_x.abs() + delta_y.abs()).max(fixed_math::new(1.0));
+                    let speed = velocity_component.main.length();
+
+                    let mut escaped = false;
+
+                    // First, try directions from neighboring flow field cells (sorted by cost)
+                    if let Some(flow_field) = flow_field_cache.get_flow_field(super::navigation::NavProfile::GroundBreaker) {
+                        let neighbor_dirs = flow_field.get_neighbor_directions(enemy_pos_v2);
+                        for dir in neighbor_dirs {
+                            let dx = dir.x * move_magnitude;
+                            let dy = dir.y * move_magnitude;
+                            let test_pos = fixed_math::FixedVec3::new(
+                                start_x.saturating_add(dx),
+                                start_y.saturating_add(dy),
+                                fixed_transform.translation.z,
+                            );
+                            if !check_wall_collision(&test_pos) {
+                                fixed_transform.translation = test_pos;
+                                velocity_component.main = dir * speed;
+                                escaped = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // If flow field neighbors didn't help, try all 8 cardinal directions
+                    if !escaped {
+                        let directions: [(fixed_math::Fixed, fixed_math::Fixed); 8] = [
+                            (move_magnitude, fixed_math::FIXED_ZERO),   // Right
+                            (-move_magnitude, fixed_math::FIXED_ZERO),  // Left
+                            (fixed_math::FIXED_ZERO, move_magnitude),   // Up
+                            (fixed_math::FIXED_ZERO, -move_magnitude),  // Down
+                            (move_magnitude, move_magnitude),           // Up-Right
+                            (-move_magnitude, move_magnitude),          // Up-Left
+                            (move_magnitude, -move_magnitude),          // Down-Right
+                            (-move_magnitude, -move_magnitude),         // Down-Left
+                        ];
+
+                        for (dx, dy) in directions {
+                            let test_pos = fixed_math::FixedVec3::new(
+                                start_x.saturating_add(dx),
+                                start_y.saturating_add(dy),
+                                fixed_transform.translation.z,
+                            );
+                            if !check_wall_collision(&test_pos) {
+                                fixed_transform.translation = test_pos;
+                                velocity_component.main = fixed_math::FixedVec2::new(dx, dy)
+                                    .normalize_or_zero() * speed;
+                                escaped = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if !escaped {
+                        // Truly stuck in all directions - zero velocity
+                        velocity_component.main = fixed_math::FixedVec2::ZERO;
+                        trace!(
+                            "[Frame {}] Enemy {:?} STUCK at ({}, {})",
+                            frame.frame,
+                            entity,
+                            fixed_transform.translation.x.to_num::<i32>(),
+                            fixed_transform.translation.y.to_num::<i32>(),
+                        );
+                    }
                 }
             }
 

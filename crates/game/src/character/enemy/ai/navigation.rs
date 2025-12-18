@@ -124,19 +124,52 @@ impl FlowField {
     }
 
     /// Get the world-space direction vector from a given position
+    /// Uses actual enemy position (not cell center) for smoother movement
     pub fn get_direction_vector(&self, pos: fixed_math::FixedVec2) -> Option<fixed_math::FixedVec2> {
         let grid_pos = GridPos::from_fixed(pos);
         let next_pos = self.get_direction(grid_pos)?;
 
-        let current_world = grid_pos.to_fixed();
+        // Direction from actual position to next cell center (smoother than cell-to-cell)
         let next_world = next_pos.to_fixed();
+        let direction = next_world - pos;
 
-        let direction = next_world - current_world;
         if direction.length_squared() > fixed_math::FixedWide::ZERO {
             Some(direction.normalize_or_zero())
         } else {
+            // At the next cell center - check if there's a further cell to move to
+            if let Some(further_pos) = self.get_direction(next_pos) {
+                let further_world = further_pos.to_fixed();
+                let further_dir = further_world - pos;
+                if further_dir.length_squared() > fixed_math::FixedWide::ZERO {
+                    return Some(further_dir.normalize_or_zero());
+                }
+            }
             None
         }
+    }
+
+    /// Get alternative directions from neighboring cells (for escaping corners)
+    /// Returns directions sorted by cost (lowest cost = closest to target)
+    pub fn get_neighbor_directions(&self, pos: fixed_math::FixedVec2) -> Vec<fixed_math::FixedVec2> {
+        let grid_pos = GridPos::from_fixed(pos);
+        let mut directions = Vec::new();
+
+        // Check all 8 neighboring cells for flow field entries
+        for neighbor in grid_pos.neighbors_8() {
+            if let Some(next_pos) = self.get_direction(neighbor) {
+                // Get the cost of this neighbor's path
+                let cost = self.costs.get(&neighbor).copied().unwrap_or(u32::MAX);
+                let neighbor_world = neighbor.to_fixed();
+                let dir = (neighbor_world - pos).normalize_or_zero();
+                if dir.length_squared() > fixed_math::FixedWide::ZERO {
+                    directions.push((cost, dir));
+                }
+            }
+        }
+
+        // Sort by cost (lowest first = closest to target)
+        directions.sort_by_key(|(cost, _)| *cost);
+        directions.into_iter().map(|(_, dir)| dir).collect()
     }
 }
 
@@ -156,6 +189,8 @@ pub struct FlowFieldCache {
     pub blocked_cells: BTreeMap<ObstacleType, BTreeSet<GridPos>>,
     /// All permanently blocked cells (walls)
     pub wall_cells: BTreeSet<GridPos>,
+    /// Number of wall entities at last rebuild (to detect when walls are added)
+    pub last_wall_entity_count: usize,
 }
 
 impl FlowFieldCache {
@@ -167,6 +202,7 @@ impl FlowFieldCache {
             layers: BTreeMap::new(),
             blocked_cells: BTreeMap::new(),
             wall_cells: BTreeSet::new(),
+            last_wall_entity_count: 0,
         }
     }
 
@@ -209,8 +245,8 @@ pub struct FlowFieldConfig {
 impl Default for FlowFieldConfig {
     fn default() -> Self {
         Self {
-            update_interval: 10,  // Update every ~166ms at 60fps (was 5, reduced for web perf)
-            max_search_radius: 40, // 40 cells * 20 units = 800 units radius (was 60, reduced for web perf)
+            update_interval: 30,  // Update every 0.5s at 60fps
+            max_search_radius: 50, // 50 cells * 20 units = 1000 units radius
             use_8_directions: true, // 8 directions for smoother diagonal movement
             diagonal_cost: 14,
         }
@@ -232,8 +268,14 @@ pub fn update_flow_field_system(
     >,
     mut cache: ResMut<FlowFieldCache>,
 ) {
-    // Check if we need to update
+    // Check if we need to update (rate limit)
     if frame.frame < cache.last_update_frame + cache.update_interval {
+        return;
+    }
+    cache.last_update_frame = frame.frame;
+
+    // Wait for walls to be initialized (done by LDTK loader)
+    if cache.last_wall_entity_count == 0 {
         return;
     }
 
@@ -249,9 +291,8 @@ pub fn update_flow_field_system(
         GridPos::from_fixed(transform.translation.truncate())
     };
 
-    // Check if target moved significantly
+    // Skip if target hasn't moved and we have a valid flow field
     if target_pos == cache.target_pos && !cache.layers.is_empty() {
-        cache.last_update_frame = frame.frame;
         return;
     }
 
@@ -262,21 +303,17 @@ pub fn update_flow_field_system(
     // Rebuild blocked cell cache
     rebuild_blocked_cells(&mut cache, &wall_query, &obstacle_query);
 
-    // Only compute Ground profile for now (most common case)
-    // Other profiles can be added on-demand later
-    let flow_field = build_flow_field(target_pos, NavProfile::Ground, &cache, &config);
+    // Use GroundBreaker profile so zombies can pathfind through breakable obstacles (windows)
+    let flow_field = build_flow_field(target_pos, NavProfile::GroundBreaker, &cache, &config);
 
-    // GGRS debug trace - log flow field update for desync debugging
+    // Log flow field stats only on significant rebuilds
     trace!(
-        "[Frame {}] FlowField updated: target=({}, {}), cells={}, walls={}",
-        frame.frame,
-        target_pos.x,
-        target_pos.y,
-        flow_field.directions.len(),
-        cache.wall_cells.len()
+        "FlowField: target=({},{}), reachable={}, walls={}",
+        target_pos.x, target_pos.y,
+        flow_field.directions.len(), cache.wall_cells.len()
     );
 
-    cache.layers.insert(NavProfile::Ground, flow_field);
+    cache.layers.insert(NavProfile::GroundBreaker, flow_field);
 }
 
 /// Rebuild the blocked cell cache from current wall and obstacle positions
@@ -294,23 +331,49 @@ fn rebuild_blocked_cells(
     cache.wall_cells.clear();
     cache.blocked_cells.clear();
 
+    let mut wall_count = 0;
     // Add wall cells
     for (transform, collider) in wall_query.iter() {
         let cells = get_collider_cells(transform.translation.truncate(), collider);
         cache.wall_cells.extend(cells);
+        wall_count += 1;
     }
 
+    let initial_wall_cells = cache.wall_cells.len();
+
+    let mut obstacle_count = 0;
+    let mut window_cells_removed = 0;
     // Add obstacle cells by type
+    // IMPORTANT: Windows create HOLES in walls - remove wall cells where windows exist
     for (transform, collider, obstacle) in obstacle_query.iter() {
+        let cells = get_collider_cells(transform.translation.truncate(), collider);
+
+        // Windows create passages through walls - remove those wall cells
+        if obstacle.obstacle_type == ObstacleType::Window {
+            for cell in &cells {
+                if cache.wall_cells.remove(cell) {
+                    window_cells_removed += 1;
+                }
+            }
+        }
+
         if !obstacle.blocks_movement {
             continue;
         }
-        let cells = get_collider_cells(transform.translation.truncate(), collider);
         cache
             .blocked_cells
             .entry(obstacle.obstacle_type)
             .or_default()
             .extend(cells);
+        obstacle_count += 1;
+    }
+
+    // Only log when there are actual changes (window holes created)
+    if window_cells_removed > 0 {
+        info!(
+            "FlowField: {} walls, {} blocked cells, {} window holes created",
+            wall_count, cache.wall_cells.len(), window_cells_removed
+        );
     }
 }
 

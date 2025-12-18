@@ -19,16 +19,16 @@ use crate::{
         dash::DashState,
         enemy::{
             ai::{
-                // Legacy systems (still active)
+                // Legacy systems with flow field navigation + collision
                 combat::{
                     zombie_attack_system, zombie_target_selection, ZombieCombatConfig, ZombieState,
                     ZombieTarget,
                 },
                 pathing::{
-                    calculate_paths, check_direct_paths, move_enemies, update_enemy_targets,
+                    move_enemies, update_enemy_targets,
                     EnemyPath, PathfindingConfig,
                 },
-                // New generic AI system
+                // Flow field navigation
                 navigation::{FlowFieldCache, FlowFieldConfig, update_flow_field_system},
                 obstacle::{Obstacle, ObstacleAttackEvent, ObstacleDestroyedEvent, process_obstacle_damage},
                 state::{EnemyAiConfig, EnemyTarget as NewEnemyTarget, MonsterState},
@@ -155,13 +155,13 @@ impl Plugin for BaseCharacterGamePlugin {
                 (update_flow_field_system,)
                     .after(RollbackSystemSet::EnemySpawning)
                     .before(RollbackSystemSet::EnemyAI),
-                // ZOMBIE TARGET SELECTION + ATTACKS (Legacy system - still active)
+                // ZOMBIE AI - Flow field navigation with collision
+                // Note: check_direct_paths and calculate_paths removed - they did expensive
+                // wall raycasting but move_enemies uses flow field directly, ignoring their output
                 (
                     zombie_target_selection,
                     update_enemy_targets.after(zombie_target_selection),
-                    check_direct_paths.after(update_enemy_targets),
-                    calculate_paths.after(check_direct_paths),
-                    move_enemies.after(calculate_paths),
+                    move_enemies.after(update_enemy_targets),
                     zombie_attack_system.after(move_enemies),
                 )
                     .in_set(RollbackSystemSet::EnemyAI),

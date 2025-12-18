@@ -33,8 +33,8 @@ impl FlowFieldDebug {
             show_grid: true,
             show_arrows: true,
             show_costs: false,
-            profile: NavProfile::Ground,
-            max_cells: 1000,
+            profile: NavProfile::GroundBreaker, // Default to GroundBreaker (zombie profile)
+            max_cells: 5000,
         }
     }
 }
