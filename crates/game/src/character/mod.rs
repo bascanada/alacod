@@ -56,6 +56,7 @@ use crate::{
         },
     },
     system_set::RollbackSystemSet,
+    waves::WaveModeEnabled,
 };
 
 #[derive(Component, Clone, Copy, Default)]
@@ -146,8 +147,10 @@ impl Plugin for BaseCharacterGamePlugin {
                     .before(RollbackSystemSet::EnemyAI),
                 // ANIMATION CRATE
                 (update_animation_state,).in_set(RollbackSystemSet::AnimationUpdates),
-                // SPAWNING
-                (enemy_spawn_from_spawners_system,).in_set(RollbackSystemSet::EnemySpawning),
+                // SPAWNING (disabled when wave mode is enabled)
+                (enemy_spawn_from_spawners_system,)
+                    .run_if(|wave_mode: Res<WaveModeEnabled>| !wave_mode.0)
+                    .in_set(RollbackSystemSet::EnemySpawning),
                 // FLOW FIELD UPDATE (runs before EnemyAI)
                 (update_flow_field_system,)
                     .after(RollbackSystemSet::EnemySpawning)

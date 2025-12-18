@@ -141,7 +141,7 @@ pub fn enemy_spawn_from_spawners_system(
             let type_index = (rng.next_u32() as usize) % config.enemy_types.len();
             let enemy_type_name = config.enemy_types[type_index].clone();
 
-            spawn_enemy(
+            let _ = spawn_enemy(
                 enemy_type_name,
                 final_spawn_pos_v3,
                 &mut commands,
