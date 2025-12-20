@@ -26,10 +26,15 @@ fn main() {
             setup_simple_background,
             system_game_loading,
         ))
+        .add_systems(Update, panic_on_p_press)
         .run();
 }
 
-
+fn panic_on_p_press(keys: Res<ButtonInput<KeyCode>>) {
+    if keys.just_pressed(KeyCode::KeyP) {
+        panic!("Manual Telemetry Panic Triggered by 'P' key!");
+    }
+}
 
 fn system_game_loading(
     mut app_state: ResMut<NextState<AppState>>,

@@ -1,0 +1,18 @@
+version: '3'
+services:
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: openobserve
+    ports:
+      - "5080:5080"
+    environment:
+      # These credentials are used to generate the Basic Auth token
+      - ZO_ROOT_USER_EMAIL=admin@example.com
+      - ZO_ROOT_USER_PASSWORD=password123
+      # Optional: Telemetry settings for OpenObserve itself
+      - ZO_TELEMETRY=false
+    volumes:
+      - openobserve_data:/data
+
+volumes:
+  openobserve_data:

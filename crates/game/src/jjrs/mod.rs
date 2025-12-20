@@ -75,7 +75,11 @@ pub struct GgrsSessionBuilding {
 }
 
 
-pub fn log_ggrs_events(mut session: ResMut<bevy_ggrs::Session<PeerConfig>>, telemetry_config: Res<telemetry::TelemetryConfig>) {
+pub fn log_ggrs_events(
+    mut session: ResMut<bevy_ggrs::Session<PeerConfig>>,
+    telemetry_config: Res<telemetry::TelemetryConfig>,
+    #[cfg(not(target_arch = "wasm32"))] telemetry_sender: Option<Res<telemetry::TelemetrySender>>,
+) {
     if let Session::P2P(session) = session.as_mut() {
         for event in session.events() {
             info!("GGRS Event: {:?}", event);
@@ -104,6 +108,12 @@ pub fn log_ggrs_events(mut session: ResMut<bevy_ggrs::Session<PeerConfig>>, tele
                         timestamp: chrono::Utc::now().timestamp_micros(),
                     };
 
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if let Some(sender) = telemetry_sender.as_ref() {
+                        telemetry::send_event(sender, event);
+                    }
+
+                    #[cfg(target_arch = "wasm32")]
                     telemetry::send_event(&telemetry_config, event);
                 }
                 _ => (),
