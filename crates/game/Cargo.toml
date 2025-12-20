@@ -18,6 +18,7 @@ bevy_fixed = { path = "../bevy_fixed"}
 utils = { path = "../utils"}
 map = { path = "../map"}
 animation ={ path = "../animation"}
+telemetry = { path = "../telemetry"}
 
 thiserror = "2.0.12"
 
@@ -32,6 +33,7 @@ wasm-bindgen = "0.2"
 clap = { version = "4.4", features = ["derive"] }
 
 bevy-inspector-egui = { version = "0.35.0", optional = true }
+chrono = "0.4.42"
 
 
 [dependencies.web-sys]
