@@ -609,26 +609,37 @@ pub fn move_enemies(
                 let left_clear = !check_collision_at(left_pos);
                 let right_clear = !check_collision_at(right_pos);
 
-                if left_clear && !right_clear {
+                let (avoidance_dir, steer_choice) = if left_clear && !right_clear {
                     // Steer left
                     let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
                         + perpendicular * avoidance_strength;
-                    blended.normalize_or_zero()
+                    (blended.normalize_or_zero(), "L")
                 } else if right_clear && !left_clear {
                     // Steer right
                     let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
                         - perpendicular * avoidance_strength;
-                    blended.normalize_or_zero()
+                    (blended.normalize_or_zero(), "R")
                 } else if left_clear && right_clear {
-                    // Both clear - pick based on which has lower flow field cost
-                    // For simplicity, just pick left (deterministic)
+                    // Both clear - pick left (deterministic for GGRS)
                     let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
                         + perpendicular * avoidance_strength;
-                    blended.normalize_or_zero()
+                    (blended.normalize_or_zero(), "B")
                 } else {
                     // Both blocked - keep original direction, wall sliding will handle it
-                    direction_to_target_v2
-                }
+                    (direction_to_target_v2, "X")
+                };
+
+                // GGRS trace: obstacle avoidance decision
+                trace!(
+                    "ggrs{{f={} ai_avoid net_id={} steer={} pos=({},{})}}",
+                    frame.frame,
+                    net_id.0,
+                    steer_choice,
+                    enemy_pos_v2.x.to_num::<i32>(),
+                    enemy_pos_v2.y.to_num::<i32>(),
+                );
+
+                avoidance_dir
             } else {
                 // Forward is clear, no steering needed
                 direction_to_target_v2
@@ -731,10 +742,11 @@ pub fn move_enemies(
         velocity_component.main = final_movement_v2;
 
         // GGRS debug trace - log enemy movement decisions for desync debugging
+        // Format: ggrs{f=FRAME system_name key=value...} for diff_log Makefile
+        // NOTE: Use net_id only, NEVER entity (entity IDs differ between clients)
         trace!(
-            "[Frame {}] Enemy {:?} (net_id={:?}): pos=({}, {}), flow_dir=({}, {}), vel=({}, {}), sep_count={}",
+            "ggrs{{f={} ai_move net_id={} pos=({},{}) dir=({},{}) vel=({},{}) sep={}}}",
             frame.frame,
-            entity,
             net_id.0,
             enemy_pos_v2.x.to_num::<i32>(),
             enemy_pos_v2.y.to_num::<i32>(),
@@ -890,10 +902,10 @@ pub fn move_enemies(
                                 damage: 1,
                             });
                             trace!(
-                                "[Frame {}] Enemy {:?} attacking window at distance {}",
+                                "ggrs{{f={} ai_attack net_id={} target=window dist={}}}",
                                 frame.frame,
-                                entity,
-                                distance_to_window.to_num::<f32>()
+                                net_id.0,
+                                distance_to_window.to_num::<i32>()
                             );
                             break; // Only attack one window per frame
                         }
@@ -957,9 +969,9 @@ pub fn move_enemies(
                         // Truly stuck in all directions - zero velocity
                         velocity_component.main = fixed_math::FixedVec2::ZERO;
                         trace!(
-                            "[Frame {}] Enemy {:?} STUCK at ({}, {})",
+                            "ggrs{{f={} ai_stuck net_id={} pos=({},{})}}",
                             frame.frame,
-                            entity,
+                            net_id.0,
                             fixed_transform.translation.x.to_num::<i32>(),
                             fixed_transform.translation.y.to_num::<i32>(),
                         );
