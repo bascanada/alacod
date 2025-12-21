@@ -2,17 +2,10 @@
 	import { onMount } from 'svelte';
 	import { settingsStore } from '../settings/settingsStore';
 	import { get } from 'svelte/store';
-	import GameLoader from '$lib/components/GameLoader.svelte';
 
 	const customAppVersion: string = import.meta.env.VITE_APP_VERSION || 'DEV';
 
-	let gameProps: {
-		name: string;
-		version: string;
-		lobby: string | null;
-		lobby_size: string | null;
-		matchbox: string | null;
-	} | null = null;
+	let src = '';
 
 	onMount(() => {
 		const urlParams = new URLSearchParams(window.location.search);
@@ -22,43 +15,43 @@
 
 		const argLobbyName = urlParams.get('lobby');
 		const argSize = urlParams.get('size'); // lobby_size
+		const argToken = urlParams.get('token');
 		const argMatchbox = urlParams.get('matchbox'); // If still passed or needed
 
-		if (!id) return;
+		// Construct the source URL for the iframe
+		// loader.html expects: name, version, lobby, matchbox (optional), lobby_size (optional)
+		// We will pass token as well just in case updated loader.js needs it later or via custom param
 
-		let lobby = argLobbyName;
-		let lobby_size = argSize;
-		let matchbox: string | null = null;
+		let baseSrc = `/loader.html?name=${id}&version=${customAppVersion}`;
+
+		if (argLobbyName) {
+			baseSrc += `&lobby=${argLobbyName}`;
+		}
+
+		// Append telemetry settings
+		const settings = get(settingsStore);
+		if (settings.telemetryEnabled) {
+			baseSrc += `&telemetry=true`;
+			// Encode these to ensure safety in URL
+			if (settings.telemetryUrl) baseSrc += `&telemetry_url=${encodeURIComponent(settings.telemetryUrl)}`;
+			if (settings.telemetryAuth) baseSrc += `&telemetry_auth=${encodeURIComponent(settings.telemetryAuth)}`;
+		}
 
 		if (supportOnline == 'true') {
 			// If online, we expect lobby components to have passed necessary params
+			if (argSize) baseSrc += `&lobby_size=${argSize}`;
+			if (argToken) baseSrc += `&token=${argToken}`; // Passing token if loader/wasm needs it
 			
 			// Get matchbox server from settings or use provided URL as fallback
-			const settings = get(settingsStore);
-			matchbox = argMatchbox || settings.matchboxServer;
+			const matchboxUrl = argMatchbox || settings.matchboxServer;
+			baseSrc += `&matchbox=${matchboxUrl}`;
 		} else {
 			// Offline / default test lobby
-			if (!argLobbyName) lobby = 'test';
+			if (!argLobbyName) baseSrc += `&lobby=test`;
 		}
 
-		gameProps = {
-			name: id,
-			version: customAppVersion,
-			lobby: lobby || null,
-			lobby_size: lobby_size || null,
-			matchbox: matchbox || null
-		};
+		src = baseSrc;
 	});
 </script>
 
-<div class="w-full h-full">
-	{#if gameProps}
-		<GameLoader 
-			name={gameProps.name}
-			version={gameProps.version}
-			lobby={gameProps.lobby}
-			lobby_size={gameProps.lobby_size}
-			matchbox={gameProps.matchbox}
-		/>
-	{/if}
-</div>
+<iframe id="app-frame" title="game iframe" {src} style="width: 100%; border: none; height: 100vh"></iframe>

@@ -67,6 +67,37 @@
 				<p class="text-sm text-slate-500">The WebSocket URL for the P2P matchbox connection</p>
 			</div>
 
+			<hr class="my-6 border-surface-200-700-token" />
+
+			<h3 class="h3 mb-4">Crash Reports & Telemetry</h3>
+
+			<div class="space-y-4">
+				<div class="flex items-center justify-between">
+					<label class="label cursor-pointer flex items-center gap-2" for="telemetryEnabled">
+						<span>Enable Telemetry</span>
+						<input class="checkbox" type="checkbox" id="telemetryEnabled" bind:checked={settings.telemetryEnabled} />
+					</label>
+				</div>
+
+				{#if settings.telemetryEnabled}
+					<div class="form-group">
+						<label class="label" for="telemetryUrl">
+							<span>Telemetry URL</span>
+						</label>
+						<input class="input" type="text" id="telemetryUrl" bind:value={settings.telemetryUrl} placeholder="http://localhost:5080/api/..." />
+						<p class="text-sm text-slate-500">The endpoint URL for OpenObserve</p>
+					</div>
+
+					<div class="form-group">
+						<label class="label" for="telemetryAuth">
+							<span>Telemetry Token / Auth</span>
+						</label>
+						<input class="input" type="password" id="telemetryAuth" bind:value={settings.telemetryAuth} placeholder="Basic ..." />
+						<p class="text-sm text-slate-500">Authorization header value (e.g. Basic ...)</p>
+					</div>
+				{/if}
+			</div>
+
 			<div class="grid grid-cols-2 gap-4 mt-8">
 				<button type="button" class="btn preset-outlined-tertiary-500 w-full" on:click={resetSettings}> Reset to Defaults </button>
 				<button type="submit" class="btn preset-tonal-primary w-full"> Save Settings </button>

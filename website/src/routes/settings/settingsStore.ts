@@ -5,12 +5,18 @@ import { writable } from 'svelte/store';
 export interface Settings {
   allumetteServerUrl: string;
   matchboxServer: string;
+  telemetryEnabled: boolean;
+  telemetryUrl: string;
+  telemetryAuth: string;
 }
 
 // Default settings
 const defaultSettings: Settings = {
   allumetteServerUrl: 'https://allumette.bascanada.org',
   matchboxServer: 'wss://allumette.bascanada.org',
+  telemetryEnabled: false,
+  telemetryUrl: 'http://localhost:5080/api/default/default/_json',
+  telemetryAuth: '',
 };
 
 // Create a writable store with default values

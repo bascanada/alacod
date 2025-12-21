@@ -35,11 +35,14 @@ pub enum PlayerAction {
     MoveCameraDown,
     MoveCameraLeft,
     MoveCameraRight,
+
+    DebugForceCrash,
 }
 
 // Utility function to create the input map
 pub fn get_input_map() -> InputMap<PlayerAction> {
     let mut map = InputMap::new([
+        (PlayerAction::DebugForceCrash, KeyCode::F12),
         (PlayerAction::MoveUp, KeyCode::KeyW),
         (PlayerAction::MoveCameraUp, KeyCode::ArrowUp),
         (PlayerAction::MoveDown, KeyCode::KeyS),

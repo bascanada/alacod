@@ -28,7 +28,10 @@ pub fn get_args() -> (
     String,
     String,
     String,
-    bool, // debug_ai
+    bool,
+    bool,
+    String,
+    String,
 ) {
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -44,6 +47,9 @@ pub fn get_args() -> (
             args.lobby.unwrap_or(String::new()),
             args.cid.unwrap_or(generate_random_correlation_id()),
             args.debug_ai,
+            args.telemetry,
+            args.telemetry_url,
+            args.telemetry_auth,
         )
     }
     #[cfg(target_arch = "wasm32")]
@@ -59,6 +65,9 @@ pub fn get_args() -> (
             args.lobby.unwrap_or(String::new()),
             generate_random_correlation_id(),
             false, // debug_ai not supported on WASM
+            args.telemetry,
+            args.telemetry_url,
+            args.telemetry_auth,
         );
     }
 }
@@ -67,9 +76,8 @@ pub struct BaseArgsPlugin;
 
 impl Plugin for BaseArgsPlugin {
     fn build(&self, app: &mut App) {
-        let (local_port, mut nbr_player, players, _, matchbox, lobby, cid, debug_ai) = get_args();
 
-        // Insert debug AI config resource
+        let (local_port, mut nbr_player, players, _, matchbox, lobby, cid, debug_ai, telemetry, telemetry_url, telemetry_auth) = get_args();
         app.insert_resource(DebugAiConfig { enabled: debug_ai });
 
         if nbr_player == 0 {
@@ -78,6 +86,13 @@ impl Plugin for BaseArgsPlugin {
 
         #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(utils::logs::NativeLogPlugin(cid.clone()));
+
+        app.add_plugins(telemetry::TelemetryPlugin);
+        app.insert_resource(telemetry::TelemetryConfig {
+            enabled: telemetry,
+            url: telemetry_url,
+            auth_token: telemetry_auth,
+        });
 
         app
             .insert_resource(if !matchbox.is_empty() {
