@@ -17,8 +17,9 @@ fn main() {
 
     App::new()
         .add_plugins(core_plugin.get_default_plugin())
-        .add_plugins(core_plugin)
+        // Load default arguments from cli or query params (MUST be before core_plugin for --debug-ai to work)
         .add_plugins(BaseArgsPlugin)
+        .add_plugins(core_plugin)
 
         // Because i don't have extra configuration yet we can directly start
         .insert_resource(GggrsSessionConfigurationState::ready())

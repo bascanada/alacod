@@ -293,7 +293,11 @@ fn wait_for_all_map_rollback_entity(
                             offset: fixed_math::FixedVec3::ZERO,
                         },
                         CollisionLayer(collision_settings.window_layer),
-                        map::game::entity::map::window::WindowHealth::default(), // Start with 0 health for testing
+                        map::game::entity::map::window::WindowHealth {
+                            current: 3,
+                            max: 3,
+                            can_repair_after_frame: None,
+                        },
                         game::interaction::Interactable {
                             interaction_range: fixed_math::new(interaction_range),
                             interaction_type: game::interaction::InteractionType::Window,

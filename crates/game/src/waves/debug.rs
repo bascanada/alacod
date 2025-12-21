@@ -60,6 +60,7 @@ fn update_wave_debug_text(
         };
 
         // Compact single-line format matching frame counter style
+        // Both Spawned and Kills use wave_enemy_count as denominator for consistency
         text.0 = format!(
             "Wave {:>2} | {} | Spawned: {:>2}/{:<2} | Kills: {:>2}/{:<2} | Total: {:>4}",
             wave_state.current_wave,
@@ -67,7 +68,7 @@ fn update_wave_debug_text(
             wave_state.enemies_spawned_this_wave,
             wave_state.wave_enemy_count,
             wave_state.wave_enemies_killed,
-            wave_state.enemies_spawned_this_wave,
+            wave_state.wave_enemy_count,
             wave_state.total_enemies_killed,
         );
     }

@@ -9,9 +9,13 @@ use crate::{
     global_asset::GlobalAsset,
     weapons::{melee::MeleeWeaponsConfig, WeaponsConfig},
 };
-use utils::{frame::FrameCount, net_id::GgrsNetIdFactory};
+use utils::{frame::FrameCount, net_id::{GgrsNetId, GgrsNetIdFactory}};
 
 use super::{create::spawn_enemy, Enemy};
+
+/// Maximum distance from player for spawners to activate
+/// Should be within flow field range (50 cells * 16 = 800 units)
+const MAX_SPAWN_DISTANCE: f32 = 700.0;
 
 #[derive(Component, Debug, Reflect, Clone)]
 #[reflect]
@@ -36,6 +40,7 @@ pub fn enemy_spawn_from_spawners_system(
     frame: Res<FrameCount>,
     mut rng: ResMut<RollbackRng>,
     mut spawner_query: Query<(
+        &GgrsNetId,
         Entity,
         &EnemySpawnerComponent,
         &mut EnemySpawnerState,
@@ -72,9 +77,12 @@ pub fn enemy_spawn_from_spawners_system(
         return;
     }
 
-    // --- Step 1: Collect candidate spawner Entity IDs ---
-    let mut candidate_spawner_entities: Vec<Entity> = Vec::new();
-    for (entity, config, mut state, spawner_fixed_transform) in spawner_query.iter_mut() {
+    // --- Step 1: Collect candidate spawner data (net_id for sorting, entity for access) ---
+    // GGRS CRITICAL: Use net_id for sorting, NOT entity.to_bits() (entity IDs differ across clients)
+    let mut candidate_spawners: Vec<(usize, Entity)> = Vec::new();
+    let max_spawn_dist = fixed_math::new(MAX_SPAWN_DISTANCE);
+
+    for (net_id, entity, config, mut state, spawner_fixed_transform) in spawner_query.iter_mut() {
         if !state.active || state.cooldown_remaining > 0 {
             if state.cooldown_remaining > 0 {
                 state.cooldown_remaining -= 1;
@@ -87,28 +95,34 @@ pub fn enemy_spawn_from_spawners_system(
             .iter()
             .map(|player_pos_v2| spawner_pos_v2.distance(player_pos_v2))
             .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap_or(fixed_math::Fixed::MAX); // Use your Fixed type's MAX value
+            .unwrap_or(fixed_math::Fixed::MAX);
 
+        // Skip if player is too close (min distance check)
         if min_distance_to_player < config.min_spawn_distance {
-            // println!("Min distance to player {} but config {} position player {:?}  me {:?}", min_distance_to_player, config.min_spawn_distance, player_positions, spawner_pos_v2);
             continue;
         }
-        candidate_spawner_entities.push(entity);
+
+        // Skip if player is too far (outside flow field range)
+        // This prevents spawning zombies that can't navigate to the player
+        if min_distance_to_player > max_spawn_dist {
+            continue;
+        }
+
+        candidate_spawners.push((net_id.0, entity));
     }
 
-    // --- Step 2: Sort candidate entities for deterministic processing ---
-    candidate_spawner_entities.sort_unstable_by_key(|e| e.to_bits());
+    // --- Step 2: Sort by net_id for deterministic processing ---
+    candidate_spawners.sort_unstable_by_key(|(net_id, _)| *net_id);
 
     // --- Step 3: Process sorted entities, consuming RNG deterministically ---
-    for entity_id in candidate_spawner_entities {
+    for (_net_id, entity_id) in candidate_spawners {
         if current_enemies_count >= global_max_enemies {
-            // println!("Frame {}: Global max enemies reached during sorted spawn loop", frame.frame);
             break; // Stop spawning if global limit is hit
         }
 
         // Get mutable access to the components for the current entity
         // This re-fetches, which is necessary after collecting IDs if we need mutable access.
-        if let Ok((_entity_refetch, config, mut state, spawner_fixed_transform)) =
+        if let Ok((_, _entity_refetch, config, mut state, spawner_fixed_transform)) =
             spawner_query.get_mut(entity_id)
         {
             // The checks for active/cooldown/distance have already passed for this entity

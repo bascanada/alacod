@@ -46,7 +46,16 @@ pub fn create_wall_colliders_from_ldtk(
                     // Convert IntGrid values to a 2D grid (1 = wall, 0 = empty)
                     let grid = create_collision_grid(&collision_layer.int_grid_csv, level_width, level_height);
 
-                    // Generate optimized rectangles
+                    // Load IntGrid data directly into FlowFieldCache for perfect 1:1 pathfinding
+                    // This must happen BEFORE generating merged rectangles (which lose tile info)
+                    flow_field_cache.load_intgrid_walls(
+                        &grid,
+                        level_transform.translation.truncate(),
+                        level_height,
+                        level_width,
+                    );
+
+                    // Generate optimized rectangles for physics colliders only
                     let rectangles = generate_collision_rectangles(&grid);
 
                     // Spawn wall entities for each rectangle
@@ -68,7 +77,11 @@ pub fn create_wall_colliders_from_ldtk(
     // Initialize flow field cache with wall count so it knows walls are ready
     if total_walls > 0 {
         flow_field_cache.last_wall_entity_count = total_walls;
-        info!("LDTK walls created: {} wall colliders, flow field ready", total_walls);
+        info!(
+            "LDTK walls created: {} colliders, {} IntGrid cells for flow field",
+            total_walls,
+            flow_field_cache.intgrid_wall_cells.len()
+        );
     }
 }
 

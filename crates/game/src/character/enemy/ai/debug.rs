@@ -20,10 +20,14 @@ pub struct FlowFieldDebug {
     pub show_arrows: bool,
     /// Show cost values
     pub show_costs: bool,
+    /// Show IntGrid source cells (vs collider-derived)
+    pub show_intgrid_source: bool,
     /// Which navigation profile to visualize
     pub profile: NavProfile,
     /// Maximum cells to render (for performance)
     pub max_cells: usize,
+    /// Radius around player to render (in grid cells)
+    pub render_radius: i32,
 }
 
 impl FlowFieldDebug {
@@ -33,8 +37,10 @@ impl FlowFieldDebug {
             show_grid: true,
             show_arrows: true,
             show_costs: false,
+            show_intgrid_source: false, // Toggle with F6 to show IntGrid vs collider-derived cells
             profile: NavProfile::GroundBreaker, // Default to GroundBreaker (zombie profile)
-            max_cells: 5000,
+            max_cells: 10000, // High limit to show all cells
+            render_radius: 100, // Large radius to show full flow field (50 cell search radius * 2)
         }
     }
 }
@@ -62,6 +68,15 @@ pub fn toggle_flow_field_debug(
         };
         info!("Flow field profile: {:?}", ff_debug.profile);
     }
+
+    // Toggle IntGrid source visualization with F6
+    if keyboard.just_pressed(KeyCode::F6) && ff_debug.enabled {
+        ff_debug.show_intgrid_source = !ff_debug.show_intgrid_source;
+        info!(
+            "IntGrid source visualization: {}",
+            if ff_debug.show_intgrid_source { "ON" } else { "OFF" }
+        );
+    }
 }
 
 /// System to draw flow field debug visualization
@@ -82,18 +97,30 @@ pub fn draw_flow_field_debug(
     let cell_size = GRID_CELL_SIZE as f32;
     let half_cell = cell_size / 2.0;
 
-    // Get max cost for color gradient
+    // Only render cells within render_radius of the target (player)
+    let target = &cache.target_pos;
+    let render_radius = ff_debug.render_radius;
+
+    // Get max cost for color gradient (only within visible range)
     let max_cost = flow_field
         .costs
-        .values()
+        .iter()
+        .filter(|(pos, _)| {
+            (pos.x - target.x).abs() <= render_radius && (pos.y - target.y).abs() <= render_radius
+        })
+        .map(|(_, cost)| *cost)
         .max()
-        .copied()
         .unwrap_or(1)
         .max(1) as f32;
 
     let mut cell_count = 0;
 
     for (pos, next_pos) in flow_field.directions.iter() {
+        // Skip cells outside render radius
+        if (pos.x - target.x).abs() > render_radius || (pos.y - target.y).abs() > render_radius {
+            continue;
+        }
+
         if cell_count >= ff_debug.max_cells {
             break;
         }
@@ -143,14 +170,38 @@ pub fn draw_flow_field_debug(
         }
     }
 
-    // Draw blocked cells
-    for pos in cache.wall_cells.iter().take(ff_debug.max_cells) {
+    // Draw blocked cells (only within render radius)
+    for pos in cache.wall_cells.iter() {
+        // Skip cells outside render radius
+        if (pos.x - target.x).abs() > render_radius || (pos.y - target.y).abs() > render_radius {
+            continue;
+        }
+
+        if cell_count >= ff_debug.max_cells {
+            break;
+        }
+        cell_count += 1;
+
         let world_x = pos.x as f32 * cell_size + half_cell;
         let world_y = pos.y as f32 * cell_size + half_cell;
+
+        // When show_intgrid_source is enabled, show different colors:
+        // - Magenta: IntGrid source cells (perfect 1:1 tile mapping)
+        // - Red: Collider-derived cells (dynamic walls like doors)
+        let color = if ff_debug.show_intgrid_source {
+            if cache.intgrid_wall_cells.contains(pos) {
+                Color::srgba(1.0, 0.0, 1.0, 0.5) // Magenta for IntGrid
+            } else {
+                Color::srgba(1.0, 0.0, 0.0, 0.5) // Red for dynamic walls
+            }
+        } else {
+            Color::srgba(1.0, 0.0, 0.0, 0.5) // Red for all
+        };
+
         gizmos.rect_2d(
             Isometry2d::from_translation(Vec2::new(world_x, world_y)),
             Vec2::splat(cell_size - 2.0),
-            Color::srgba(1.0, 0.0, 0.0, 0.5),
+            color,
         );
     }
 

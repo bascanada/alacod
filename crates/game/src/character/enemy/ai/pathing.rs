@@ -3,13 +3,17 @@ use crate::character::enemy::Enemy;
 use crate::character::movement::Velocity;
 use crate::character::player::input::FIXED_TIMESTEP;
 use crate::character::player::Player;
-use crate::collider::{is_colliding, Collider, Wall};
+use crate::collider::{is_colliding, Collider, Wall, Window};
 use animation::FacingDirection;
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_fixed::rng::RollbackRng;
+use bevy_ggrs::Rollback;
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use utils::{frame::FrameCount, net_id::GgrsNetId, order_iter, order_mut_iter};
+
+use super::obstacle::{Obstacle, ObstacleAttackEvent};
 
 #[derive(Component, Debug, Clone, Default)]
 pub struct EnemyPath {
@@ -31,6 +35,13 @@ pub enum PathStatus {
     CalculatingPath,
     FollowingPath,
     Blocked,
+}
+
+/// Tracks consecutive frames of wall-sliding for stuck recovery
+#[derive(Component, Clone, Debug, Default, Serialize, Deserialize)]
+pub struct WallSlideTracker {
+    /// Number of consecutive frames where movement was partially blocked
+    pub consecutive_slide_frames: u8,
 }
 
 #[derive(Resource, Clone)]
@@ -66,7 +77,7 @@ impl Default for PathfindingConfig {
             max_iterations: 1000,
             max_path_length: 50,
             direct_path_threshold: fixed_math::new(200.0),
-            node_size: fixed_math::new(20.0),
+            node_size: fixed_math::new(16.0),
             movement_speed: fixed_math::new(20.0),
             waypoint_reach_distance: fixed_math::new(10.0),
             optimal_attack_distance: fixed_math::new(30.0), // Melee range - get close to players
@@ -78,18 +89,17 @@ impl Default for PathfindingConfig {
 }
 
 // System to find closest player and set as target
-// Now also considers zombie targets (windows or players) from the combat system
+// Uses EnemyTarget from the new AI state system
 pub fn update_enemy_targets(
     player_query: Query<(&GgrsNetId, &fixed_math::FixedTransform3D, &Player)>,
     mut enemy_query: Query<
         (
             &fixed_math::FixedTransform3D,
             &mut EnemyPath,
-            Option<&super::combat::ZombieTarget>,
+            Option<&super::state::EnemyTarget>,
         ),
         With<Enemy>,
     >,
-    window_query: Query<(&GgrsNetId, &fixed_math::FixedTransform3D), With<crate::collider::Window>>,
     frame: Res<FrameCount>,
     config: Res<PathfindingConfig>,
 ) {
@@ -102,7 +112,7 @@ pub fn update_enemy_targets(
     player_positions.sort_unstable_by_key(|(net_id, _)| net_id.0);
 
     // Update each enemy's target
-    for (enemy_fixed_transform, mut path, zombie_target_opt) in enemy_query.iter_mut() {
+    for (enemy_fixed_transform, mut path, enemy_target_opt) in enemy_query.iter_mut() {
         // Only update periodically to save performance
         if frame.frame % config.recalculation_interval != 0 {
             continue;
@@ -110,37 +120,16 @@ pub fn update_enemy_targets(
 
         let enemy_pos_v2 = enemy_fixed_transform.translation.truncate();
 
-        // If zombie has a specific target (window or player), use that
-        if let Some(zombie_target) = zombie_target_opt {
-            if let Some(ref target_net_id) = zombie_target.target {
-                // Try to get target position based on type
-                let target_pos_opt = match zombie_target.target_type {
-                    super::combat::TargetType::Player => {
-                        // Find player by net ID
-                        player_positions
-                            .iter()
-                            .find(|(net_id, _)| net_id == target_net_id)
-                            .map(|(_, pos)| *pos)
-                    }
-                    super::combat::TargetType::Window => {
-                        // Get window position by net ID
-                        window_query
-                            .iter()
-                            .find(|(net_id, _)| *net_id == target_net_id)
-                            .map(|(_, transform)| transform.translation.truncate())
-                    }
-                    super::combat::TargetType::None => None,
-                };
-
-                if let Some(target_pos) = target_pos_opt {
-                    path.target_position = target_pos;
-                    path.recalculate_ticks = frame.frame;
-                    continue;
-                }
+        // If enemy has a specific target from the AI system, use its last known position
+        if let Some(enemy_target) = enemy_target_opt {
+            if let Some(target_pos) = enemy_target.last_known_position {
+                path.target_position = target_pos;
+                path.recalculate_ticks = frame.frame;
+                continue;
             }
         }
 
-        // Fallback: find closest player if no zombie target or target is invalid
+        // Fallback: find closest player if no target or target position unknown
         if !player_positions.is_empty() {
             // Initialize with the first player
             let mut closest_player_pos_v2 = player_positions[0].1;
@@ -456,6 +445,9 @@ pub fn move_enemies(
             &CharacterConfigHandles,
             &Collider,
             &crate::collider::CollisionLayer,
+            &mut WallSlideTracker,
+            Option<&super::state::EnemyTarget>,
+            Option<&super::state::EnemyAiConfig>,
         ),
         With<Enemy>,
     >,
@@ -467,7 +459,13 @@ pub fn move_enemies(
         (&fixed_math::FixedTransform3D, &Collider, &crate::collider::CollisionLayer),
         (With<Wall>, Without<Enemy>, Without<Player>),
     >,
+    // Query for windows (obstacles we can attack when blocked)
+    window_query: Query<
+        (Entity, &fixed_math::FixedTransform3D, &Obstacle),
+        (With<Window>, With<Rollback>, Without<Enemy>, Without<Player>),
+    >,
     flow_field_cache: Res<super::navigation::FlowFieldCache>,
+    mut obstacle_events: MessageWriter<ObstacleAttackEvent>,
 ) {
     // --- Optimization 1: Cache walls ---
     // Collect walls into a Vec for faster iteration (cache locality)
@@ -495,6 +493,13 @@ pub fn move_enemies(
             .push(index);
     }
 
+    // Cache windows for collision checking
+    let windows: Vec<_> = window_query.iter().collect();
+
+    // Obstacle avoidance constants
+    let lookahead_distance = fixed_math::new(30.0); // How far ahead to check for obstacles
+    let avoidance_strength = fixed_math::new(0.7); // How strongly to steer away from obstacles
+
     // Second pass - calculate and apply movement in deterministic order
     for (
         net_id,
@@ -506,6 +511,9 @@ pub fn move_enemies(
         config_handles,
         enemy_collider,
         enemy_collision_layer,
+        mut wall_slide_tracker,
+        enemy_target_opt,
+        enemy_ai_config_opt,
     ) in order_mut_iter!(enemy_query)
     {
         let enemy_pos_v2 = fixed_transform.translation.truncate();
@@ -518,25 +526,113 @@ pub fn move_enemies(
                 config.movement_speed // Fallback is also Fixed
             };
 
-        // Get the current player position from flow field cache (most up-to-date)
-        let flow_field_target = flow_field_cache.target_pos.to_fixed();
+        // Get the player position from flow field cache
+        let player_pos = flow_field_cache.target_pos.to_fixed();
 
-        // Use flow field for navigation (GroundBreaker can path through windows)
+        // Get the enemy's actual target position (could be window, player, etc.)
+        let actual_target = if let Some(enemy_target) = enemy_target_opt {
+            if let Some(target_pos) = enemy_target.last_known_position {
+                // Use enemy's specific target (could be a window)
+                target_pos
+            } else {
+                // Fallback to player position
+                player_pos
+            }
+        } else {
+            // No target component, use player position
+            player_pos
+        };
+
+        // Calculate direction to actual target using flow field
         let direction_to_target_v2 = if let Some(flow_field) =
             flow_field_cache.get_flow_field(super::navigation::NavProfile::GroundBreaker)
         {
-            // Get direction from flow field
+            // Always use flow field for navigation - it handles pathfinding around walls
             match flow_field.get_direction_vector(enemy_pos_v2) {
                 Some(dir) => dir,
                 None => {
-                    // Not in flow field - always try to move toward player
-                    // Wall collision + wall-following will handle blocked paths
-                    (flow_field_target - enemy_pos_v2).normalize_or_zero()
+                    // Outside flow field coverage - find nearest covered cell
+                    // and move toward it instead of directly toward player
+                    // (moving directly toward player often pushes into walls)
+                    match flow_field.find_nearest_covered_cell(enemy_pos_v2, 10) {
+                        Some(dir) => dir,
+                        None => {
+                            // No flow field nearby at all - try neighbor directions as fallback
+                            let neighbors = flow_field.get_neighbor_directions(enemy_pos_v2);
+                            neighbors.into_iter().next().unwrap_or_else(|| {
+                                // Last resort: direct movement (but this should rarely happen)
+                                (actual_target - enemy_pos_v2).normalize_or_zero()
+                            })
+                        }
+                    }
                 }
             }
         } else {
-            // No flow field yet, move directly toward player
-            (flow_field_target - enemy_pos_v2).normalize_or_zero()
+            // No flow field yet, move directly toward target
+            (actual_target - enemy_pos_v2).normalize_or_zero()
+        };
+
+        // --- General Obstacle Avoidance Steering ---
+        // Check ahead for walls and steer around them (works for corners, windows, any obstacle)
+        let direction_to_target_v2 = {
+            // Helper to check if a position would collide with walls
+            let check_collision_at = |test_pos: fixed_math::FixedVec2| -> bool {
+                let test_pos_3d = fixed_math::FixedVec3::new(
+                    test_pos.x,
+                    test_pos.y,
+                    fixed_math::FIXED_ZERO,
+                );
+                for (wall_transform, wall_collider, wall_layer) in &walls {
+                    if !collision_settings.layer_matrix[enemy_collision_layer.0][wall_layer.0] {
+                        continue;
+                    }
+                    if is_colliding(&test_pos_3d, enemy_collider, &wall_transform.translation, wall_collider) {
+                        return true;
+                    }
+                }
+                false
+            };
+
+            // Check if moving forward would hit an obstacle
+            let forward_pos = enemy_pos_v2 + direction_to_target_v2 * lookahead_distance;
+
+            if check_collision_at(forward_pos) {
+                // Forward is blocked - check left and right to find clear path
+                let perpendicular = fixed_math::FixedVec2::new(
+                    -direction_to_target_v2.y,
+                    direction_to_target_v2.x,
+                );
+
+                let left_pos = enemy_pos_v2 + (direction_to_target_v2 + perpendicular).normalize_or_zero() * lookahead_distance;
+                let right_pos = enemy_pos_v2 + (direction_to_target_v2 - perpendicular).normalize_or_zero() * lookahead_distance;
+
+                let left_clear = !check_collision_at(left_pos);
+                let right_clear = !check_collision_at(right_pos);
+
+                if left_clear && !right_clear {
+                    // Steer left
+                    let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
+                        + perpendicular * avoidance_strength;
+                    blended.normalize_or_zero()
+                } else if right_clear && !left_clear {
+                    // Steer right
+                    let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
+                        - perpendicular * avoidance_strength;
+                    blended.normalize_or_zero()
+                } else if left_clear && right_clear {
+                    // Both clear - pick based on which has lower flow field cost
+                    // For simplicity, just pick left (deterministic)
+                    let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
+                        + perpendicular * avoidance_strength;
+                    blended.normalize_or_zero()
+                } else {
+                    // Both blocked - keep original direction, wall sliding will handle it
+                    direction_to_target_v2
+                }
+            } else {
+                // Forward is clear, no steering needed
+                direction_to_target_v2
+            }
         };
 
         // Calculate distance to nearest player (for attack range check)
@@ -710,9 +806,99 @@ pub fn move_enemies(
                     }
                 }
 
-                // If completely stuck, try alternative directions from flow field neighbors
+                // Detect wall-sliding: tried diagonal but only one axis succeeded
+                let was_trying_diagonal = delta_x.abs() > fixed_math::FIXED_ZERO
+                    && delta_y.abs() > fixed_math::FIXED_ZERO;
+                let is_wall_sliding = was_trying_diagonal && (moved_x != moved_y);
+
+                if is_wall_sliding {
+                    wall_slide_tracker.consecutive_slide_frames =
+                        wall_slide_tracker.consecutive_slide_frames.saturating_add(1);
+                } else if moved_x && moved_y {
+                    // Successfully moved in both axes - reset tracker
+                    wall_slide_tracker.consecutive_slide_frames = 0;
+                }
+
+                // If wall-sliding too long, trigger escape logic
+                const MAX_SLIDE_FRAMES: u8 = 10; // ~170ms at 60fps
+                if wall_slide_tracker.consecutive_slide_frames >= MAX_SLIDE_FRAMES {
+                    // Reset tracker
+                    wall_slide_tracker.consecutive_slide_frames = 0;
+
+                    // Try alternative directions (same logic as complete stuck)
+                    let move_magnitude = (delta_x.abs() + delta_y.abs()).max(fixed_math::new(1.0));
+                    let speed = velocity_component.main.length();
+
+                    // Try flow field neighbor directions first
+                    if let Some(flow_field) = flow_field_cache.get_flow_field(super::navigation::NavProfile::GroundBreaker) {
+                        let neighbor_dirs = flow_field.get_neighbor_directions(enemy_pos_v2);
+                        for dir in neighbor_dirs {
+                            // Determine slide axis (which axis succeeded)
+                            let slide_axis = if moved_x {
+                                fixed_math::FixedVec2::new(fixed_math::new(1.0), fixed_math::FIXED_ZERO)
+                            } else {
+                                fixed_math::FixedVec2::new(fixed_math::FIXED_ZERO, fixed_math::new(1.0))
+                            };
+
+                            // Prefer directions perpendicular to slide axis
+                            let perpendicular_component = dir.x * slide_axis.y + dir.y * slide_axis.x;
+                            if perpendicular_component.abs() > fixed_math::new(0.3) {
+                                let dx = dir.x * move_magnitude;
+                                let dy = dir.y * move_magnitude;
+                                let test_pos = fixed_math::FixedVec3::new(
+                                    fixed_transform.translation.x.saturating_add(dx),
+                                    fixed_transform.translation.y.saturating_add(dy),
+                                    fixed_transform.translation.z,
+                                );
+                                if !check_wall_collision(&test_pos) {
+                                    fixed_transform.translation = test_pos;
+                                    velocity_component.main = dir * speed;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If completely stuck, check if we're blocked by a window and attack it
                 // This uses the flow field to find the best escape route toward the target
                 if !moved_x && !moved_y {
+                    // Reset wall slide tracker when completely stuck
+                    wall_slide_tracker.consecutive_slide_frames = 0;
+
+                    // CHECK FOR NEARBY WINDOWS AND ATTACK THEM
+                    // When blocked, look for intact windows within attack range
+                    let attack_range = enemy_ai_config_opt
+                        .map(|c| c.attack_range)
+                        .unwrap_or(fixed_math::new(50.0));
+
+                    for (window_entity, window_transform, window_obstacle) in &windows {
+                        // Skip destroyed windows
+                        if !window_obstacle.is_intact() {
+                            continue;
+                        }
+
+                        let window_pos = window_transform.translation.truncate();
+                        let distance_to_window = enemy_pos_v2.distance(&window_pos);
+
+                        // If we're close enough to a window, attack it
+                        if distance_to_window < attack_range {
+                            // Send attack event
+                            obstacle_events.write(ObstacleAttackEvent {
+                                attacker: entity,
+                                obstacle: *window_entity,
+                                damage: 1,
+                            });
+                            trace!(
+                                "[Frame {}] Enemy {:?} attacking window at distance {}",
+                                frame.frame,
+                                entity,
+                                distance_to_window.to_num::<f32>()
+                            );
+                            break; // Only attack one window per frame
+                        }
+                    }
+
                     let move_magnitude = (delta_x.abs() + delta_y.abs()).max(fixed_math::new(1.0));
                     let speed = velocity_component.main.length();
 

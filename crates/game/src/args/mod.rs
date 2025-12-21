@@ -8,6 +8,13 @@ use crate::{
     jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration},
 };
 
+/// Resource to control debug AI visualization from startup
+#[derive(Resource, Default)]
+pub struct DebugAiConfig {
+    /// Whether to enable AI debug visualization (flow field + enemy state) from startup
+    pub enabled: bool,
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
 #[cfg(target_arch = "wasm32")]
@@ -21,6 +28,7 @@ pub fn get_args() -> (
     String,
     String,
     String,
+    bool, // debug_ai
 ) {
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -35,6 +43,7 @@ pub fn get_args() -> (
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
             args.cid.unwrap_or(generate_random_correlation_id()),
+            args.debug_ai,
         )
     }
     #[cfg(target_arch = "wasm32")]
@@ -49,6 +58,7 @@ pub fn get_args() -> (
             args.matchbox.unwrap_or(String::new()),
             args.lobby.unwrap_or(String::new()),
             generate_random_correlation_id(),
+            false, // debug_ai not supported on WASM
         );
     }
 }
@@ -57,7 +67,10 @@ pub struct BaseArgsPlugin;
 
 impl Plugin for BaseArgsPlugin {
     fn build(&self, app: &mut App) {
-        let (local_port, mut nbr_player, players, _, matchbox, lobby, cid) = get_args();
+        let (local_port, mut nbr_player, players, _, matchbox, lobby, cid, debug_ai) = get_args();
+
+        // Insert debug AI config resource
+        app.insert_resource(DebugAiConfig { enabled: debug_ai });
 
         if nbr_player == 0 {
             nbr_player = players.len()

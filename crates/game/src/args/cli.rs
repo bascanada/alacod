@@ -18,4 +18,7 @@ pub struct Opt {
     pub spectators: Option<Vec<SocketAddr>>,
     #[clap(long)]
     pub cid: Option<String>,
+    /// Enable AI debug visualization (flow field + enemy state) from startup
+    #[clap(long)]
+    pub debug_ai: bool,
 }

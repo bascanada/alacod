@@ -2,6 +2,10 @@
 //!
 //! Implements the AI behavior loop using the flow field navigation
 //! and generic state machine.
+//!
+//! NOTE: Window/obstacle attacks are now handled via collision detection
+//! in `move_enemies` (pathing.rs). This module only handles player targeting
+//! and player attacks.
 
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
@@ -17,7 +21,11 @@ use super::navigation::FlowFieldCache;
 use super::obstacle::{Obstacle, ObstacleAttackEvent};
 use super::state::{AttackTarget, EnemyAiConfig, EnemyTarget, MonsterState, TargetType};
 
-/// System to select targets for enemies based on proximity and visibility
+/// System to select targets for enemies based on proximity
+///
+/// NOTE: Zombies only target players here. Window/obstacle attacks are handled
+/// via collision detection in `move_enemies` (pathing.rs). This keeps the logic
+/// simple: follow flow field toward player, attack whatever physically blocks you.
 pub fn enemy_target_selection(
     frame: Res<FrameCount>,
     mut enemy_query: Query<
@@ -34,20 +42,12 @@ pub fn enemy_target_selection(
         (&GgrsNetId, &fixed_math::FixedTransform3D),
         (With<Player>, Without<Enemy>),
     >,
-    obstacle_query: Query<
-        (&GgrsNetId, &fixed_math::FixedTransform3D, &Obstacle),
-        (With<Rollback>, Without<Enemy>, Without<Player>),
-    >,
 ) {
     // Collect and sort players for deterministic iteration
     let mut players: Vec<_> = player_query.iter().collect();
     players.sort_by_key(|(net_id, _)| net_id.0);
 
-    // Collect and sort obstacles
-    let mut obstacles: Vec<_> = obstacle_query.iter().collect();
-    obstacles.sort_by_key(|(net_id, _, _)| net_id.0);
-
-    for (enemy_net_id, enemy_transform, ai_config, mut target, mut state) in
+    for (_enemy_net_id, enemy_transform, ai_config, mut target, mut state) in
         order_mut_iter!(enemy_query)
     {
         let enemy_pos = enemy_transform.translation.truncate();
@@ -84,67 +84,8 @@ pub fn enemy_target_selection(
             }
         }
 
-        // Find closest blocking obstacle (that we can break) deterministically
-        let mut closest_obstacle: Option<(GgrsNetId, fixed_math::Fixed, fixed_math::FixedVec2)> =
-            None;
-
-        for (obstacle_net_id, obstacle_transform, obstacle) in &obstacles {
-            // Only consider obstacles we can break and that are intact
-            if !ai_config.can_break_obstacle(obstacle.obstacle_type) || !obstacle.is_intact() {
-                continue;
-            }
-
-            let obstacle_pos = obstacle_transform.translation.truncate();
-            let distance = enemy_pos.distance(&obstacle_pos);
-
-            // Only consider obstacles within aggro range
-            if distance < ai_config.aggro_range {
-                match closest_obstacle {
-                    None => {
-                        closest_obstacle =
-                            Some(((*obstacle_net_id).clone(), distance, obstacle_pos));
-                    }
-                    Some((_, closest_dist, _)) => {
-                        // Strict inequality ensures first one (lowest NetId) is kept on ties
-                        if distance < closest_dist {
-                            closest_obstacle =
-                                Some(((*obstacle_net_id).clone(), distance, obstacle_pos));
-                        }
-                    }
-                }
-            }
-        }
-
-        // Priority logic:
-        // 1. If player is very close (attack range * 2), prioritize player
-        // 2. If obstacle is closer than player, target obstacle
-        // 3. Otherwise target player
-
-        if let Some((player_id, player_dist, player_pos)) = closest_player.clone() {
-            if player_dist < ai_config.attack_range * fixed_math::new(2.0) {
-                target.target = Some(player_id);
-                target.target_type = TargetType::Player;
-                target.last_known_position = Some(player_pos);
-                *state = MonsterState::Chasing;
-                continue;
-            }
-        }
-
-        if let Some((obstacle_id, obstacle_dist, obstacle_pos)) = closest_obstacle.clone() {
-            let should_target_obstacle = match closest_player {
-                Some((_, player_dist, _)) => obstacle_dist < player_dist,
-                None => true,
-            };
-
-            if should_target_obstacle {
-                target.target = Some(obstacle_id);
-                target.target_type = TargetType::Obstacle;
-                target.last_known_position = Some(obstacle_pos);
-                *state = MonsterState::Chasing;
-                continue;
-            }
-        }
-
+        // Simple logic: only target players
+        // Window/obstacle attacks are handled by collision detection in move_enemies
         if let Some((player_id, _, player_pos)) = closest_player {
             target.target = Some(player_id);
             target.target_type = TargetType::Player;

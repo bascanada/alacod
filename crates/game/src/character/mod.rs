@@ -14,16 +14,14 @@ use leafwing_input_manager::plugin::InputManagerPlugin;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
 
 use crate::{
+    args::DebugAiConfig,
     character::{
         config::CharacterConfig,
         dash::DashState,
         enemy::{
             ai::{
-                // Legacy systems with flow field navigation + collision
-                combat::{
-                    zombie_attack_system, zombie_target_selection, ZombieCombatConfig, ZombieState,
-                    ZombieTarget,
-                },
+                // New AI behavior systems
+                behavior::{enemy_target_selection, enemy_attack_system},
                 pathing::{
                     move_enemies, update_enemy_targets,
                     EnemyPath, PathfindingConfig,
@@ -31,7 +29,7 @@ use crate::{
                 // Flow field navigation
                 navigation::{FlowFieldCache, FlowFieldConfig, update_flow_field_system},
                 obstacle::{Obstacle, ObstacleAttackEvent, ObstacleDestroyedEvent, process_obstacle_damage},
-                state::{EnemyAiConfig, EnemyTarget as NewEnemyTarget, MonsterState},
+                state::{EnemyAiConfig, EnemyTarget, MonsterState},
                 debug::{
                     FlowFieldDebug, EnemyStateDebug,
                     toggle_flow_field_debug, draw_flow_field_debug,
@@ -71,28 +69,40 @@ impl Plugin for BaseCharacterGamePlugin {
         app.add_plugins(InputManagerPlugin::<PlayerAction>::default());
         app.init_resource::<PointerWorldPosition>();
 
-        // Legacy resources
+        // Resources
         app.init_resource::<PathfindingConfig>();
         app.init_resource::<KnockbackDampingConfig>();
-        app.init_resource::<ZombieCombatConfig>();
-        app.add_message::<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>();
 
-        // New AI system resources
+        // AI system resources
         app.init_resource::<FlowFieldCache>();
         app.init_resource::<FlowFieldConfig>();
-        app.init_resource::<FlowFieldDebug>();
-        app.init_resource::<EnemyStateDebug>();
+
+        // Initialize debug resources with --debug-ai flag if present
+        let debug_ai_enabled = app.world().get_resource::<DebugAiConfig>()
+            .map(|c| c.enabled)
+            .unwrap_or(false);
+
+        app.insert_resource(FlowFieldDebug {
+            enabled: debug_ai_enabled,
+            ..FlowFieldDebug::new()
+        });
+        app.insert_resource(EnemyStateDebug {
+            enabled: debug_ai_enabled,
+            ..EnemyStateDebug::new()
+        });
         app.add_message::<ObstacleAttackEvent>();
         app.add_message::<ObstacleDestroyedEvent>();
 
-        // Rollback registration - Legacy
+        // Rollback registration
         app.rollback_resource_with_clone::<PathfindingConfig>()
             .rollback_resource_with_clone::<KnockbackDampingConfig>()
             .rollback_component_with_clone::<EnemySpawnerComponent>()
             .rollback_component_with_clone::<EnemySpawnerState>()
             .rollback_component_with_clone::<EnemyPath>()
-            .rollback_component_with_clone::<ZombieState>()
-            .rollback_component_with_clone::<ZombieTarget>()
+            // New AI components
+            .rollback_component_with_clone::<EnemyAiConfig>()
+            .rollback_component_with_clone::<EnemyTarget>()
+            .rollback_component_with_clone::<MonsterState>()
             .rollback_resource_with_copy::<PointerWorldPosition>()
             .rollback_component_with_clone::<Health>()
             .rollback_component_with_clone::<HealthRegen>()
@@ -104,7 +114,7 @@ impl Plugin for BaseCharacterGamePlugin {
             .rollback_component_with_reflect::<Player>()
             .rollback_component_with_reflect::<Enemy>();
 
-        // Rollback registration - New AI system
+        // Rollback registration - Flow field cache
         app.rollback_resource_with_clone::<FlowFieldCache>();
         // Note: FlowFieldConfig is not rolled back (static configuration)
 
@@ -155,14 +165,13 @@ impl Plugin for BaseCharacterGamePlugin {
                 (update_flow_field_system,)
                     .after(RollbackSystemSet::EnemySpawning)
                     .before(RollbackSystemSet::EnemyAI),
-                // ZOMBIE AI - Flow field navigation with collision
-                // Note: check_direct_paths and calculate_paths removed - they did expensive
-                // wall raycasting but move_enemies uses flow field directly, ignoring their output
+                // ENEMY AI - Flow field navigation with collision
+                // Uses new behavior.rs systems with MonsterState/EnemyTarget
                 (
-                    zombie_target_selection,
-                    update_enemy_targets.after(zombie_target_selection),
+                    enemy_target_selection,
+                    update_enemy_targets.after(enemy_target_selection),
                     move_enemies.after(update_enemy_targets),
-                    zombie_attack_system.after(move_enemies),
+                    enemy_attack_system.after(move_enemies),
                 )
                     .in_set(RollbackSystemSet::EnemyAI),
                 // OBSTACLE DAMAGE PROCESSING

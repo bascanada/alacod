@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     ai::{
-        pathing::EnemyPath,
+        pathing::{EnemyPath, WallSlideTracker},
         state::{EnemyAiConfig, EnemyTarget, MonsterState},
     },
     Enemy,
@@ -72,11 +72,9 @@ pub fn spawn_enemy(
         .insert((
             inventory,
             EnemyPath::default(),
+            WallSlideTracker::default(),
             Enemy::default(),
-            // Legacy components (for backward compatibility)
-            super::ai::combat::ZombieState::default(),
-            super::ai::combat::ZombieTarget::default(),
-            // New flow field AI components
+            // AI components for flow field navigation and combat
             EnemyAiConfig::zombie(),
             EnemyTarget::default(),
             MonsterState::default(),

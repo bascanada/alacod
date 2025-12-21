@@ -22,10 +22,10 @@ fn main() {
         // Configure the bevy default plugins from our core_plugin configuration
         // if you don't need special overwrite
         .add_plugins(core_plugin.get_default_plugin())
+        // Load default arguments from cli or query params (MUST be before core_plugin for --debug-ai to work)
+        .add_plugins(BaseArgsPlugin)
         // Core systems and components
         .add_plugins(core_plugin)
-        // Load default arguments from cli or query params
-        .add_plugins(BaseArgsPlugin)
         // Plugins for rogue like map with ldtk
         .add_plugins(LdtkRoguePlugin)
         // Enable wave-based spawning mode (CoD Zombies style)

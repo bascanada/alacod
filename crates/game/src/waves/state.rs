@@ -127,23 +127,3 @@ impl WaveState {
         self.current_damage_multiplier = damage_mult;
     }
 }
-
-/// Events for wave system communication
-#[derive(Event, Debug, Clone)]
-pub struct WaveEvent {
-    pub event_type: WaveEventType,
-    pub wave_number: u32,
-}
-
-/// Types of wave events
-#[derive(Debug, Clone)]
-pub enum WaveEventType {
-    /// Wave has started spawning
-    WaveStarted,
-    /// All enemies for wave have been spawned
-    AllEnemiesSpawned,
-    /// All enemies killed, wave complete
-    WaveCompleted,
-    /// Grace period started (prep time)
-    GracePeriodStarted,
-}
