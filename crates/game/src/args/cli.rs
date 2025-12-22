@@ -18,6 +18,9 @@ pub struct Opt {
     pub spectators: Option<Vec<SocketAddr>>,
     #[clap(long)]
     pub cid: Option<String>,
+    /// Display name for the local player
+    #[clap(long)]
+    pub name: Option<String>,
     #[clap(long)]
     pub debug_ai: bool,
     #[clap(long)]

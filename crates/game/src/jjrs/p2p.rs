@@ -23,13 +23,9 @@ pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessi
         urls: vec![
             "stun:stun.l.google.com:19302".to_string(),
             "stun:stun1.l.google.com:19302".to_string(),
-            //"turn://bascanada.org:3478".to_string(),
-            //"turns://bascanada.org:5349".to_string(),
         ],
         username: None,
         credential: None,
-        //username: Some("gameuser".to_string()),
-        //credential: Some("WaRCraft420".to_string()),
     };
 
     let socket = WebRtcSocketBuilder::new(url)
@@ -96,15 +92,49 @@ pub fn wait_for_players(
         num_players
     );
 
+    // Build GgrsSessionBuilding by matching socket players with config players
+    // Socket players: Local player first, then Remote players
+    // Config players: In order from frontend (may have is_local flag)
+    let local_config = ggrs_config.players.iter().find(|p| p.is_local);
+    let remote_configs: Vec<_> = ggrs_config.players.iter().filter(|p| !p.is_local).collect();
+
+    let mut ggrs_players = Vec::new();
+    let mut remote_idx = 0;
+
+    for (i, player_type) in players.iter().enumerate() {
+        let (name, pubkey, is_local) = match player_type {
+            PlayerType::Local => {
+                // Safely get local config, falling back to first player or default
+                if let Some(config) = local_config.or_else(|| ggrs_config.players.first()) {
+                    (config.name.clone(), config.pubkey.clone(), true)
+                } else {
+                    // Fallback if players array is empty
+                    (format!("Player {}", i + 1), "local".to_string(), true)
+                }
+            }
+            PlayerType::Remote(_) => {
+                let config = remote_configs.get(remote_idx);
+                remote_idx += 1;
+                match config {
+                    Some(c) => (c.name.clone(), c.pubkey.clone(), false),
+                    None => (format!("Player {}", i + 1), format!("player_{}", i + 1), false),
+                }
+            }
+            PlayerType::Spectator(_) => {
+                (format!("Spectator {}", i + 1), format!("spectator_{}", i + 1), false)
+            }
+        };
+
+        ggrs_players.push(GgrsPlayer {
+            handle: i,
+            is_local,
+            name,
+            pubkey,
+        });
+    }
+
     commands.insert_resource(GgrsSessionBuilding {
-        players: players
-            .iter()
-            .enumerate()
-            .map(|(i, x)| GgrsPlayer {
-                handle: i,
-                is_local: matches!(x, PlayerType::Local),
-            })
-            .collect(),
+        players: ggrs_players,
     });
 
     app_state.set(AppState::GameLoading);

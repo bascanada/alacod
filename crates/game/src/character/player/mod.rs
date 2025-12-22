@@ -10,9 +10,11 @@ use ggrs::PlayerHandle;
 #[reflect(Component)]
 pub struct LocalPlayer {}
 
-#[derive(Component, Reflect, Default, Debug, Copy, Clone)]
+#[derive(Component, Reflect, Default, Debug, Clone)]
 #[reflect(Component)]
 pub struct Player {
     pub handle: PlayerHandle,
     pub color: Color,
+    pub name: String,
+    pub pubkey: String,
 }

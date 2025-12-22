@@ -22,6 +22,7 @@ use crate::{
             ai::{
                 // New AI behavior systems
                 behavior::{enemy_target_selection, enemy_attack_system},
+                combat::ZombieCombatConfig,
                 pathing::{
                     move_enemies, update_enemy_targets,
                     EnemyPath, PathfindingConfig,
@@ -72,6 +73,9 @@ impl Plugin for BaseCharacterGamePlugin {
         // Resources
         app.init_resource::<PathfindingConfig>();
         app.init_resource::<KnockbackDampingConfig>();
+        app.init_resource::<ZombieCombatConfig>();
+        app.add_message::<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>();
+        app.add_message::<crate::character::health::PlayerDiedEvent>();
 
         // AI system resources
         app.init_resource::<FlowFieldCache>();

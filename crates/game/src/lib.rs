@@ -10,6 +10,7 @@ pub mod interaction;
 pub mod jjrs;
 pub mod light;
 pub mod system_set;
+pub mod ui;
 pub mod waves;
 pub mod weapons;
 
