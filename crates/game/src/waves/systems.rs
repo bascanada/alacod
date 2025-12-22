@@ -1,16 +1,14 @@
 //! Wave spawning systems.
 //!
-//! GGRS CRITICAL: All systems must be deterministic:
-//! - Use RollbackRng for all randomness
-//! - Use FrameCount for timing (not real time)
-//! - Sort queries by GgrsNetId or entity bits for iteration order
+//! GGRS CRITICAL: All systems must be deterministic.
+//! See CLAUDE.md for GGRS rules.
 
 use animation::SpriteSheetConfig;
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_fixed::{fixed_math, rng::RollbackRng};
 use bevy_ggrs::AddRollbackCommandExtension;
 use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
-use utils::{frame::FrameCount, net_id::GgrsNetIdFactory};
+use utils::{frame::FrameCount, net_id::{GgrsNetId, GgrsNetIdFactory}};
 
 use crate::{
     character::{
@@ -176,7 +174,8 @@ pub fn wave_spawning_system(
     global_assets: Res<GlobalAsset>,
 
     // Spawner query (from LDTK map)
-    spawner_query: Query<(Entity, &EnemySpawnerComponent, &fixed_math::FixedTransform3D)>,
+    // GGRS CRITICAL: GgrsNetId must be first for deterministic sorting
+    spawner_query: Query<(&GgrsNetId, Entity, &EnemySpawnerComponent, &fixed_math::FixedTransform3D)>,
     // Player positions for spawner selection
     player_query: Query<&fixed_math::FixedTransform3D, With<Player>>,
     // Current enemy count
@@ -256,7 +255,7 @@ pub fn wave_spawning_system(
         } else {
             rng.next_u32_range(0, valid_spawners.len() as u32) as usize
         };
-        let (_, spawner_config, spawner_transform) = &valid_spawners[spawner_idx];
+        let (_, _, spawner_config, spawner_transform) = &valid_spawners[spawner_idx];
 
         // Calculate spawn position with offset
         let spawn_pos = calculate_spawn_position(
@@ -304,20 +303,17 @@ pub fn wave_spawning_system(
 }
 
 /// Select spawners that are within valid distance range from players.
-///
-/// GGRS CRITICAL: Sorts by entity bits for deterministic iteration.
 fn select_valid_spawners<'a>(
-    spawner_query: &'a Query<(Entity, &EnemySpawnerComponent, &fixed_math::FixedTransform3D)>,
+    spawner_query: &'a Query<(&GgrsNetId, Entity, &EnemySpawnerComponent, &fixed_math::FixedTransform3D)>,
     player_positions: &[fixed_math::FixedVec2],
     config: &WaveConfig,
-) -> Vec<(Entity, &'a EnemySpawnerComponent, &'a fixed_math::FixedTransform3D)> {
-    // Collect and sort by entity bits for determinism
+) -> Vec<(&'a GgrsNetId, Entity, &'a EnemySpawnerComponent, &'a fixed_math::FixedTransform3D)> {
     let mut spawners: Vec<_> = spawner_query.iter().collect();
-    spawners.sort_unstable_by_key(|(e, _, _)| e.to_bits());
+    spawners.sort_unstable_by_key(|(net_id, _, _, _)| net_id.0);
 
     let mut valid = Vec::new();
 
-    for (entity, spawner_config, transform) in spawners {
+    for (net_id, entity, spawner_config, transform) in spawners {
         let spawner_pos = transform.translation.truncate();
 
         // Find minimum distance to any player
@@ -330,7 +326,7 @@ fn select_valid_spawners<'a>(
         // Check distance bounds
         if min_distance >= config.min_player_distance && min_distance <= config.max_player_distance
         {
-            valid.push((entity, spawner_config, transform));
+            valid.push((net_id, entity, spawner_config, transform));
         }
     }
 

@@ -269,7 +269,7 @@ impl FlowFieldCache {
         Self {
             target_pos: GridPos::default(),
             last_update_frame: 0,
-            update_interval: 15, // Update every 15 frames (~4 times per second at 60 FPS)
+            update_interval: 30, // Update every 30 frames (~2 times per second at 60 FPS)
             layers: BTreeMap::new(),
             blocked_cells: BTreeMap::new(),
             wall_cells: BTreeSet::new(),

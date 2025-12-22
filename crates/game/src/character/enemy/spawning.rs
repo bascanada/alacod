@@ -78,7 +78,6 @@ pub fn enemy_spawn_from_spawners_system(
     }
 
     // --- Step 1: Collect candidate spawner data (net_id for sorting, entity for access) ---
-    // GGRS CRITICAL: Use net_id for sorting, NOT entity.to_bits() (entity IDs differ across clients)
     let mut candidate_spawners: Vec<(usize, Entity)> = Vec::new();
     let max_spawn_dist = fixed_math::new(MAX_SPAWN_DISTANCE);
 

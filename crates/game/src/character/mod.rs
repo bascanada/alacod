@@ -99,6 +99,7 @@ impl Plugin for BaseCharacterGamePlugin {
             .rollback_component_with_clone::<EnemySpawnerComponent>()
             .rollback_component_with_clone::<EnemySpawnerState>()
             .rollback_component_with_clone::<EnemyPath>()
+            .rollback_component_with_clone::<enemy::ai::pathing::WallSlideTracker>()
             // New AI components
             .rollback_component_with_clone::<EnemyAiConfig>()
             .rollback_component_with_clone::<EnemyTarget>()

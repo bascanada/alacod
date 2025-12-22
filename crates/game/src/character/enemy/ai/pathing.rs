@@ -255,7 +255,6 @@ pub fn calculate_paths(
     config: Res<PathfindingConfig>,
 ) {
     // --- Step 1: Collect entities and categorize them ---
-    // GGRS CRITICAL: Use net_id for sorting, NOT entity.to_bits() (entity IDs can differ across clients)
     let mut entities_needing_path_calculation_data: Vec<(
         usize, // net_id for sorting
         Entity,
@@ -573,30 +572,20 @@ pub fn move_enemies(
         };
 
         // --- General Obstacle Avoidance Steering ---
-        // Check ahead for walls and steer around them (works for corners, windows, any obstacle)
+        // Use FlowField's blocked cells for O(1) lookups instead of O(walls) collision checks
         let direction_to_target_v2 = {
-            // Helper to check if a position would collide with walls
-            let check_collision_at = |test_pos: fixed_math::FixedVec2| -> bool {
-                let test_pos_3d = fixed_math::FixedVec3::new(
-                    test_pos.x,
-                    test_pos.y,
-                    fixed_math::FIXED_ZERO,
-                );
-                for (wall_transform, wall_collider, wall_layer) in &walls {
-                    if !collision_settings.layer_matrix[enemy_collision_layer.0][wall_layer.0] {
-                        continue;
-                    }
-                    if is_colliding(&test_pos_3d, enemy_collider, &wall_transform.translation, wall_collider) {
-                        return true;
-                    }
-                }
-                false
+            use super::navigation::{GridPos, NavProfile};
+
+            // Fast grid-based check using FlowField's precomputed blocked cells
+            let is_cell_blocked = |test_pos: fixed_math::FixedVec2| -> bool {
+                let grid_pos = GridPos::from_fixed(test_pos);
+                flow_field_cache.is_blocked(&grid_pos, NavProfile::GroundBreaker)
             };
 
-            // Check if moving forward would hit an obstacle
+            // Check if moving forward would hit a blocked cell
             let forward_pos = enemy_pos_v2 + direction_to_target_v2 * lookahead_distance;
 
-            if check_collision_at(forward_pos) {
+            if is_cell_blocked(forward_pos) {
                 // Forward is blocked - check left and right to find clear path
                 let perpendicular = fixed_math::FixedVec2::new(
                     -direction_to_target_v2.y,
@@ -606,40 +595,28 @@ pub fn move_enemies(
                 let left_pos = enemy_pos_v2 + (direction_to_target_v2 + perpendicular).normalize_or_zero() * lookahead_distance;
                 let right_pos = enemy_pos_v2 + (direction_to_target_v2 - perpendicular).normalize_or_zero() * lookahead_distance;
 
-                let left_clear = !check_collision_at(left_pos);
-                let right_clear = !check_collision_at(right_pos);
+                let left_clear = !is_cell_blocked(left_pos);
+                let right_clear = !is_cell_blocked(right_pos);
 
-                let (avoidance_dir, steer_choice) = if left_clear && !right_clear {
+                if left_clear && !right_clear {
                     // Steer left
                     let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
                         + perpendicular * avoidance_strength;
-                    (blended.normalize_or_zero(), "L")
+                    blended.normalize_or_zero()
                 } else if right_clear && !left_clear {
                     // Steer right
                     let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
                         - perpendicular * avoidance_strength;
-                    (blended.normalize_or_zero(), "R")
+                    blended.normalize_or_zero()
                 } else if left_clear && right_clear {
                     // Both clear - pick left (deterministic for GGRS)
                     let blended = direction_to_target_v2 * (fixed_math::FIXED_ONE - avoidance_strength)
                         + perpendicular * avoidance_strength;
-                    (blended.normalize_or_zero(), "B")
+                    blended.normalize_or_zero()
                 } else {
                     // Both blocked - keep original direction, wall sliding will handle it
-                    (direction_to_target_v2, "X")
-                };
-
-                // GGRS trace: obstacle avoidance decision
-                trace!(
-                    "ggrs{{f={} ai_avoid net_id={} steer={} pos=({},{})}}",
-                    frame.frame,
-                    net_id.0,
-                    steer_choice,
-                    enemy_pos_v2.x.to_num::<i32>(),
-                    enemy_pos_v2.y.to_num::<i32>(),
-                );
-
-                avoidance_dir
+                    direction_to_target_v2
+                }
             } else {
                 // Forward is clear, no steering needed
                 direction_to_target_v2
@@ -741,9 +718,7 @@ pub fn move_enemies(
         let final_movement_v2 = desired_move_velocity_v2 + separation_v2;
         velocity_component.main = final_movement_v2;
 
-        // GGRS debug trace - log enemy movement decisions for desync debugging
-        // Format: ggrs{f=FRAME system_name key=value...} for diff_log Makefile
-        // NOTE: Use net_id only, NEVER entity (entity IDs differ between clients)
+        // GGRS trace for diff_log (see CLAUDE.md section 9)
         trace!(
             "ggrs{{f={} ai_move net_id={} pos=({},{}) dir=({},{}) vel=({},{}) sep={}}}",
             frame.frame,
@@ -764,8 +739,18 @@ pub fn move_enemies(
             let delta_y = total_velocity.y * fixed_math::new(FIXED_TIMESTEP);
 
             // Helper to check collision at a position (using cached walls)
+            // Optimization: only check walls within 100 units to avoid O(all_walls) per check
+            let max_check_dist = fixed_math::new(100.0);
             let check_wall_collision = |pos: &fixed_math::FixedVec3| -> bool {
+                let pos_2d = fixed_math::FixedVec2::new(pos.x, pos.y);
                 for (wall_transform, wall_collider, wall_layer) in &walls {
+                    // Skip walls that are too far away (Manhattan distance is faster than Euclidean)
+                    let wall_pos_2d = wall_transform.translation.truncate();
+                    let dx = (pos_2d.x - wall_pos_2d.x).abs();
+                    let dy = (pos_2d.y - wall_pos_2d.y).abs();
+                    if dx > max_check_dist || dy > max_check_dist {
+                        continue;
+                    }
                     if !collision_settings.layer_matrix[enemy_collision_layer.0][wall_layer.0] {
                         continue;
                     }
