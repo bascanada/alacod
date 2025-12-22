@@ -104,8 +104,13 @@ pub fn wait_for_players(
     for (i, player_type) in players.iter().enumerate() {
         let (name, pubkey, is_local) = match player_type {
             PlayerType::Local => {
-                let config = local_config.unwrap_or(&ggrs_config.players[0]);
-                (config.name.clone(), config.pubkey.clone(), true)
+                // Safely get local config, falling back to first player or default
+                if let Some(config) = local_config.or_else(|| ggrs_config.players.first()) {
+                    (config.name.clone(), config.pubkey.clone(), true)
+                } else {
+                    // Fallback if players array is empty
+                    (format!("Player {}", i + 1), "local".to_string(), true)
+                }
             }
             PlayerType::Remote(_) => {
                 let config = remote_configs.get(remote_idx);

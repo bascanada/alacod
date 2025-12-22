@@ -3,6 +3,7 @@ PROFILE ?= dev
 LOBBY ?= "test"
 NUMBER_PLAYER ?= 2
 NAME ?= "Player"
+TIMEOUT ?= 10
 
 CURRENT_TAG := $(shell git describe --tags --exact-match HEAD 2>/dev/null)
 
@@ -200,7 +201,8 @@ test_multiplayer:
 	make $(TARGET)_matchbox CID=bob NAME=Bob LOBBY=$(LOBBY_1) & \
 	BOB_PID=$$!; \
 	echo "Bob started with PID: $$BOB_PID"; \
-	sleep 10; \
+	echo "Waiting $(TIMEOUT) seconds before starting second instance..."; \
+	sleep $(TIMEOUT); \
 	echo "Starting Alice's instance..."; \
 	make $(TARGET)_matchbox CID=alice NAME=Alice LOBBY=$(LOBBY_2) & \
 	ALICE_PID=$$!; \

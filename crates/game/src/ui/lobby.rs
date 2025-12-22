@@ -23,8 +23,8 @@ struct PlayerListContainer;
 
 fn despawn_lobby_ui(mut commands: Commands, q_root: Query<Entity, With<LobbyUiRoot>>) {
     for entity in q_root.iter() {
-        // Recursive despawn is ideal but currently missing/moved in 0.17?
-        commands.entity(entity).despawn(); 
+        // In Bevy 0.17, despawn() on a UI node hierarchy should handle children via the hierarchy system
+        commands.entity(entity).despawn();
     }
 }
 

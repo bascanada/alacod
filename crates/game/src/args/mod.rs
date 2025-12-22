@@ -95,8 +95,16 @@ pub fn get_args() -> GameArgs {
         let canvas_config = read_canvas_data_system();
 
         // Convert web player data to PlayerConfig
+        // Use and_then to treat empty array as None (fallback to default)
         let players: Vec<PlayerConfig> = canvas_config
             .players
+            .and_then(|player_data| {
+                if player_data.is_empty() {
+                    None
+                } else {
+                    Some(player_data)
+                }
+            })
             .map(|player_data| {
                 player_data
                     .into_iter()
