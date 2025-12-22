@@ -1,0 +1,657 @@
+//! Flow Field Navigation System
+//!
+//! This module provides a shared pathfinding solution for hordes of enemies.
+//! Uses a lightweight BFS (Breadth-First Search) with limited radius for performance.
+//! O(1) direction lookups per enemy after computation.
+//!
+//! IMPORTANT: Uses BTreeMap/BTreeSet for deterministic iteration order (GGRS rollback).
+
+use bevy::prelude::*;
+use bevy_fixed::fixed_math;
+use bevy_ggrs::Rollback;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use utils::{frame::FrameCount, net_id::GgrsNetId};
+
+use crate::character::player::Player;
+use crate::collider::{Collider, ColliderShape, Wall};
+
+use super::obstacle::{Obstacle, ObstacleType};
+
+/// Grid cell size in fixed-point units (matches LDtk tile size for 1:1 mapping)
+pub const GRID_CELL_SIZE: i32 = 16;
+
+/// Grid position for flow field calculations
+/// Implements Ord for deterministic BTreeMap/BTreeSet ordering
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
+pub struct GridPos {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl GridPos {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+
+    /// Convert from FixedVec2 world position to grid position
+    /// Uses div_euclid for proper floor division with negative coordinates
+    pub fn from_fixed(pos: fixed_math::FixedVec2) -> Self {
+        Self {
+            x: pos.x.to_num::<i32>().div_euclid(GRID_CELL_SIZE),
+            y: pos.y.to_num::<i32>().div_euclid(GRID_CELL_SIZE),
+        }
+    }
+
+    /// Convert to world position (center of cell)
+    pub fn to_fixed(self) -> fixed_math::FixedVec2 {
+        let half_cell = GRID_CELL_SIZE / 2;
+        fixed_math::FixedVec2::new(
+            fixed_math::Fixed::from_num(self.x * GRID_CELL_SIZE + half_cell),
+            fixed_math::Fixed::from_num(self.y * GRID_CELL_SIZE + half_cell),
+        )
+    }
+
+    /// Get 4-directional neighbors
+    pub fn neighbors_4(&self) -> [GridPos; 4] {
+        [
+            GridPos::new(self.x + 1, self.y),
+            GridPos::new(self.x - 1, self.y),
+            GridPos::new(self.x, self.y + 1),
+            GridPos::new(self.x, self.y - 1),
+        ]
+    }
+
+    /// Get 8-directional neighbors (including diagonals)
+    pub fn neighbors_8(&self) -> [GridPos; 8] {
+        [
+            GridPos::new(self.x + 1, self.y),
+            GridPos::new(self.x - 1, self.y),
+            GridPos::new(self.x, self.y + 1),
+            GridPos::new(self.x, self.y - 1),
+            GridPos::new(self.x + 1, self.y + 1),
+            GridPos::new(self.x - 1, self.y + 1),
+            GridPos::new(self.x + 1, self.y - 1),
+            GridPos::new(self.x - 1, self.y - 1),
+        ]
+    }
+
+    /// Manhattan distance to another grid position
+    pub fn manhattan_distance(&self, other: &GridPos) -> i32 {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
+    }
+}
+
+/// Navigation profile determines which obstacles block an enemy
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Reflect, Serialize, Deserialize, PartialOrd, Ord)]
+pub enum NavProfile {
+    /// Respects all obstacles (walls, windows, barricades, water, pits)
+    #[default]
+    Ground,
+    /// Ignores breakable obstacles for pathfinding (still attacks them)
+    GroundBreaker,
+    /// Ignores water and pits (flying enemies)
+    Flying,
+    /// Ignores everything except solid walls (ghosts)
+    Phasing,
+}
+
+impl NavProfile {
+    /// Returns true if this profile can pass through the given obstacle type
+    pub fn can_pass(&self, obstacle_type: ObstacleType) -> bool {
+        match self {
+            NavProfile::Ground => false,
+            NavProfile::GroundBreaker => obstacle_type.is_breakable(),
+            NavProfile::Flying => matches!(obstacle_type, ObstacleType::Water | ObstacleType::Pit),
+            NavProfile::Phasing => obstacle_type != ObstacleType::Wall,
+        }
+    }
+}
+
+/// A single flow field for a specific navigation profile
+/// Uses BTreeMap for deterministic iteration (GGRS rollback compatibility)
+#[derive(Clone, Debug, Default)]
+pub struct FlowField {
+    /// For each cell, the next cell to move to (toward target)
+    pub directions: BTreeMap<GridPos, GridPos>,
+    /// Cost to reach target from each cell
+    pub costs: BTreeMap<GridPos, u32>,
+}
+
+impl FlowField {
+    /// Get the direction to move from a given position
+    pub fn get_direction(&self, pos: GridPos) -> Option<GridPos> {
+        self.directions.get(&pos).copied()
+    }
+
+    /// Get the world-space direction vector from a given position
+    /// Uses actual enemy position (not cell center) for smoother movement
+    pub fn get_direction_vector(&self, pos: fixed_math::FixedVec2) -> Option<fixed_math::FixedVec2> {
+        let grid_pos = GridPos::from_fixed(pos);
+        let next_pos = self.get_direction(grid_pos)?;
+
+        // Direction from actual position to next cell center (smoother than cell-to-cell)
+        let next_world = next_pos.to_fixed();
+        let direction = next_world - pos;
+
+        if direction.length_squared() > fixed_math::FixedWide::ZERO {
+            Some(direction.normalize_or_zero())
+        } else {
+            // At the next cell center - check if there's a further cell to move to
+            if let Some(further_pos) = self.get_direction(next_pos) {
+                let further_world = further_pos.to_fixed();
+                let further_dir = further_world - pos;
+                if further_dir.length_squared() > fixed_math::FixedWide::ZERO {
+                    return Some(further_dir.normalize_or_zero());
+                }
+            }
+            None
+        }
+    }
+
+    /// Get alternative directions from neighboring cells (for escaping corners)
+    /// Returns directions sorted by cost (lowest cost = closest to target)
+    pub fn get_neighbor_directions(&self, pos: fixed_math::FixedVec2) -> Vec<fixed_math::FixedVec2> {
+        let grid_pos = GridPos::from_fixed(pos);
+        let mut directions = Vec::new();
+
+        // Check all 8 neighboring cells for flow field entries
+        for neighbor in grid_pos.neighbors_8() {
+            if let Some(next_pos) = self.get_direction(neighbor) {
+                // Get the cost of this neighbor's path
+                let cost = self.costs.get(&neighbor).copied().unwrap_or(u32::MAX);
+                let neighbor_world = neighbor.to_fixed();
+                let dir = (neighbor_world - pos).normalize_or_zero();
+                if dir.length_squared() > fixed_math::FixedWide::ZERO {
+                    directions.push((cost, dir));
+                }
+            }
+        }
+
+        // Sort by cost (lowest first = closest to target)
+        directions.sort_by_key(|(cost, _)| *cost);
+        directions.into_iter().map(|(_, dir)| dir).collect()
+    }
+
+    /// Find the nearest cell that has flow field coverage
+    /// Used when an enemy is outside the flow field to find a path back in
+    /// Returns the direction to move toward the nearest covered cell
+    pub fn find_nearest_covered_cell(&self, pos: fixed_math::FixedVec2, max_search: i32) -> Option<fixed_math::FixedVec2> {
+        let grid_pos = GridPos::from_fixed(pos);
+
+        // First check immediate neighbors (most common case)
+        for neighbor in grid_pos.neighbors_8() {
+            if self.directions.contains_key(&neighbor) {
+                let neighbor_world = neighbor.to_fixed();
+                let dir = (neighbor_world - pos).normalize_or_zero();
+                if dir.length_squared() > fixed_math::FixedWide::ZERO {
+                    return Some(dir);
+                }
+            }
+        }
+
+        // Expand search in rings up to max_search distance
+        let mut best_cell: Option<(GridPos, u32)> = None; // (cell, cost to target)
+
+        for radius in 2..=max_search {
+            // Check cells at this manhattan distance ring
+            for dx in -radius..=radius {
+                for dy in -radius..=radius {
+                    // Only check cells on the ring perimeter
+                    if dx.abs() != radius && dy.abs() != radius {
+                        continue;
+                    }
+
+                    let check_pos = GridPos::new(grid_pos.x + dx, grid_pos.y + dy);
+
+                    if let Some(&cost) = self.costs.get(&check_pos) {
+                        // Found a covered cell - prefer the one with lowest cost (closest to target)
+                        match best_cell {
+                            None => best_cell = Some((check_pos, cost)),
+                            Some((_, best_cost)) if cost < best_cost => {
+                                best_cell = Some((check_pos, cost));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            // If we found cells at this radius, return direction to best one
+            if let Some((cell, _)) = best_cell {
+                let cell_world = cell.to_fixed();
+                let dir = (cell_world - pos).normalize_or_zero();
+                if dir.length_squared() > fixed_math::FixedWide::ZERO {
+                    return Some(dir);
+                }
+            }
+        }
+
+        None
+    }
+}
+
+/// Level grid information for coordinate conversion
+#[derive(Clone, Default, Debug)]
+pub struct LevelGridInfo {
+    pub offset_x: i32,
+    pub offset_y: i32,
+    pub height_tiles: i32,
+    pub width_tiles: i32,
+}
+
+/// Cache of flow fields for different navigation profiles
+/// Uses BTreeMap/BTreeSet for deterministic iteration (GGRS rollback compatibility)
+#[derive(Resource, Default, Clone)]
+pub struct FlowFieldCache {
+    /// Target position (player) at last calculation
+    pub target_pos: GridPos,
+    /// Frame when last updated
+    pub last_update_frame: u32,
+    /// Update interval in frames
+    pub update_interval: u32,
+    /// Cached flow fields per navigation profile
+    pub layers: BTreeMap<NavProfile, FlowField>,
+    /// Blocked cells per obstacle type (for building flow fields)
+    pub blocked_cells: BTreeMap<ObstacleType, BTreeSet<GridPos>>,
+    /// All permanently blocked cells (walls) - computed from IntGrid + dynamic walls
+    pub wall_cells: BTreeSet<GridPos>,
+    /// Wall cells directly from LDtk IntGrid (1:1 tile mapping, immutable after load)
+    pub intgrid_wall_cells: BTreeSet<GridPos>,
+    /// Level grid info for coordinate conversion
+    pub level_info: Option<LevelGridInfo>,
+    /// Number of wall entities at last rebuild (to detect when walls are added)
+    pub last_wall_entity_count: usize,
+}
+
+impl FlowFieldCache {
+    pub fn new() -> Self {
+        Self {
+            target_pos: GridPos::default(),
+            last_update_frame: 0,
+            update_interval: 30, // Update every 30 frames (~2 times per second at 60 FPS)
+            layers: BTreeMap::new(),
+            blocked_cells: BTreeMap::new(),
+            wall_cells: BTreeSet::new(),
+            intgrid_wall_cells: BTreeSet::new(),
+            level_info: None,
+            last_wall_entity_count: 0,
+        }
+    }
+
+    /// Get the flow field for a specific navigation profile
+    pub fn get_flow_field(&self, profile: NavProfile) -> Option<&FlowField> {
+        self.layers.get(&profile)
+    }
+
+    /// Check if a cell is blocked for a given navigation profile
+    pub fn is_blocked(&self, pos: &GridPos, profile: NavProfile) -> bool {
+        // Walls always block (except for Phasing which ignores non-Wall obstacles)
+        if self.wall_cells.contains(pos) {
+            return true;
+        }
+
+        // Check other obstacle types based on profile
+        for (obstacle_type, cells) in &self.blocked_cells {
+            if cells.contains(pos) && !profile.can_pass(*obstacle_type) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Load wall cells directly from LDtk IntGrid data
+    /// This provides perfect 1:1 mapping between LDtk tiles and flow field cells
+    pub fn load_intgrid_walls(
+        &mut self,
+        grid: &[Vec<bool>],
+        level_offset: bevy::math::Vec2,
+        level_height: usize,
+        level_width: usize,
+    ) {
+        let level_info = LevelGridInfo {
+            offset_x: level_offset.x as i32,
+            offset_y: level_offset.y as i32,
+            height_tiles: level_height as i32,
+            width_tiles: level_width as i32,
+        };
+
+        // Convert each IntGrid wall tile to FlowField GridPos
+        for (ldtk_y, row) in grid.iter().enumerate() {
+            for (ldtk_x, &is_wall) in row.iter().enumerate() {
+                if is_wall {
+                    let grid_pos = ldtk_grid_to_flowfield(ldtk_x, ldtk_y, &level_info);
+                    self.intgrid_wall_cells.insert(grid_pos);
+                }
+            }
+        }
+
+        self.level_info = Some(level_info);
+        info!(
+            "FlowField: loaded {} IntGrid wall cells from {}x{} level at ({}, {})",
+            self.intgrid_wall_cells.len(),
+            level_width, level_height,
+            level_offset.x, level_offset.y
+        );
+    }
+}
+
+/// Convert LDtk grid position to FlowField GridPos
+/// Handles Y-flip (LDtk Y=0 at top, Bevy Y=0 at bottom) and level offset
+pub fn ldtk_grid_to_flowfield(ldtk_x: usize, ldtk_y: usize, info: &LevelGridInfo) -> GridPos {
+    // Compute world pixel center of this tile
+    // LDtk tile at (ldtk_x, ldtk_y) covers pixels [ldtk_y*16, (ldtk_y+1)*16), center at ldtk_y*16 + 8
+    let ldtk_center_x_pixels = (ldtk_x as i32 * GRID_CELL_SIZE) + (GRID_CELL_SIZE / 2);
+    let ldtk_center_y_pixels = (ldtk_y as i32 * GRID_CELL_SIZE) + (GRID_CELL_SIZE / 2);
+
+    // Convert X to world pixels (no flip needed)
+    let world_center_x = info.offset_x + ldtk_center_x_pixels;
+
+    // Convert Y to world pixels with Y-flip
+    // LDtk: Y=0 at top, increases downward
+    // Bevy: Y=0 at bottom, increases upward
+    let level_height_pixels = info.height_tiles * GRID_CELL_SIZE;
+    let world_center_y = info.offset_y + level_height_pixels - ldtk_center_y_pixels;
+
+    // Convert world pixel centers to grid cells
+    let world_grid_x = world_center_x.div_euclid(GRID_CELL_SIZE);
+    let world_grid_y = world_center_y.div_euclid(GRID_CELL_SIZE);
+
+    GridPos::new(world_grid_x, world_grid_y)
+}
+
+/// Configuration for flow field updates
+#[derive(Resource, Clone)]
+pub struct FlowFieldConfig {
+    /// How often to recalculate flow fields (in frames)
+    pub update_interval: u32,
+    /// Maximum search radius from target
+    pub max_search_radius: i32,
+    /// Use 8-directional movement (vs 4-directional)
+    pub use_8_directions: bool,
+    /// Diagonal movement cost multiplier (for 8-directional)
+    pub diagonal_cost: u32,
+}
+
+impl Default for FlowFieldConfig {
+    fn default() -> Self {
+        Self {
+            update_interval: 30,  // Update every 0.5s at 60fps
+            max_search_radius: 50, // 50 cells * 16 units = 800 units radius
+            use_8_directions: true, // 8 directions for smoother diagonal movement
+            diagonal_cost: 14,
+        }
+    }
+}
+
+/// System to update the global flow field cache
+pub fn update_flow_field_system(
+    frame: Res<FrameCount>,
+    config: Res<FlowFieldConfig>,
+    player_query: Query<(&GgrsNetId, &fixed_math::FixedTransform3D), With<Player>>,
+    wall_query: Query<
+        (&fixed_math::FixedTransform3D, &Collider),
+        (With<Wall>, Without<Obstacle>),
+    >,
+    obstacle_query: Query<
+        (&fixed_math::FixedTransform3D, &Collider, &Obstacle),
+        With<Rollback>,
+    >,
+    mut cache: ResMut<FlowFieldCache>,
+) {
+    // Check if we need to update (rate limit)
+    if frame.frame < cache.last_update_frame + cache.update_interval {
+        return;
+    }
+    cache.last_update_frame = frame.frame;
+
+    // Wait for walls to be initialized (done by LDTK loader)
+    // Prefer IntGrid data, fall back to wall entity count for backward compatibility
+    if cache.intgrid_wall_cells.is_empty() && cache.last_wall_entity_count == 0 {
+        return;
+    }
+
+    // GGRS CRITICAL: Must select player deterministically by sorting by net_id
+    let target_pos = {
+        let mut players: Vec<_> = player_query.iter().collect();
+        if players.is_empty() {
+            return; // No players, nothing to do
+        }
+        // Sort by net_id for deterministic selection
+        players.sort_unstable_by_key(|(net_id, _)| net_id.0);
+        let (_, transform) = players[0];
+        GridPos::from_fixed(transform.translation.truncate())
+    };
+
+    // Skip if target hasn't moved and we have a valid flow field
+    if target_pos == cache.target_pos && !cache.layers.is_empty() {
+        return;
+    }
+
+    // Update target and frame
+    cache.target_pos = target_pos;
+    cache.last_update_frame = frame.frame;
+
+    // Rebuild blocked cell cache
+    rebuild_blocked_cells(&mut cache, &wall_query, &obstacle_query);
+
+    // Use GroundBreaker profile so zombies can pathfind through breakable obstacles (windows)
+    let flow_field = build_flow_field(target_pos, NavProfile::GroundBreaker, &cache, &config);
+
+    // Log flow field stats only on significant rebuilds
+    trace!(
+        "FlowField: target=({},{}), reachable={}, walls={}",
+        target_pos.x, target_pos.y,
+        flow_field.directions.len(), cache.wall_cells.len()
+    );
+
+    cache.layers.insert(NavProfile::GroundBreaker, flow_field);
+}
+
+/// Rebuild the blocked cell cache from IntGrid data and current obstacle positions
+fn rebuild_blocked_cells(
+    cache: &mut FlowFieldCache,
+    _wall_query: &Query<
+        (&fixed_math::FixedTransform3D, &Collider),
+        (With<Wall>, Without<Obstacle>),
+    >,
+    obstacle_query: &Query<
+        (&fixed_math::FixedTransform3D, &Collider, &Obstacle),
+        With<Rollback>,
+    >,
+) {
+    cache.blocked_cells.clear();
+
+    // Start with IntGrid wall cells as the source of truth (perfect 1:1 LDtk tile mapping)
+    // We no longer iterate wall colliders since IntGrid has all static walls.
+    // Wall colliders are only used for physics, not pathfinding.
+    cache.wall_cells = cache.intgrid_wall_cells.clone();
+
+    let mut window_cells_removed = 0;
+    // Process obstacles - windows create HOLES in walls
+    for (transform, collider, obstacle) in obstacle_query.iter() {
+        let pos = transform.translation.truncate();
+
+        // Windows create passages through walls - remove only the CENTER cell
+        // Using center cell prevents accidentally removing adjacent wall cells
+        // when the window collider extends slightly beyond its tile
+        if obstacle.obstacle_type == ObstacleType::Window {
+            let center_cell = GridPos::from_fixed(pos);
+            if cache.wall_cells.remove(&center_cell) {
+                window_cells_removed += 1;
+            }
+            // Windows also block movement for Ground profile (until broken)
+            if obstacle.blocks_movement {
+                cache
+                    .blocked_cells
+                    .entry(obstacle.obstacle_type)
+                    .or_default()
+                    .insert(center_cell);
+            }
+            continue;
+        }
+
+        // For other obstacles, use full collider bounds
+        let cells = get_collider_cells(pos, collider);
+        if !obstacle.blocks_movement {
+            continue;
+        }
+        cache
+            .blocked_cells
+            .entry(obstacle.obstacle_type)
+            .or_default()
+            .extend(cells);
+    }
+
+    // Log only at trace level to avoid spam
+    trace!(
+        "FlowField: {} wall cells, {} window holes",
+        cache.wall_cells.len(), window_cells_removed
+    );
+}
+
+/// Get all grid cells occupied by a collider (precise, no padding)
+/// Uses exact boundary calculation for proper 1:1 tile alignment
+fn get_collider_cells(
+    pos: fixed_math::FixedVec2,
+    collider: &Collider,
+) -> Vec<GridPos> {
+    let mut cells = Vec::new();
+    let offset = fixed_math::FixedVec2::new(collider.offset.x, collider.offset.y);
+    let center = pos + offset;
+    let center_x = center.x.to_num::<i32>();
+    let center_y = center.y.to_num::<i32>();
+
+    match &collider.shape {
+        ColliderShape::Circle { radius } => {
+            // For circles, use bounding box with proper division
+            let r = radius.to_num::<i32>();
+            let min_x = (center_x - r).div_euclid(GRID_CELL_SIZE);
+            let max_x = (center_x + r - 1).div_euclid(GRID_CELL_SIZE);
+            let min_y = (center_y - r).div_euclid(GRID_CELL_SIZE);
+            let max_y = (center_y + r - 1).div_euclid(GRID_CELL_SIZE);
+
+            for x in min_x..=max_x {
+                for y in min_y..=max_y {
+                    cells.push(GridPos::new(x, y));
+                }
+            }
+        }
+        ColliderShape::Rectangle { width, height } => {
+            // Calculate exact bounds without padding
+            let half_w = width.to_num::<i32>() / 2;
+            let half_h = height.to_num::<i32>() / 2;
+
+            // Use div_euclid for proper floor division
+            // Subtract 1 from max to avoid including next cell when exactly on boundary
+            let min_x = (center_x - half_w).div_euclid(GRID_CELL_SIZE);
+            let max_x = (center_x + half_w - 1).div_euclid(GRID_CELL_SIZE);
+            let min_y = (center_y - half_h).div_euclid(GRID_CELL_SIZE);
+            let max_y = (center_y + half_h - 1).div_euclid(GRID_CELL_SIZE);
+
+            // Ensure at least one cell (for very small colliders)
+            let max_x = max_x.max(min_x);
+            let max_y = max_y.max(min_y);
+
+            for x in min_x..=max_x {
+                for y in min_y..=max_y {
+                    cells.push(GridPos::new(x, y));
+                }
+            }
+        }
+    }
+
+    cells
+}
+
+/// Build a flow field using simple BFS (much faster than Dijkstra for unweighted graphs)
+fn build_flow_field(
+    target: GridPos,
+    profile: NavProfile,
+    cache: &FlowFieldCache,
+    config: &FlowFieldConfig,
+) -> FlowField {
+    let mut flow_field = FlowField::default();
+    let mut visited: BTreeSet<GridPos> = BTreeSet::new();
+    let mut queue: VecDeque<GridPos> = VecDeque::new();
+
+    // Start BFS from target
+    queue.push_back(target);
+    visited.insert(target);
+    flow_field.directions.insert(target, target);
+    flow_field.costs.insert(target, 0);
+
+    let max_cells = (config.max_search_radius * config.max_search_radius * 4) as usize;
+    let mut cells_processed = 0;
+
+    while let Some(current) = queue.pop_front() {
+        // Safety limit to prevent infinite loops
+        cells_processed += 1;
+        if cells_processed > max_cells {
+            break;
+        }
+
+        let current_cost = *flow_field.costs.get(&current).unwrap_or(&0);
+
+        // Get neighbors (4 or 8 directions)
+        let neighbors = if config.use_8_directions {
+            current.neighbors_8().to_vec()
+        } else {
+            current.neighbors_4().to_vec()
+        };
+
+        for neighbor in neighbors {
+            // Skip if already visited
+            if visited.contains(&neighbor) {
+                continue;
+            }
+
+            // Check bounds (manhattan distance from target)
+            if neighbor.manhattan_distance(&target) > config.max_search_radius {
+                continue;
+            }
+
+            // Check if blocked for this profile
+            if cache.is_blocked(&neighbor, profile) {
+                continue;
+            }
+
+            // Mark as visited and add to queue
+            visited.insert(neighbor);
+            queue.push_back(neighbor);
+
+            // Direction points TOWARD target (so we store 'current' as the next step)
+            flow_field.directions.insert(neighbor, current);
+            flow_field.costs.insert(neighbor, current_cost + 1);
+        }
+    }
+
+    flow_field
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_grid_pos_conversion() {
+        let world_pos = fixed_math::FixedVec2::new(
+            fixed_math::Fixed::from_num(45),
+            fixed_math::Fixed::from_num(65),
+        );
+        let grid_pos = GridPos::from_fixed(world_pos);
+        assert_eq!(grid_pos.x, 2); // 45 / 16 = 2
+        assert_eq!(grid_pos.y, 4); // 65 / 16 = 4
+    }
+
+    #[test]
+    fn test_nav_profile_can_pass() {
+        assert!(!NavProfile::Ground.can_pass(ObstacleType::Window));
+        assert!(NavProfile::GroundBreaker.can_pass(ObstacleType::Window));
+        assert!(NavProfile::Flying.can_pass(ObstacleType::Water));
+        assert!(!NavProfile::Flying.can_pass(ObstacleType::Wall));
+        assert!(NavProfile::Phasing.can_pass(ObstacleType::Window));
+        assert!(!NavProfile::Phasing.can_pass(ObstacleType::Wall));
+    }
+}

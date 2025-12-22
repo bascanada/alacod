@@ -30,7 +30,7 @@ pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessi
 
     let socket = WebRtcSocketBuilder::new(url)
         .ice_server(ice_server)
-        .add_channel(ChannelConfig::unreliable())
+        .add_channel(ChannelConfig::reliable())
         .build();
 
     commands.insert_resource(MatchboxSocket::from(socket));

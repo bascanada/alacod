@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::AddRollbackCommandExtension;
+use game::character::enemy::ai::navigation::FlowFieldCache;
 use game::collider::{spawn_test_wall, CollisionSettings, Wall, Collider, ColliderShape};
 use utils::net_id::GgrsNetIdFactory;
 
@@ -13,16 +14,19 @@ pub fn create_wall_colliders_from_ldtk(
     project_assets: Res<Assets<LdtkProject>>,
     collision_settings: Res<CollisionSettings>,
     mut id_factory: ResMut<GgrsNetIdFactory>,
+    mut flow_field_cache: ResMut<FlowFieldCache>,
 ) {
     // Collect and sort levels by IID for deterministic order
     let mut sorted_levels: Vec<_> = levels.iter().collect();
     sorted_levels.sort_by(|a, b| a.1.to_string().cmp(&b.1.to_string()));
 
-    for (level_entity, level_iid, level_transform) in sorted_levels {
+    let mut total_walls = 0;
+
+    for (_level_entity, level_iid, level_transform) in sorted_levels {
                 let project = project_assets
                     .get(projects.single().unwrap())
                     .expect("project asset should be loaded if levels are spawned");
-                
+
                 let level_data = project
                     .get_raw_level_by_iid(&level_iid.to_string())
                     .expect("spawned level should exist in the loaded project");
@@ -38,13 +42,22 @@ pub fn create_wall_colliders_from_ldtk(
                     let tile_size = collision_layer.grid_size;
                     let level_width = (collision_layer.c_wid) as usize;
                     let level_height = (collision_layer.c_hei) as usize;
-                    
+
                     // Convert IntGrid values to a 2D grid (1 = wall, 0 = empty)
                     let grid = create_collision_grid(&collision_layer.int_grid_csv, level_width, level_height);
-                    
-                    // Generate optimized rectangles
+
+                    // Load IntGrid data directly into FlowFieldCache for perfect 1:1 pathfinding
+                    // This must happen BEFORE generating merged rectangles (which lose tile info)
+                    flow_field_cache.load_intgrid_walls(
+                        &grid,
+                        level_transform.translation.truncate(),
+                        level_height,
+                        level_width,
+                    );
+
+                    // Generate optimized rectangles for physics colliders only
                     let rectangles = generate_collision_rectangles(&grid);
-                    
+
                     // Spawn wall entities for each rectangle
                     for rect in rectangles {
                         spawn_invisible_wall_collider(
@@ -56,9 +69,20 @@ pub fn create_wall_colliders_from_ldtk(
                             level_transform.translation.truncate(),
                             level_height,
                         );
+                        total_walls += 1;
                     }
                 }
         }
+
+    // Initialize flow field cache with wall count so it knows walls are ready
+    if total_walls > 0 {
+        flow_field_cache.last_wall_entity_count = total_walls;
+        info!(
+            "LDTK walls created: {} colliders, {} IntGrid cells for flow field",
+            total_walls,
+            flow_field_cache.intgrid_wall_cells.len()
+        );
+    }
 }
 
 /// Represents a collision rectangle in tile coordinates

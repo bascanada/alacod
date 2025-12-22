@@ -8,6 +8,13 @@ use crate::{
     jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration, PlayerConfig},
 };
 
+/// Resource to control debug AI visualization from startup
+#[derive(Resource, Default)]
+pub struct DebugAiConfig {
+    /// Whether to enable AI debug visualization (flow field + enemy state) from startup
+    pub enabled: bool,
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
 #[cfg(target_arch = "wasm32")]
@@ -22,6 +29,7 @@ pub struct GameArgs {
     pub matchbox: String,
     pub lobby: String,
     pub cid: String,
+    pub debug_ai: bool,
     pub telemetry: bool,
     pub telemetry_url: String,
     pub telemetry_auth: String,
@@ -75,6 +83,7 @@ pub fn get_args() -> GameArgs {
             matchbox: args.matchbox.unwrap_or(String::new()),
             lobby: args.lobby.unwrap_or(String::new()),
             cid: args.cid.unwrap_or(generate_random_correlation_id()),
+            debug_ai: args.debug_ai,
             telemetry: args.telemetry,
             telemetry_url: args.telemetry_url,
             telemetry_auth: args.telemetry_auth,
@@ -115,6 +124,7 @@ pub fn get_args() -> GameArgs {
             matchbox: canvas_config.matchbox.unwrap_or(String::new()),
             lobby: canvas_config.lobby.unwrap_or(String::new()),
             cid: generate_random_correlation_id(),
+            debug_ai: false, // debug_ai not supported on WASM
             telemetry: canvas_config.telemetry,
             telemetry_url: canvas_config.telemetry_url,
             telemetry_auth: canvas_config.telemetry_auth,
@@ -127,6 +137,7 @@ pub struct BaseArgsPlugin;
 impl Plugin for BaseArgsPlugin {
     fn build(&self, app: &mut App) {
         let args = get_args();
+        app.insert_resource(DebugAiConfig { enabled: args.debug_ai });
 
         let mut nbr_player = args.number_player;
         if nbr_player == 0 {

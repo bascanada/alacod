@@ -4,11 +4,11 @@
 	import Title from '$lib/Title.svelte';
 </script>
 
-<div class="flex flex-col h-full w-full">
+<div class="flex flex-col w-full min-h-full">
 	<header>
 		<Title />
 	</header>
-	<main class="flex flex-col md:flex-row gap-6 p-4 flex-grow overflow-auto">
+	<main class="flex flex-col md:flex-row gap-6 p-4">
 		<article class="flex-1 bg-surface-100-800-token rounded-lg p-6">
 			<h2 class="font-metal-mania text-2xl font-bold mb-4">Welcome !</h2>
 			<p class="mb-4">
@@ -44,7 +44,7 @@
 			</div>
 		</article>
 
-		<aside class="md:w-1/3 lg:w-2/5 flex flex-col gap-6 items-end">
+		<aside class="w-full md:w-1/3 lg:w-2/5 flex flex-col gap-6 items-center md:items-end">
       		<DevProgress />
 		</aside>
 	</main>
@@ -55,33 +55,23 @@
 				class="card flex justify-center preset-filled-surface-100-900 p-4 py-8 text-center hover:scale-105 transition-transform"
 				href="https://www.youtube.com/@BasCanada"
 			>
-				<SvgIcon color="var(--color-primary-500)" id="youtube" />
+				<SvgIcon color="var(--color-primary-500)" id="youtube" height="32px" />
 			</a>
 			<a
 				target="_blank"
 				class="card flex justify-center preset-filled-surface-100-900 p-4 py-8 text-center hover:scale-105 transition-transform"
 				href="https://github.com/bascanada/alacod"
 			>
-				<SvgIcon color="var(--color-primary-500)" id="github" />
+				<SvgIcon color="var(--color-primary-500)" id="github" height="32px" />
 			</a>
 			<a
 				target="_blank"
 				class="card flex justify-center preset-filled-surface-100-900 p-4 py-8 text-center hover:scale-105 transition-transform"
 				href="mailto:bascanada1841@gmail.com"
 			>
-				<SvgIcon color="var(--color-primary-500)" id="gmail" />
+				<SvgIcon color="var(--color-primary-500)" id="gmail" height="32px" />
 			</a>
 		</div>
 	</footer>
 </div>
 
-<style>
-	:global(html, body) {
-		height: 100%;
-	}
-	:global(#app) {
-		height: 100%;
-		display: flex;
-		flex-direction: column;
-	}
-</style>

@@ -109,13 +109,13 @@ map_generation_diff_test:
 	diff ./assets/exemples/test_map_generated_1.ldtk ./assets/exemples/test_map_generated_2.ldtk
 
 character_tester:
-	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
+	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- $(GARGS) --local-port 7000 --players localhost
 
 character_tester_matchbox:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID) --name $(NAME)
 
 ldtk_map_explorer:
-	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --local-port 7000 --players localhost
+	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- $(GARGS) --local-port 7000 --players localhost
 
 ldtk_map_explorer_matchbox:
 	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID) --name $(NAME)
@@ -177,9 +177,21 @@ print_version:
 
 
 diff_log:
-	mkdir -p $(FILTERED_LOG_DIR)
-	cat $(LOG_DIR)/$(LOG_PREFFIX)_$(CID_1).log | grep $(GREP_FILTER) > $(FILTERED_LOG_DIR)/$(CID_1).log
-	cat $(LOG_DIR)/$(LOG_PREFFIX)_$(CID_2).log | grep $(GREP_FILTER) > $(FILTERED_LOG_DIR)/$(CID_2).log
+	@mkdir -p $(FILTERED_LOG_DIR)
+	@# Filter logs by GGRS pattern
+	@cat $(LOG_DIR)/$(LOG_PREFFIX)_$(CID_1).log | grep $(GREP_FILTER) > $(FILTERED_LOG_DIR)/$(CID_1)_raw.log
+	@cat $(LOG_DIR)/$(LOG_PREFFIX)_$(CID_2).log | grep $(GREP_FILTER) > $(FILTERED_LOG_DIR)/$(CID_2)_raw.log
+	@# Find the last frame in each log and take the minimum
+	@LAST_FRAME_1=$$(grep -oE 'f=[0-9]+' $(FILTERED_LOG_DIR)/$(CID_1)_raw.log | tail -1 | cut -d= -f2); \
+	LAST_FRAME_2=$$(grep -oE 'f=[0-9]+' $(FILTERED_LOG_DIR)/$(CID_2)_raw.log | tail -1 | cut -d= -f2); \
+	if [ "$$LAST_FRAME_1" -lt "$$LAST_FRAME_2" ]; then \
+		MIN_FRAME=$$LAST_FRAME_1; \
+	else \
+		MIN_FRAME=$$LAST_FRAME_2; \
+	fi; \
+	echo "Comparing logs up to frame $$MIN_FRAME ($(CID_1): $$LAST_FRAME_1, $(CID_2): $$LAST_FRAME_2)"; \
+	perl -ne 'print if /f=(\d+)/ && $$1 <= '"$$MIN_FRAME" $(FILTERED_LOG_DIR)/$(CID_1)_raw.log > $(FILTERED_LOG_DIR)/$(CID_1).log; \
+	perl -ne 'print if /f=(\d+)/ && $$1 <= '"$$MIN_FRAME" $(FILTERED_LOG_DIR)/$(CID_2)_raw.log > $(FILTERED_LOG_DIR)/$(CID_2).log; \
 	diff $(FILTERED_LOG_DIR)/$(CID_1).log $(FILTERED_LOG_DIR)/$(CID_2).log
 
 test_multiplayer:

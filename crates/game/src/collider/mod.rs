@@ -79,12 +79,15 @@ impl Default for CollisionSettings {
 
         // Set up collision relationships
         layer_matrix[enemy_layer][wall_layer] = true;
-        layer_matrix[enemy_layer][player_layer] = true;
-        layer_matrix[player_layer][enemy_layer] = true;
-
         layer_matrix[wall_layer][enemy_layer] = true;
+
         layer_matrix[wall_layer][player_layer] = true;
         layer_matrix[player_layer][wall_layer] = true;
+
+        // Player-Enemy collision is "soft" - handled specially in move_characters
+        // to allow pushing through but with resistance
+        layer_matrix[enemy_layer][player_layer] = true;
+        layer_matrix[player_layer][enemy_layer] = true;
 
         // Window layer only collides with player bodies (not bullets or enemies)
         layer_matrix[window_layer][player_layer] = true;

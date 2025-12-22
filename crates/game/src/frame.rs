@@ -1,6 +1,7 @@
 use bevy::{diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin}, prelude::*};
 use utils::frame::FrameCount;
 
+use crate::character::enemy::Enemy;
 use crate::core::GameInfo;
 
 // You can also register resources.
@@ -36,26 +37,27 @@ fn setup_frame_counter_ui(mut commands: Commands, asset_server: Res<AssetServer>
 }
 
 fn update_frame_counter_text(
-    frame_count: Res<FrameCount>, // Access the FrameCount resource
+    frame_count: Res<FrameCount>,
     game_info: Res<GameInfo>,
     diagnostics: Res<DiagnosticsStore>,
-    mut query: Query<&mut Text, With<FrameCountText>>, // Query for mutable Text components with our marker
+    enemy_query: Query<(), With<Enemy>>,
+    mut query: Query<&mut Text, With<FrameCountText>>,
 ) {
+    let enemy_count = enemy_query.iter().count();
+
     for mut text in &mut query {
-    
-    let fps_text = if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
-        if let Some(value) = fps.smoothed() {
-            // Fixed width format: always 5 characters (e.g., " 60.0", "120.0")
-            format!("{:>5.1}", value)
+        let fps_text = if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(value) = fps.smoothed() {
+                format!("{:>5.1}", value)
+            } else {
+                "  ...".to_string()
+            }
         } else {
             "  ...".to_string()
-        }
-    } else {
-        "  ...".to_string()
-    };
-        
-        // Fixed width format for frame count (8 characters) to prevent layout shifts
-        text.0 = format!("{} : {:>8} | FPS: {}", game_info.version, frame_count.frame, fps_text);
+        };
+
+        text.0 = format!("{} : {:>8} | FPS: {} | E: {}",
+            game_info.version, frame_count.frame, fps_text, enemy_count);
     }
 }
 

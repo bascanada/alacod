@@ -10,8 +10,18 @@ use crate::{
     weapons::{melee::{spawn_melee_weapon_for_character, MeleeWeaponsConfig}, WeaponInventory, WeaponsConfig},
 };
 
-use super::{ai::pathing::EnemyPath, Enemy};
+use super::{
+    ai::{
+        pathing::{EnemyPath, WallSlideTracker},
+        state::{EnemyAiConfig, EnemyTarget, MonsterState},
+    },
+    Enemy,
+};
 
+/// Spawns an enemy entity and returns it.
+///
+/// Returns the spawned Entity so callers can attach additional components
+/// (e.g., WaveEnemy for wave tracking).
 pub fn spawn_enemy(
     enemy_type_name: String,
     position: fixed_math::FixedVec3,
@@ -27,7 +37,7 @@ pub fn spawn_enemy(
     collision_settings: &Res<CollisionSettings>,
 
     id_factory: &mut ResMut<GgrsNetIdFactory>,
-) {
+) -> Entity {
     let entity = create_character(
         commands,
         global_assets,
@@ -62,8 +72,13 @@ pub fn spawn_enemy(
         .insert((
             inventory,
             EnemyPath::default(),
+            WallSlideTracker::default(),
             Enemy::default(),
-            super::ai::combat::ZombieState::default(),
-            super::ai::combat::ZombieTarget::default(),
+            // AI components for flow field navigation and combat
+            EnemyAiConfig::zombie(),
+            EnemyTarget::default(),
+            MonsterState::default(),
         ));
+
+    entity
 }

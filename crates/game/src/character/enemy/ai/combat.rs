@@ -1,3 +1,14 @@
+//! DEPRECATED: Legacy zombie combat system
+//!
+//! This module has been replaced by:
+//! - `behavior.rs`: enemy_target_selection, enemy_attack_system
+//! - `state.rs`: MonsterState, EnemyTarget, EnemyAiConfig
+//! - `obstacle.rs`: ObstacleAttackEvent, process_obstacle_damage
+//!
+//! Kept for reference only. Can be removed once migration is verified stable.
+
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;
@@ -132,35 +143,43 @@ pub fn zombie_target_selection(
         }
 
         // Find closest player
+        // GGRS CRITICAL: Use deterministic tie-breaking (smaller net_id wins when distances equal)
         let mut closest_player: Option<(GgrsNetId, fixed_math::Fixed)> = None;
         for (player_net_id, player_transform) in player_query.iter() {
             let player_pos = player_transform.translation.truncate();
             let distance = zombie_pos.distance(&player_pos);
-            
-            match closest_player {
-                None => closest_player = Some((player_net_id.clone(), distance)),
-                Some((_, closest_dist)) if distance < closest_dist => {
-                    closest_player = Some((player_net_id.clone(), distance));
+
+            let should_update = match &closest_player {
+                None => true,
+                Some((closest_id, closest_dist)) => {
+                    distance < *closest_dist ||
+                    (distance == *closest_dist && player_net_id.0 < closest_id.0)
                 }
-                _ => {}
+            };
+            if should_update {
+                closest_player = Some((player_net_id.clone(), distance));
             }
         }
 
         // Find closest intact window (health > 0)
+        // GGRS CRITICAL: Use deterministic tie-breaking (smaller net_id wins when distances equal)
         let mut closest_window: Option<(GgrsNetId, fixed_math::Fixed)> = None;
         for (window_net_id, window_transform, window_health) in window_query.iter() {
             // Only target windows with health > 0
             if window_health.current > 0 {
                 let window_pos = window_transform.translation.truncate();
                 let distance = zombie_pos.distance(&window_pos);
-                
+
                 if distance < config.window_detection_range {
-                    match closest_window {
-                        None => closest_window = Some((window_net_id.clone(), distance)),
-                        Some((_, closest_dist)) if distance < closest_dist => {
-                            closest_window = Some((window_net_id.clone(), distance));
+                    let should_update = match &closest_window {
+                        None => true,
+                        Some((closest_id, closest_dist)) => {
+                            distance < *closest_dist ||
+                            (distance == *closest_dist && window_net_id.0 < closest_id.0)
                         }
-                        _ => {}
+                    };
+                    if should_update {
+                        closest_window = Some((window_net_id.clone(), distance));
                     }
                 }
             }

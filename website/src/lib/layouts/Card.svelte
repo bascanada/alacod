@@ -9,7 +9,7 @@
 
 <a
   href={href}
-  class="card preset-filled-surface-100-900 border-[1px] border-surface-200-800 card-hover divide-surface-200-800 block max-w-md divide-y overflow-hidden"
+  class="card preset-filled-surface-100-900 border-[1px] border-surface-200-800 card-hover divide-surface-200-800 block divide-y overflow-hidden"
 >
   <header>
     <h3 class="h3 m-5 text-left">{title}</h3>
@@ -32,9 +32,6 @@
 
 <style>
   /* Ensure consistent heights */
-  .card {
-    min-width: 300px;
-  }
   .card article {
     display: flex;
     flex-direction: column;

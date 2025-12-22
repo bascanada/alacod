@@ -1122,7 +1122,7 @@
 						},
 						{
 							"__identifier": "ZombieSpawn",
-							"__grid": [23,17],
+							"__grid": [19,17],
 							"__pivot": [0,0],
 							"__tags": [],
 							"__tile": { "tilesetUid": 38, "x": 112, "y": 112, "w": 16, "h": 16 },
@@ -1131,9 +1131,9 @@
 							"width": 16,
 							"height": 16,
 							"defUid": 35,
-							"px": [368,272],
+							"px": [304,272],
 							"fieldInstances": [],
-							"__worldX": 368,
+							"__worldX": 304,
 							"__worldY": -32
 						},
 						{
@@ -1154,7 +1154,7 @@
 						},
 						{
 							"__identifier": "ZombieSpawn",
-							"__grid": [24,11],
+							"__grid": [24,14],
 							"__pivot": [0,0],
 							"__tags": [],
 							"__tile": { "tilesetUid": 38, "x": 112, "y": 112, "w": 16, "h": 16 },
@@ -1163,10 +1163,10 @@
 							"width": 16,
 							"height": 16,
 							"defUid": 35,
-							"px": [384,176],
+							"px": [384,224],
 							"fieldInstances": [],
 							"__worldX": 384,
-							"__worldY": -128
+							"__worldY": -80
 						},
 						{
 							"__identifier": "DoorHorizontal",
