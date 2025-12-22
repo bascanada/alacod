@@ -17,6 +17,7 @@
 		const argSize = urlParams.get('size'); // lobby_size
 		const argToken = urlParams.get('token');
 		const argMatchbox = urlParams.get('matchbox'); // If still passed or needed
+		const argPlayers = urlParams.get('players'); // Player data (pubkeys + names)
 
 		// Construct the source URL for the iframe
 		// loader.html expects: name, version, lobby, matchbox (optional), lobby_size (optional)
@@ -41,7 +42,8 @@
 			// If online, we expect lobby components to have passed necessary params
 			if (argSize) baseSrc += `&lobby_size=${argSize}`;
 			if (argToken) baseSrc += `&token=${argToken}`; // Passing token if loader/wasm needs it
-			
+			if (argPlayers) baseSrc += `&players=${argPlayers}`; // Player pubkeys and names
+
 			// Get matchbox server from settings or use provided URL as fallback
 			const matchboxUrl = argMatchbox || settings.matchboxServer;
 			baseSrc += `&matchbox=${matchboxUrl}`;

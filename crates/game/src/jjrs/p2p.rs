@@ -1,44 +1,38 @@
-
-
 use bevy::prelude::*;
+use bevy_fixed::rng::RollbackRng;
 use bevy_ggrs::ggrs::PlayerType;
 use bevy_matchbox::{prelude::PeerState, MatchboxSocket};
-use bevy_fixed::rng::RollbackRng;
 
 use crate::{
     character::player::jjrs::PeerConfig,
-    core::{AppState, OnlineState}, 
-    jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding},
+    core::{AppState, OnlineState},
+    jjrs::{
+        GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsPlayer, GgrsSessionBuilding,
+    },
 };
-
 
 // For matchbox socket connection
 
 pub fn start_matchbox_socket(mut commands: Commands, ggrs_config: Res<GggrsSessionConfiguration>) {
-    use bevy_matchbox::matchbox_socket::{WebRtcSocketBuilder, RtcIceServerConfig, ChannelConfig};
-    
-    let url = format!(
-        "{}/{}",
-        ggrs_config.matchbox_url, ggrs_config.lobby
-    );
-    
+    use bevy_matchbox::matchbox_socket::{ChannelConfig, RtcIceServerConfig, WebRtcSocketBuilder};
+
+    let url = format!("{}/{}", ggrs_config.matchbox_url, ggrs_config.lobby);
+
     // Configure ICE servers including STUN and TURN for better NAT traversal
     let ice_server = RtcIceServerConfig {
         urls: vec![
-            "stun://stun.l.google.com:19302".to_string(),
-            "stun://stun1.l.google.com:19302".to_string(),
-            "turn://bascanada.org:3478".to_string(),
-            "turns://bascanada.org:5349".to_string(),
+            "stun:stun.l.google.com:19302".to_string(),
+            "stun:stun1.l.google.com:19302".to_string(),
         ],
-        username: Some("gameuser".to_string()),
-        credential: Some("WaRCraft420".to_string()),
+        username: None,
+        credential: None,
     };
-    
+
     let socket = WebRtcSocketBuilder::new(url)
         .ice_server(ice_server)
         .add_channel(ChannelConfig::unreliable())
         .build();
-    
+
     commands.insert_resource(MatchboxSocket::from(socket));
 
     info!("start p2p connection with CID={}", ggrs_config.cid);
@@ -73,28 +67,73 @@ pub fn wait_for_players(
     let players = socket.players();
 
     let num_players = ggrs_config.connection.max_player;
-    
+
     // Log the current state of player connections
     if players.len() < num_players {
-        info!("Waiting for players: {}/{} connected", players.len(), num_players);
+        info!(
+            "Waiting for players: {}/{} connected",
+            players.len(),
+            num_players
+        );
         return; // wait for more players
     }
 
     if !session_state.ready {
-        info!("All players connected ({}/{}), but waiting for session configuration to be ready", players.len(), num_players);
+        info!(
+            "All players connected ({}/{}), but waiting for session configuration to be ready",
+            players.len(),
+            num_players
+        );
         return;
     }
 
-    info!("All {} players are connected and ready, transitioning to GameLoading", num_players);
+    info!(
+        "All {} players are connected and ready, transitioning to GameLoading",
+        num_players
+    );
 
-    commands.insert_resource(GgrsSessionBuilding{
-        players: players.iter().enumerate().map(|(i, x)| GgrsPlayer { handle: i, is_local: matches!(x, PlayerType::Local)}).collect(),
+    // Build GgrsSessionBuilding by matching socket players with config players
+    // Socket players: Local player first, then Remote players
+    // Config players: In order from frontend (may have is_local flag)
+    let local_config = ggrs_config.players.iter().find(|p| p.is_local);
+    let remote_configs: Vec<_> = ggrs_config.players.iter().filter(|p| !p.is_local).collect();
+
+    let mut ggrs_players = Vec::new();
+    let mut remote_idx = 0;
+
+    for (i, player_type) in players.iter().enumerate() {
+        let (name, pubkey, is_local) = match player_type {
+            PlayerType::Local => {
+                let config = local_config.unwrap_or(&ggrs_config.players[0]);
+                (config.name.clone(), config.pubkey.clone(), true)
+            }
+            PlayerType::Remote(_) => {
+                let config = remote_configs.get(remote_idx);
+                remote_idx += 1;
+                match config {
+                    Some(c) => (c.name.clone(), c.pubkey.clone(), false),
+                    None => (format!("Player {}", i + 1), format!("player_{}", i + 1), false),
+                }
+            }
+            PlayerType::Spectator(_) => {
+                (format!("Spectator {}", i + 1), format!("spectator_{}", i + 1), false)
+            }
+        };
+
+        ggrs_players.push(GgrsPlayer {
+            handle: i,
+            is_local,
+            name,
+            pubkey,
+        });
+    }
+
+    commands.insert_resource(GgrsSessionBuilding {
+        players: ggrs_players,
     });
 
     app_state.set(AppState::GameLoading);
-
 }
-
 
 pub fn system_after_map_loaded(
     mut commands: Commands,
@@ -136,3 +175,4 @@ pub fn system_after_map_loaded(
 
     app_state.set(AppState::InGame);
 }
+

@@ -1,64 +1,124 @@
 use std::net::SocketAddr;
 
 use bevy::prelude::*;
-use utils::{cid::generate_random_correlation_id};
+use utils::cid::generate_random_correlation_id;
 
 use crate::{
     core::OnlineState,
-    jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration},
+    jjrs::{GggrsConnectionConfiguration, GggrsSessionConfiguration, PlayerConfig},
 };
 
 #[cfg(not(target_arch = "wasm32"))]
 mod cli;
 #[cfg(target_arch = "wasm32")]
-mod web;
+pub mod web;
 
-pub fn get_args() -> (
-    u16,
-    usize,
-    Vec<String>,
-    Vec<SocketAddr>,
-    String,
-    String,
-    String,
-    bool,
-    String,
-    String,
-) {
+/// Parsed arguments for game configuration
+pub struct GameArgs {
+    pub local_port: u16,
+    pub number_player: usize,
+    pub players: Vec<PlayerConfig>,
+    pub spectators: Vec<SocketAddr>,
+    pub matchbox: String,
+    pub lobby: String,
+    pub cid: String,
+    pub telemetry: bool,
+    pub telemetry_url: String,
+    pub telemetry_auth: String,
+}
+
+pub fn get_args() -> GameArgs {
     #[cfg(not(target_arch = "wasm32"))]
     {
         use clap::Parser;
         let args = cli::Opt::parse();
 
-        (
-            args.local_port.unwrap_or(0),
-            args.number_player.unwrap_or(0),
-            args.players.unwrap_or(vec![]),
-            args.spectators.unwrap_or(vec![]),
-            args.matchbox.unwrap_or(String::new()),
-            args.lobby.unwrap_or(String::new()),
-            args.cid.unwrap_or(generate_random_correlation_id()),
-            args.telemetry,
-            args.telemetry_url,
-            args.telemetry_auth,
-        )
+        // Get the local player's display name (from --name or fallback to CID or default)
+        let local_player_name = args
+            .name
+            .clone()
+            .or_else(|| args.cid.clone())
+            .unwrap_or_else(|| "Player".to_string());
+
+        // Convert CLI player strings to PlayerConfig
+        // For local players (localhost), use the --name argument
+        // For remote players, use a default name with index
+        let mut remote_index = 0;
+        let players: Vec<PlayerConfig> = args
+            .players
+            .unwrap_or(vec![])
+            .into_iter()
+            .map(|player_str| {
+                let is_local = player_str == "localhost";
+                if is_local {
+                    PlayerConfig {
+                        name: local_player_name.clone(),
+                        pubkey: "local".to_string(),
+                        is_local: true,
+                    }
+                } else {
+                    remote_index += 1;
+                    PlayerConfig {
+                        name: format!("Player {}", remote_index + 1),
+                        pubkey: player_str, // Use the address/identifier as pubkey
+                        is_local: false,
+                    }
+                }
+            })
+            .collect();
+
+        GameArgs {
+            local_port: args.local_port.unwrap_or(0),
+            number_player: args.number_player.unwrap_or(0),
+            players,
+            spectators: args.spectators.unwrap_or(vec![]),
+            matchbox: args.matchbox.unwrap_or(String::new()),
+            lobby: args.lobby.unwrap_or(String::new()),
+            cid: args.cid.unwrap_or(generate_random_correlation_id()),
+            telemetry: args.telemetry,
+            telemetry_url: args.telemetry_url,
+            telemetry_auth: args.telemetry_auth,
+        }
     }
     #[cfg(target_arch = "wasm32")]
     {
         use web::read_canvas_data_system;
-        let args = read_canvas_data_system();
-        return (
-            0,
-            args.number_player.unwrap_or(1),
-            vec!["localhost".to_string()],
-            vec![],
-            args.matchbox.unwrap_or(String::new()),
-            args.lobby.unwrap_or(String::new()),
-            generate_random_correlation_id(),
-            args.telemetry,
-            args.telemetry_url,
-            args.telemetry_auth,
-        );
+        let canvas_config = read_canvas_data_system();
+
+        // Convert web player data to PlayerConfig
+        let players: Vec<PlayerConfig> = canvas_config
+            .players
+            .map(|player_data| {
+                player_data
+                    .into_iter()
+                    .map(|p| PlayerConfig {
+                        name: p.name,
+                        pubkey: p.pubkey,
+                        is_local: p.is_local,
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|| {
+                // Default: single local player
+                vec![PlayerConfig {
+                    name: "Player 1".to_string(),
+                    pubkey: "local".to_string(),
+                    is_local: true,
+                }]
+            });
+
+        GameArgs {
+            local_port: 0,
+            number_player: canvas_config.number_player.unwrap_or(1),
+            players,
+            spectators: vec![],
+            matchbox: canvas_config.matchbox.unwrap_or(String::new()),
+            lobby: canvas_config.lobby.unwrap_or(String::new()),
+            cid: generate_random_correlation_id(),
+            telemetry: canvas_config.telemetry,
+            telemetry_url: canvas_config.telemetry_url,
+            telemetry_auth: canvas_config.telemetry_auth,
+        }
     }
 }
 
@@ -66,41 +126,41 @@ pub struct BaseArgsPlugin;
 
 impl Plugin for BaseArgsPlugin {
     fn build(&self, app: &mut App) {
-        let (local_port, mut nbr_player, players, _, matchbox, lobby, cid, telemetry, telemetry_url, telemetry_auth) = get_args();
+        let args = get_args();
 
+        let mut nbr_player = args.number_player;
         if nbr_player == 0 {
-            nbr_player = players.len()
+            nbr_player = args.players.len();
         }
 
         #[cfg(not(target_arch = "wasm32"))]
-        app.add_plugins(utils::logs::NativeLogPlugin(cid.clone()));
+        app.add_plugins(utils::logs::NativeLogPlugin(args.cid.clone()));
 
         app.add_plugins(telemetry::TelemetryPlugin);
         app.insert_resource(telemetry::TelemetryConfig {
-            enabled: telemetry,
-            url: telemetry_url,
-            auth_token: telemetry_auth,
+            enabled: args.telemetry,
+            url: args.telemetry_url,
+            auth_token: args.telemetry_auth,
         });
 
-        app
-            .insert_resource(if !matchbox.is_empty() {
-                OnlineState::Online
-            } else {
-                OnlineState::Offline
-            })
-            .insert_resource(GggrsSessionConfiguration {
-                cid,
-                matchbox: !matchbox.is_empty(),
-                lobby: lobby.clone(),
-                matchbox_url: matchbox.clone(),
-                connection: GggrsConnectionConfiguration {
-                    input_delay: 5,
-                    max_player: nbr_player,
-                    desync_interval: 10,
-                    socket: players.len() > 1,
-                    udp_port: local_port,
-                },
-                players,
-            });
+        app.insert_resource(if !args.matchbox.is_empty() {
+            OnlineState::Online
+        } else {
+            OnlineState::Offline
+        })
+        .insert_resource(GggrsSessionConfiguration {
+            cid: args.cid,
+            matchbox: !args.matchbox.is_empty(),
+            lobby: args.lobby,
+            matchbox_url: args.matchbox,
+            connection: GggrsConnectionConfiguration {
+                input_delay: 5,
+                max_player: nbr_player,
+                desync_interval: 10,
+                socket: args.players.len() > 1,
+                udp_port: args.local_port,
+            },
+            players: args.players,
+        });
     }
 }

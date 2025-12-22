@@ -82,6 +82,8 @@ fn system_wait_for_map_loaded(
     for ggrs_player in ggrs_session_building.players.iter() {
         let i = ggrs_player.handle;
         let is_local = ggrs_player.is_local;
+        let name = ggrs_player.name.clone();
+        let pubkey = ggrs_player.pubkey.clone();
 
         let (_, transform, _) = spawn.get(&i).unwrap();
 
@@ -104,6 +106,8 @@ fn system_wait_for_map_loaded(
             fixed_math::vec3_to_fixed(transform.translation()),
             is_local,
             i,
+            name,
+            pubkey,
             &mut id_provider,
         );
     }

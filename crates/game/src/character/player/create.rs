@@ -43,9 +43,17 @@ pub fn create_player(
 
     local: bool,
     handle: usize,
+    name: String,
+    pubkey: String,
 
     id_factory: &mut ResMut<GgrsNetIdFactory>,
 ) {
+    let player_name = name;
+    let player_pubkey = pubkey;
+
+    // Use "player" as the character config name (defined in global_asset.rs)
+    let config_name = "player".to_string();
+
     let entity = create_character(
         commands,
         global_assets,
@@ -53,10 +61,10 @@ pub fn create_player(
         asset_server,
         texture_atlas_layouts,
         sprint_sheet_assets,
-        "player".into(),
+        config_name,
         Some(if handle == 0 { "1" } else { "2" }.into()),
         (LinearRgba::GREEN).into(),
-       position, 
+        position,
         CollisionLayer(collision_settings.player_layer),
         id_factory,
     );
@@ -111,6 +119,8 @@ pub fn create_player(
             Player {
                 handle,
                 color: PLAYER_COLORS[handle].into(),
+                name: player_name.clone(),
+                pubkey: player_pubkey.clone(),
             },
             PointLight2d {
                 radius: 200.,
@@ -120,7 +130,7 @@ pub fn create_player(
             },
         ));
     }
-    
+
     #[cfg(not(feature = "lighting"))]
     {
         commands.entity(entity).insert((
@@ -131,6 +141,8 @@ pub fn create_player(
             Player {
                 handle,
                 color: PLAYER_COLORS[handle].into(),
+                name: player_name,
+                pubkey: player_pubkey,
             },
         ));
     }

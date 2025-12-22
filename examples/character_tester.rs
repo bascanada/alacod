@@ -57,6 +57,8 @@ fn system_game_loading(
     for ggrs_player in ggrs_session_building.players.iter() {
         let i = ggrs_player.handle;
         let is_local = ggrs_player.is_local;
+        let name = ggrs_player.name.clone();
+        let pubkey = ggrs_player.pubkey.clone();
 
         let position = fixed_math::FixedVec3::new(
             fixed_math::new(-50.0 * i as f32),
@@ -77,6 +79,8 @@ fn system_game_loading(
             position,
             is_local,
             i,
+            name,
+            pubkey,
             &mut id_provider,
         );
     }

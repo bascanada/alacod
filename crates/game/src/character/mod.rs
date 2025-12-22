@@ -64,6 +64,7 @@ impl Plugin for BaseCharacterGamePlugin {
         app.init_resource::<KnockbackDampingConfig>();
     app.init_resource::<ZombieCombatConfig>();
     app.add_message::<crate::character::enemy::ai::combat::ZombieWindowAttackEvent>();
+    app.add_message::<crate::character::health::PlayerDiedEvent>();
 
         app.rollback_resource_with_clone::<PathfindingConfig>()
             .rollback_resource_with_clone::<KnockbackDampingConfig>()

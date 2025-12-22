@@ -11,6 +11,7 @@ pub mod jjrs;
 pub mod system_set;
 pub mod weapons;
 pub mod light;
+pub mod ui;
 
 use lazy_static::lazy_static;
 

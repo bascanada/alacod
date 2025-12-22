@@ -1,5 +1,14 @@
 use bevy::prelude::*;
 use wasm_bindgen::JsCast; // For safe casting
+use serde::Deserialize;
+
+/// Player data passed from the frontend (pubkey + name)
+#[derive(Debug, Clone, Deserialize)]
+pub struct PlayerData {
+    pub pubkey: String,
+    pub name: String,
+    pub is_local: bool,
+}
 
 #[derive(Default, Debug)]
 pub struct CanvasConfig {
@@ -9,6 +18,7 @@ pub struct CanvasConfig {
     pub telemetry: bool,
     pub telemetry_url: String,
     pub telemetry_auth: String,
+    pub players: Option<Vec<PlayerData>>,
 }
 
 pub fn read_canvas_data_system() -> CanvasConfig {
@@ -45,6 +55,17 @@ pub fn read_canvas_data_system() -> CanvasConfig {
         match nbr_str.parse::<usize>() {
             Ok(nbr) => config.number_player = Some(nbr),
             Err(e) => error!("Failed to parse initial score '{}': {}", nbr_str, e),
+        }
+    }
+
+    // Parse player data (JSON array with pubkey, name, is_local)
+    if let Some(players_json) = canvas_element.get_attribute("data-players") {
+        match serde_json::from_str::<Vec<PlayerData>>(&players_json) {
+            Ok(players) => {
+                info!("Parsed {} players from canvas", players.len());
+                config.players = Some(players);
+            }
+            Err(e) => error!("Failed to parse players JSON '{}': {}", players_json, e),
         }
     }
 

@@ -25,7 +25,13 @@ document.addEventListener('DOMContentLoaded', function() {
       canvas.setAttribute("data-lobby", lobby);
       canvas.setAttribute("data-number-player", lobby_size || 2);
 
-      console.log("MATCHBOX " + matchbox + " NUMBER " + lobby_size + " LOBBY " + lobby);
+      // Pass player data (pubkeys and names) if available
+      const players = urlParams.get("players");
+      if (players) {
+        canvas.setAttribute("data-players", decodeURIComponent(players));
+      }
+
+      console.log("MATCHBOX " + matchbox + " NUMBER " + lobby_size + " LOBBY " + lobby + " PLAYERS " + players);
     }
 
     const telemetry = urlParams.get("telemetry");

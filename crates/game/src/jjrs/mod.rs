@@ -35,6 +35,14 @@ pub struct GggrsConnectionConfiguration {
     pub udp_port: u16,
 }
 
+/// Player configuration data from frontend
+#[derive(Clone, Debug)]
+pub struct PlayerConfig {
+    pub name: String,
+    pub pubkey: String,
+    pub is_local: bool,
+}
+
 // Shared configuration between the client for the matchbox + ggrs configuration
 #[derive(Resource)]
 pub struct GggrsSessionConfiguration {
@@ -43,7 +51,7 @@ pub struct GggrsSessionConfiguration {
     pub matchbox_url: String,
     pub lobby: String,
     pub connection: GggrsConnectionConfiguration,
-    pub players: Vec<String>,
+    pub players: Vec<PlayerConfig>,
 }
 
 // This state is used to mark if extra external settings need to be configure
@@ -64,7 +72,8 @@ impl GggrsSessionConfigurationState {
 pub struct GgrsPlayer {
     pub handle: usize,
     pub is_local: bool,
-
+    pub name: String,
+    pub pubkey: String,
 }
 
 // Resource to keep the information that will be used to generate the P2PSession
@@ -74,18 +83,34 @@ pub struct GgrsSessionBuilding {
     pub players: Vec<GgrsPlayer>
 }
 
+#[derive(Event, Message)]
+pub struct GameDisconnectedEvent(pub String);
 
 pub fn log_ggrs_events(
     mut session: ResMut<bevy_ggrs::Session<PeerConfig>>,
     telemetry_config: Res<telemetry::TelemetryConfig>,
     #[cfg(not(target_arch = "wasm32"))] telemetry_sender: Option<Res<telemetry::TelemetrySender>>,
+    mut disconnect_writer: EventWriter<GameDisconnectedEvent>,
+    session_building: Option<Res<GgrsSessionBuilding>>,
 ) {
     if let Session::P2P(session) = session.as_mut() {
         for event in session.events() {
             info!("GGRS Event: {:?}", event);
             match event {
                 GgrsEvent::Disconnected { addr } => {
-                    panic!("Other player@{:?} disconnected", addr)
+                    // Try to find the remote player's name from the session building resource
+                    let player_name = session_building
+                        .as_ref()
+                        .and_then(|sb| {
+                            sb.players
+                                .iter()
+                                .find(|p| !p.is_local)
+                                .map(|p| p.name.clone())
+                        })
+                        .unwrap_or_else(|| format!("{:?}", addr));
+
+                    error!("Player '{}' disconnected", player_name);
+                    disconnect_writer.write(GameDisconnectedEvent(format!("{} disconnected", player_name)));
                 }
                 GgrsEvent::DesyncDetected {
                     frame,

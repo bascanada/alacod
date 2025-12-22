@@ -2,6 +2,7 @@ PROFILE ?= dev
 
 LOBBY ?= "test"
 NUMBER_PLAYER ?= 2
+NAME ?= "Player"
 
 CURRENT_TAG := $(shell git describe --tags --exact-match HEAD 2>/dev/null)
 
@@ -111,13 +112,13 @@ character_tester:
 	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --local-port 7000 --players localhost
 
 character_tester_matchbox:
-	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID)
+	APP_VERSION=$(VERSION) cargo run --example character_tester $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID) --name $(NAME)
 
 ldtk_map_explorer:
 	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --local-port 7000 --players localhost
 
 ldtk_map_explorer_matchbox:
-	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID)
+	APP_VERSION=$(VERSION) cargo run --example map_explorer $(ARGS) --features native -- --number-player $(NUMBER_PLAYER) --matchbox $(MATCHBOX_URL) --lobby $(LOBBY) --players localhost remote --cid $(CID) --name $(NAME)
 
 host_website:
 	cd website && APP_VERSION=$(VERSION) npm run dev
@@ -184,11 +185,12 @@ diff_log:
 test_multiplayer:
 	@echo "Starting multiplayer test with lobby: $(LOBBY_1)"; \
 	echo "Starting Bob's instance..."; \
-	make $(TARGET)_matchbox CID=bob LOBBY=$(LOBBY_1) & \
+	make $(TARGET)_matchbox CID=bob NAME=Bob LOBBY=$(LOBBY_1) & \
 	BOB_PID=$$!; \
 	echo "Bob started with PID: $$BOB_PID"; \
+	sleep 10; \
 	echo "Starting Alice's instance..."; \
-	make $(TARGET)_matchbox CID=alice LOBBY=$(LOBBY_2) & \
+	make $(TARGET)_matchbox CID=alice NAME=Alice LOBBY=$(LOBBY_2) & \
 	ALICE_PID=$$!; \
 	echo "Alice started with PID: $$ALICE_PID"; \
 	echo "Waiting for both instances to complete..."; \

@@ -40,14 +40,16 @@ pub fn setup_ggrs_local(
 
     let mut ggrs_player = vec![];
 
-    for (i, addr) in session_config.players.iter().enumerate() {
-        let local = addr == "localhost";
-        ggrs_player.push(GgrsPlayer{
+    for (i, player_config) in session_config.players.iter().enumerate() {
+        let local = player_config.pubkey == "local" || player_config.pubkey == "localhost";
+        ggrs_player.push(GgrsPlayer {
             handle: i,
             is_local: local,
+            name: player_config.name.clone(),
+            pubkey: player_config.pubkey.clone(),
         });
     }
-    commands.insert_resource(GgrsSessionBuilding{
+    commands.insert_resource(GgrsSessionBuilding {
         players: ggrs_player,
     });
 
@@ -79,17 +81,16 @@ pub fn system_after_map_loaded_local(
         .with_input_delay(session_config.connection.input_delay);
 
 
-    for (i, addr) in session_config.players.iter().enumerate() {
-        let local = addr == "localhost";
+    for (i, player_config) in session_config.players.iter().enumerate() {
+        let local = player_config.pubkey == "local" || player_config.pubkey == "localhost";
         if local {
             sess_build = sess_build
                 .add_player(PlayerType::Local, i)
                 .expect("Failed to add player");
         } else {
-            let _remote_addr: SocketAddr = addr.parse().unwrap();
+            let _remote_addr: SocketAddr = player_config.pubkey.parse().unwrap();
             //sess_build = sess_build.add_player(PlayerType::Remote(remote_addr), i).expect("Failed to add player");
         }
-
     }
 
     // Start a synctest session
