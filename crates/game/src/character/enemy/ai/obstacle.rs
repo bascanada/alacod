@@ -225,20 +225,35 @@ pub struct ObstacleDestroyedEvent {
 }
 
 /// System to process obstacle damage
+/// Also syncs with WindowHealth for legacy compatibility
 pub fn process_obstacle_damage(
     mut attack_events: MessageReader<ObstacleAttackEvent>,
-    mut obstacle_query: Query<(Entity, &mut Obstacle)>,
+    mut obstacle_query: Query<(Entity, &mut Obstacle, Option<&mut map::game::entity::map::window::WindowHealth>)>,
     mut destroyed_events: MessageWriter<ObstacleDestroyedEvent>,
+    mut commands: Commands,
 ) {
     for event in attack_events.read() {
-        if let Ok((entity, mut obstacle)) = obstacle_query.get_mut(event.obstacle) {
+        if let Ok((entity, mut obstacle, window_health_opt)) = obstacle_query.get_mut(event.obstacle) {
             let destroyed = obstacle.take_damage(event.damage);
+
+            // Sync with WindowHealth if present (legacy compatibility)
+            if let Some(mut window_health) = window_health_opt {
+                window_health.current = window_health.current.saturating_sub(event.damage as u8);
+            }
+
             if destroyed {
+                // Remove collision so entities can pass through
+                commands.entity(entity)
+                    .remove::<crate::collider::Collider>()
+                    .remove::<crate::collider::CollisionLayer>();
+
                 destroyed_events.write(ObstacleDestroyedEvent {
                     obstacle: entity,
                     obstacle_type: obstacle.obstacle_type,
                     destroyed_by: Some(event.attacker),
                 });
+
+                info!("Obstacle {:?} destroyed by {:?}", entity, event.attacker);
             }
         }
     }

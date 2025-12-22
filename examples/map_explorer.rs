@@ -4,7 +4,7 @@ use animation::SpriteSheetConfig;
 use bevy::{color::palettes::{css::TURQUOISE, tailwind::{ORANGE_300, PURPLE_300}}, platform::collections::HashMap, prelude::*};
 use bevy_fixed::fixed_math;
 use game::{
-    args::BaseArgsPlugin, character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::create::create_player}, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, CoreSetupConfig, CoreSetupPlugin}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsSessionBuilding}, weapons::{melee::MeleeWeaponsConfig, WeaponsConfig}
+    args::BaseArgsPlugin, character::{config::CharacterConfig, enemy::spawning::EnemySpawnerState, player::create::create_player}, collider::{spawn_test_wall, CollisionSettings}, core::{AppState, CoreSetupConfig, CoreSetupPlugin}, global_asset::GlobalAsset, jjrs::{GggrsSessionConfiguration, GggrsSessionConfigurationState, GgrsSessionBuilding}, waves::{WaveDebugEnabled, WaveModeEnabled}, weapons::{melee::MeleeWeaponsConfig, WeaponsConfig}
 };
 use map::{game::entity::map::{enemy_spawn::EnemySpawnerComponent, player_spawn::PlayerSpawnConfig}, generation::{config::MapGenerationConfig, position}};
 use map_ldtk::{game::plugin::LdtkMapLoadingEvent, plugins::LdtkRoguePlugin};
@@ -22,12 +22,16 @@ fn main() {
         // Configure the bevy default plugins from our core_plugin configuration
         // if you don't need special overwrite
         .add_plugins(core_plugin.get_default_plugin())
+        // Load default arguments from cli or query params (MUST be before core_plugin for --debug-ai to work)
+        .add_plugins(BaseArgsPlugin)
         // Core systems and components
         .add_plugins(core_plugin)
-        // Load default arguments from cli or query params
-        .add_plugins(BaseArgsPlugin)
         // Plugins for rogue like map with ldtk
         .add_plugins(LdtkRoguePlugin)
+        // Enable wave-based spawning mode (CoD Zombies style)
+        .insert_resource(WaveModeEnabled(true))
+        // Enable wave debug UI (toggle with F3)
+        .insert_resource(WaveDebugEnabled(true))
         .add_systems(OnEnter(AppState::LobbyLocal), system_configure_map)
         .add_systems(OnEnter(AppState::LobbyOnline), system_configure_map)
         .add_systems(Update, (

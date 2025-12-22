@@ -1,3 +1,14 @@
+//! DEPRECATED: Legacy zombie combat system
+//!
+//! This module has been replaced by:
+//! - `behavior.rs`: enemy_target_selection, enemy_attack_system
+//! - `state.rs`: MonsterState, EnemyTarget, EnemyAiConfig
+//! - `obstacle.rs`: ObstacleAttackEvent, process_obstacle_damage
+//!
+//! Kept for reference only. Can be removed once migration is verified stable.
+
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 use bevy_fixed::fixed_math;
 use bevy_ggrs::Rollback;

@@ -160,6 +160,51 @@ info!("Frame {}: damage {} applied", frame.frame, damage);  // Valeurs de jeu
 **Pourquoi?** On compare les logs entre clients avec `diff` pour détecter les desyncs.
 Si les logs contiennent des Entity IDs, le diff montrera des différences même si la simulation est synchronisée.
 
+#### 9. Format GGRS Trace Logs (pour diff_log Makefile)
+
+Les logs utilisés pour comparaison entre clients doivent suivre un format précis compatible avec `make diff_log`.
+
+**Format obligatoire:**
+```
+ggrs{f=FRAME system_name key=value key=value...}
+```
+
+**Règles:**
+1. Préfixe `ggrs{` - requis pour le grep filter du Makefile
+2. `f=FRAME` - numéro de frame en premier (requis pour le filtre perl)
+3. `system_name` - nom descriptif du système (sans `=`)
+4. `key=value` - paires clé-valeur pour les données
+5. Fermeture `}` - fin du log
+
+**Exemples corrects:**
+```rust
+// État de jeu (info! pour événements importants)
+info!(
+    "ggrs{{f={} wave_system phase=GracePeriod wave={} enemies={}}}",
+    frame.frame, wave_state.current_wave, enemy_count
+);
+
+// Mouvement IA (trace! pour logs haute fréquence)
+trace!(
+    "ggrs{{f={} ai_move net_id={} pos=({},{}) vel=({},{})}}",
+    frame.frame, net_id.0, pos.x, pos.y, vel.x, vel.y
+);
+
+// Événement ponctuel
+trace!(
+    "ggrs{{f={} ai_attack net_id={} target=window dist={}}}",
+    frame.frame, net_id.0, distance
+);
+```
+
+**Note:** Double accolades `{{` `}}` dans le format string Rust pour produire `{` `}` littéraux.
+
+**Utilisation:**
+```bash
+# Comparer les logs entre deux clients
+make diff_log CID_1=alice CID_2=bob
+```
+
 ### Checklist pour Nouveau Système GGRS
 
 - [ ] Query a `&GgrsNetId` en PREMIER si itération affecte l'état
@@ -172,6 +217,7 @@ Si les logs contiennent des Entity IDs, le diff montrera des différences même 
 - [ ] RNG via `RollbackRng` consommé dans ordre déterministe
 - [ ] Resource registered avec `rollback_resource_with_clone` si mutable
 - [ ] Logs utilisent `GgrsNetId`/`player.handle` (pas `Entity`) pour comparaison
+- [ ] Trace logs suivent format `ggrs{{f={} system_name key=value...}}` pour diff_log
 
 ### Schedules
 - `GgrsSchedule` : Simulation rollback (tout le gameplay)

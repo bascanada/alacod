@@ -1,5 +1,8 @@
-// Legacy modules (to be deprecated)
+// DEPRECATED: Legacy combat module - replaced by behavior.rs and state.rs
+#[deprecated(note = "Use behavior.rs systems and state.rs components instead")]
 pub mod combat;
+
+// Movement with collision detection
 pub mod pathing;
 
 // New generic AI system
@@ -25,6 +28,7 @@ pub use obstacle::{
     process_obstacle_damage, Obstacle, ObstacleAttackEvent, ObstacleConfig, ObstacleDestroyedEvent,
     ObstacleType,
 };
+pub use pathing::WallSlideTracker;
 pub use state::{
     AttackTarget, EnemyAiConfig, EnemyAiConfigRon, EnemyTarget, MonsterState, MovementType,
     TargetType,

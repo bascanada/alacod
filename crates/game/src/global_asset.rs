@@ -6,6 +6,7 @@ use crate::{
     camera::CameraSettingsAsset,
     character::config::CharacterConfig,
     core::{AppState, OnlineState},
+    waves::WaveConfig,
     weapons::{melee::MeleeWeaponsConfig, WeaponsConfig},
 };
 
@@ -25,10 +26,13 @@ pub struct GlobalAsset {
     pub weapons: Handle<WeaponsConfig>,
     pub melee_weapons: Handle<MeleeWeaponsConfig>,
     pub camera: Handle<CameraSettingsAsset>,
-    
+
     // Visual effects
     pub slash_effect_spritesheet: Handle<SpriteSheetConfig>,
     pub slash_effect_animation: Handle<AnimationMapConfig>,
+
+    // Wave spawning config (optional - only loaded when wave mode is used)
+    pub wave_config: Option<Handle<WaveConfig>>,
 }
 
 impl GlobalAsset {
@@ -85,6 +89,9 @@ impl GlobalAsset {
             // Visual effects
             slash_effect_spritesheet: asset_server.load("ZombieShooter/Sprites/Character/slash_sheet.ron"),
             slash_effect_animation: asset_server.load("ZombieShooter/Sprites/Character/slash_animation.ron"),
+
+            // Wave spawning config
+            wave_config: Some(asset_server.load("waves/wave_config.ron")),
         }
     }
 }
@@ -137,6 +144,13 @@ pub fn loading_asset_system(
     }
     if !asset_server.load_state(&global_assets.slash_effect_animation).is_loaded() {
         return;
+    }
+
+    // Check wave config (if loaded)
+    if let Some(wave_config) = &global_assets.wave_config {
+        if !asset_server.load_state(wave_config).is_loaded() {
+            return;
+        }
     }
 
     if matches!(*online, OnlineState::Online) {

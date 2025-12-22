@@ -150,7 +150,7 @@ impl EnemyAiConfig {
             can_break: vec![ObstacleType::Window, ObstacleType::Barricade],
             attack_through: vec![ObstacleType::Window],
             ignores: vec![],
-            path_through_breakables: false,
+            path_through_breakables: true, // Zombies path through breakables (windows)
             flee_threshold: None,
             attack_damage: fixed_math::new(10.0),
         }
