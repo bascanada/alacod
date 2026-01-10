@@ -93,7 +93,6 @@
 			{#snippet tiles()}
 				<Navigation.Tile label="Home" href="/"><House /></Navigation.Tile>
 				<Navigation.Tile label="Online" href="/online"><Gamepad2 /></Navigation.Tile>
-				<Navigation.Tile label="Blog" href="/blog"><House /></Navigation.Tile>
 				<Navigation.Tile label="Games" href="/games"><ToiletIcon /></Navigation.Tile>
 			{/snippet}
 

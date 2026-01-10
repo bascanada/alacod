@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
+use bevy_fixed::fixed_math::{self, Fixed, FixedVec2};
 use map::{
-    game::entity::map::room::RoomComponent,
+    game::entity::map::{level_id::LevelId, room::{RoomBounds, RoomComponent}},
     generation::{entity::room::RoomConfig, LEVEL_PROPERTIES_SPAWN_NAME},
 };
 
@@ -15,7 +16,7 @@ pub fn add_room_component_to_ldtk_level(
     for level_event in level_events.read() {
         if matches!(level_event, LevelEvent::Spawned(_)) {
             for (entity, level_iid) in levels.iter() {
-                println!("spawn level {} {}", entity, level_iid);
+                // println!("spawn level {} {}", entity, level_iid);
 
                 let level_data = project_assets
                     .get(projects.single().unwrap())
@@ -29,9 +30,30 @@ pub fn add_room_component_to_ldtk_level(
 
                 let room_config = RoomConfig { spawn: *is_spawn };
 
-                commands.entity(entity).insert(RoomComponent {
-                    config: room_config,
-                });
+                commands.entity(entity).insert((
+                    RoomComponent {
+                        config: room_config,
+                    },
+                    RoomBounds {
+                        position: FixedVec2::new(
+                            fixed_math::Fixed::from_num(level_data.world_x as f32),
+                            fixed_math::Fixed::from_num(-level_data.world_y as f32 - level_data.px_hei as f32),
+                        ),
+                        size: FixedVec2::new(
+                            fixed_math::Fixed::from_num(level_data.px_wid as f32),
+                            fixed_math::Fixed::from_num(level_data.px_hei as f32),
+                        ),
+                    },
+                    LevelId(level_iid.to_string()),
+                ));
+
+                debug!("Added RoomBounds to level {:?} ({}): pos=({}, {}), size=({}, {})", 
+                    entity, level_iid, 
+                    Fixed::from_num(level_data.world_x),
+                    Fixed::from_num(-level_data.world_y - level_data.px_hei),
+                    Fixed::from_num(level_data.px_wid),
+                    Fixed::from_num(level_data.px_hei)
+                );
 
 
                 if *is_spawn {

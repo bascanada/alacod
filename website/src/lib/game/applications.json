@@ -7,14 +7,6 @@
 
         "content": "Preview app to generate random map and preview them from an overview"
     },
-        {
-        "id": "map_explorer",
-        "name": "Map Explorer",
-
-        "online": true,
-
-        "content": "Preview app to explore LDTK maps with a character"
-    },
     {
         "id": "character_tester",
         "name": "Character Tester",

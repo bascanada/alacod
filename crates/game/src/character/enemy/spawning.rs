@@ -1,7 +1,7 @@
 use animation::SpriteSheetConfig;
 use bevy::prelude::*;
 use bevy_fixed::{fixed_math, rng::RollbackRng};
-use map::game::entity::map::enemy_spawn::EnemySpawnerComponent;
+use map::game::entity::map::{enemy_spawn::EnemySpawnerComponent, level_id::LevelId, room::RoomBounds};
 
 use crate::{
     character::{config::CharacterConfig, player::Player},
@@ -9,7 +9,7 @@ use crate::{
     global_asset::GlobalAsset,
     weapons::{melee::MeleeWeaponsConfig, WeaponsConfig},
 };
-use utils::{frame::FrameCount, net_id::{GgrsNetId, GgrsNetIdFactory}};
+use utils::{frame::FrameCount, net_id::{GgrsNetId, GgrsNetIdFactory}, order_iter};
 
 use super::{create::spawn_enemy, Enemy};
 
@@ -45,9 +45,11 @@ pub fn enemy_spawn_from_spawners_system(
         &EnemySpawnerComponent,
         &mut EnemySpawnerState,
         &fixed_math::FixedTransform3D,
+        Option<&LevelId>,
     )>,
+    room_query: Query<(&RoomBounds, &LevelId)>,
     enemy_query: Query<&fixed_math::FixedTransform3D, With<Enemy>>,
-    player_query: Query<&fixed_math::FixedTransform3D, With<Player>>,
+    player_query: Query<(&GgrsNetId, &fixed_math::FixedTransform3D), With<Player>>,
     global_assets: Res<GlobalAsset>,
     collision_settings: Res<CollisionSettings>,
     weapons_asset: Res<Assets<WeaponsConfig>>,
@@ -59,123 +61,231 @@ pub fn enemy_spawn_from_spawners_system(
 
     mut id_factory: ResMut<GgrsNetIdFactory>,
 ) {
-    let player_positions: Vec<fixed_math::FixedVec2> = player_query
-        .iter()
-        .map(|transform| transform.translation.truncate())
-        .collect();
+    // --- Step 0: Decrement cooldowns for all spawners first (deterministic order) ---
+    // This ensures cooldowns are always decremented, even if spawner isn't selected
+    let mut spawner_data: Vec<_> = spawner_query.iter_mut().collect();
+    spawner_data.sort_by_key(|(net_id, ..)| net_id.0);
+    for (_, _, _, mut state, _, _) in spawner_data {
+        if state.cooldown_remaining > 0 {
+            state.cooldown_remaining -= 1;
+        }
+    }
 
-    if player_positions.is_empty() {
-        // println!("Frame {}: No players found, skipping spawn", frame.frame);
+    // --- Step 1: Build player-to-room mapping ---
+    // For each player, find which room (LevelId) they are in
+    let mut players_with_rooms: Vec<(usize, fixed_math::FixedVec2, String)> = Vec::new();
+
+    for (net_id, transform) in order_iter!(player_query) {
+        let player_pos = transform.translation.truncate();
+
+        // Find which room this player is in
+        for (room_bounds, level_id) in room_query.iter() {
+            if room_bounds.contains(player_pos) {
+                players_with_rooms.push((net_id.0, player_pos, level_id.0.clone()));
+                break; // Player can only be in one room
+            }
+        }
+    }
+
+    if players_with_rooms.is_empty() {
+        info!(
+            "ggrs{{f={} spawner_skip reason=no_players_in_room}}",
+            frame.frame
+        );
         return;
     }
 
-    let mut current_enemies_count = enemy_query.iter().count(); // Make mutable for local tracking
-    let global_max_enemies = 10; // Reduced from 20 to keep fewer zombies on screen
+    if frame.frame % 60 == 0 {
+        debug!("Frame {}: Players with rooms: {:?}", frame.frame, players_with_rooms);
+    }
+
+    // --- Step 2: Check enemy count limit ---
+    let current_enemies_count = enemy_query.iter().count();
+    let global_max_enemies = 10;
 
     if current_enemies_count >= global_max_enemies {
-        // println!("Frame {}: Global max enemies reached at start", frame.frame);
+        info!(
+            "ggrs{{f={} spawner_skip reason=max_enemies count={} max={}}}",
+            frame.frame, current_enemies_count, global_max_enemies
+        );
         return;
     }
 
-    // --- Step 1: Collect candidate spawner data (net_id for sorting, entity for access) ---
-    let mut candidate_spawners: Vec<(usize, Entity)> = Vec::new();
+    // --- Step 3: Find the best spawner (closest to a player in the SAME room) ---
     let max_spawn_dist = fixed_math::new(MAX_SPAWN_DISTANCE);
 
-    for (net_id, entity, config, mut state, spawner_fixed_transform) in spawner_query.iter_mut() {
+    // Candidate: (spawner_net_id, entity, distance_to_player, level_id)
+    let mut best_spawner: Option<(usize, Entity, fixed_math::Fixed, String)> = None;
+
+    // Collect spawner data in deterministic order
+    let spawner_data: Vec<_> = spawner_query.iter().collect();
+    let mut sorted_spawners: Vec<_> = spawner_data.into_iter().collect();
+    sorted_spawners.sort_by_key(|(net_id, ..)| net_id.0);
+
+    for (net_id, entity, config, state, spawner_transform, level_id) in sorted_spawners {
+        // Skip inactive or on cooldown
         if !state.active || state.cooldown_remaining > 0 {
-            if state.cooldown_remaining > 0 {
-                state.cooldown_remaining -= 1;
+            continue;
+        }
+
+        let spawner_pos = spawner_transform.translation.truncate();
+        let spawner_level = match level_id {
+            Some(id) => id.0.as_str(),
+            None => {
+                if frame.frame % 60 == 0 {
+                    debug!("Frame {}: Spawner {} has no LevelId, skipped", frame.frame, net_id.0);
+                }
+                continue;
+            }
+        };
+
+        // Find the closest player that is in the SAME room as this spawner
+        let mut min_distance_to_same_room_player: Option<fixed_math::Fixed> = None;
+
+        for (player_net_id, player_pos, player_room) in &players_with_rooms {
+            // Only consider players in the same room
+            if player_room != spawner_level {
+                continue;
+            }
+
+            let distance = spawner_pos.distance(player_pos);
+
+            // Deterministic tie-breaking: prefer lower player net_id
+            let should_update = match min_distance_to_same_room_player {
+                None => true,
+                Some(current_min) => distance < current_min,
+            };
+
+            if should_update {
+                min_distance_to_same_room_player = Some(distance);
+            }
+        }
+
+        // Skip if no players in the same room
+        let distance_to_player = match min_distance_to_same_room_player {
+            Some(d) => d,
+            None => {
+                if frame.frame % 60 == 0 {
+                    debug!("Frame {}: Spawner {} (Level: {}) has no players in same room, skipped",
+                           frame.frame, net_id.0, spawner_level);
+                }
+                continue;
+            }
+        };
+
+        // Check min distance (player too close)
+        if distance_to_player < config.min_spawn_distance {
+            if frame.frame % 60 == 0 {
+                debug!("Frame {}: Spawner {} (Level: {}) skipped: player too close ({:?} < {:?})",
+                       frame.frame, net_id.0, spawner_level, distance_to_player, config.min_spawn_distance);
             }
             continue;
         }
 
-        let spawner_pos_v2 = spawner_fixed_transform.translation.truncate();
-        let min_distance_to_player = player_positions
-            .iter()
-            .map(|player_pos_v2| spawner_pos_v2.distance(player_pos_v2))
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap_or(fixed_math::Fixed::MAX);
-
-        // Skip if player is too close (min distance check)
-        if min_distance_to_player < config.min_spawn_distance {
+        // Check max distance (player too far / outside flow field range)
+        if distance_to_player > max_spawn_dist {
+            if frame.frame % 60 == 0 {
+                debug!("Frame {}: Spawner {} (Level: {}) skipped: player too far ({:?} > {:?})",
+                       frame.frame, net_id.0, spawner_level, distance_to_player, max_spawn_dist);
+            }
             continue;
         }
 
-        // Skip if player is too far (outside flow field range)
-        // This prevents spawning zombies that can't navigate to the player
-        if min_distance_to_player > max_spawn_dist {
-            continue;
+        if frame.frame % 60 == 0 {
+            debug!("Frame {}: Spawner {} (Level: {}) is valid candidate, distance: {:?}",
+                   frame.frame, net_id.0, spawner_level, distance_to_player);
         }
 
-        candidate_spawners.push((net_id.0, entity));
+        // Update best spawner if this one is closer (with deterministic tie-breaking by net_id)
+        let should_update = match &best_spawner {
+            None => true,
+            Some((best_net_id, _, best_dist, _)) => {
+                distance_to_player < *best_dist ||
+                (distance_to_player == *best_dist && net_id.0 < *best_net_id)
+            }
+        };
+
+        if should_update {
+            best_spawner = Some((net_id.0, entity, distance_to_player, spawner_level.to_string()));
+        }
     }
 
-    // --- Step 2: Sort by net_id for deterministic processing ---
-    candidate_spawners.sort_unstable_by_key(|(net_id, _)| *net_id);
+    // --- Step 4: Spawn from the best spawner ---
+    let Some((best_net_id, best_entity, best_distance, best_level)) = best_spawner else {
+        info!(
+            "ggrs{{f={} spawner_skip reason=no_valid_spawner}}",
+            frame.frame
+        );
+        return;
+    };
 
-    // --- Step 3: Process sorted entities, consuming RNG deterministically ---
-    for (_net_id, entity_id) in candidate_spawners {
-        if current_enemies_count >= global_max_enemies {
-            break; // Stop spawning if global limit is hit
-        }
+    if frame.frame % 60 == 0 {
+        debug!("Frame {}: Selected spawner {} (Level: {}) at distance {:?}",
+               frame.frame, best_net_id, best_level, best_distance);
+    }
 
-        // Get mutable access to the components for the current entity
-        // This re-fetches, which is necessary after collecting IDs if we need mutable access.
-        if let Ok((_, _entity_refetch, config, mut state, spawner_fixed_transform)) =
-            spawner_query.get_mut(entity_id)
-        {
-            // The checks for active/cooldown/distance have already passed for this entity
-            // to be in candidate_spawner_entities. state.cooldown_remaining was already decremented if needed.
+    // GGRS trace log for spawner selection
+    info!(
+        "ggrs{{f={} spawner_select room={} spawner={} dist={}}}",
+        frame.frame, best_level, best_net_id, best_distance
+    );
 
-            let spawner_pos_v2 = spawner_fixed_transform.translation.truncate(); // Already FixedVec2
+    // Get mutable access to spawn from the selected spawner
+    if let Ok((spawner_net_id, _entity, config, mut state, spawner_transform, _)) =
+        spawner_query.get_mut(best_entity)
+    {
+        let spawner_pos = spawner_transform.translation.truncate();
 
-            let final_spawn_pos_v3 = if config.spawn_radius > fixed_math::FIXED_ZERO {
-                // RNG is now consumed in a deterministic order due to sorted entity iteration
-                let angle_rand_fixed = rng.next_fixed();
-                let angle_fixed = angle_rand_fixed * fixed_math::FIXED_TAU;
+        let final_spawn_pos = if config.spawn_radius > fixed_math::FIXED_ZERO {
+            let angle_rand = rng.next_fixed();
+            let angle = angle_rand * fixed_math::FIXED_TAU;
 
-                let distance_rand_fixed = rng.next_fixed();
-                let distance_fixed = distance_rand_fixed * config.spawn_radius;
+            let distance_rand = rng.next_fixed();
+            let distance = distance_rand * config.spawn_radius;
 
-                let offset_v2 = fixed_math::FixedVec2::new(
-                    fixed_math::cos_fixed(angle_fixed),
-                    fixed_math::sin_fixed(angle_fixed),
-                ) * distance_fixed;
+            let offset = fixed_math::FixedVec2::new(
+                fixed_math::cos_fixed(angle),
+                fixed_math::sin_fixed(angle),
+            ) * distance;
 
-                fixed_math::FixedVec3::new(
-                    spawner_pos_v2.x.saturating_add(offset_v2.x),
-                    spawner_pos_v2.y.saturating_add(offset_v2.y),
-                    fixed_math::FIXED_ZERO,
-                )
-            } else {
-                spawner_fixed_transform.translation
-            };
+            fixed_math::FixedVec3::new(
+                spawner_pos.x.saturating_add(offset.x),
+                spawner_pos.y.saturating_add(offset.y),
+                fixed_math::FIXED_ZERO,
+            )
+        } else {
+            spawner_transform.translation
+        };
 
-            let type_index = (rng.next_u32() as usize) % config.enemy_types.len();
-            let enemy_type_name = config.enemy_types[type_index].clone();
+        let type_index = (rng.next_u32() as usize) % config.enemy_types.len();
+        let enemy_type_name = config.enemy_types[type_index].clone();
 
-            let _ = spawn_enemy(
-                enemy_type_name,
-                final_spawn_pos_v3,
-                &mut commands,
-                &weapons_asset,
-                &melee_weapons_asset,
-                &characters_asset,
-                &asset_server,
-                &mut texture_atlas_layouts,
-                &sprint_sheet_assets,
-                &global_assets,
-                &collision_settings,
-                &mut id_factory,
-            );
+        debug!("Frame {}: Spawning enemy (type: {}) from spawner {} (Level: {}) at {:?}",
+               frame.frame, enemy_type_name, spawner_net_id.0, best_level, final_spawn_pos);
 
-            state.cooldown_remaining = config.max_cooldown;
-            state.last_spawn_frame = frame.frame;
-            current_enemies_count += 1; // Increment local count for this frame's spawns
+        // GGRS trace log for diff_log comparison between clients
+        info!(
+            "ggrs{{f={} enemy_spawn room={} spawner={} dist={} type={} pos=({},{})}}",
+            frame.frame, best_level, spawner_net_id.0, best_distance,
+            enemy_type_name, final_spawn_pos.x, final_spawn_pos.y
+        );
 
-            // If your design is to spawn ONLY ONE enemy per system call,
-            // even if multiple spawners are ready, you would put a `return;` here.
-            // As written, it will try to spawn from all ready & sorted spawners up to global_max_enemies.
-        }
+        let _ = spawn_enemy(
+            enemy_type_name,
+            final_spawn_pos,
+            &mut commands,
+            &weapons_asset,
+            &melee_weapons_asset,
+            &characters_asset,
+            &asset_server,
+            &mut texture_atlas_layouts,
+            &sprint_sheet_assets,
+            &global_assets,
+            &collision_settings,
+            &mut id_factory,
+        );
+
+        state.cooldown_remaining = config.max_cooldown;
+        state.last_spawn_frame = frame.frame;
     }
 }

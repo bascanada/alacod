@@ -54,7 +54,6 @@ fn system_configure_map(
 // Wait for spawner to be loaded and create the players
 fn system_wait_for_map_loaded(
     mut commands: Commands,
-    mut app_state: ResMut<NextState<AppState>>,
 
     collision_settings: Res<CollisionSettings>,
     global_assets: Res<GlobalAsset>,
@@ -115,9 +114,6 @@ fn system_wait_for_map_loaded(
             &mut id_provider,
         );
     }
-
-    app_state.set(AppState::GameStarting);
-
 }
 
 fn get_config(map_path: String, seed: i32) -> MapGenerationConfig {

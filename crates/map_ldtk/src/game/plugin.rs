@@ -1,8 +1,9 @@
 use bevy::prelude::*;
+use bevy::ecs::relationship::Relationship;
 use bevy_fixed::fixed_math;
 use bevy_ecs_ldtk::prelude::LevelIid;
 use game::{character::enemy::ai::Obstacle, character::enemy::spawning::EnemySpawnerState, collider::{Collider, CollisionLayer, CollisionSettings, Wall, Window}, core::AppState};
-use map::game::entity::{map::{door::{DoorComponent, DoorGridPosition}, enemy_spawn::EnemySpawnerComponent, map_rollback::MapRollbackMarker}, MapRollbackItem};
+use map::game::entity::{map::{door::{DoorComponent, DoorGridPosition}, enemy_spawn::EnemySpawnerComponent, level_id::LevelId, map_rollback::MapRollbackMarker}, MapRollbackItem};
 use map::generation::entity::door::DoorConfig;
 use bevy_ggrs::AddRollbackCommandExtension;
 use utils::net_id::GgrsNetIdFactory;
@@ -22,6 +23,7 @@ pub struct LdtkMapEntityLoading {
     pub door_config: Option<DoorConfig>,
     pub door_grid_position: Option<DoorGridPosition>,
     pub spawner_config: Option<EnemySpawnerComponent>,
+    pub level_id: Option<LevelId>,
 }
 
 #[derive(Resource, Clone)]
@@ -87,14 +89,14 @@ fn populate_door_level_iids(
         // If level_iid is empty, try to get it from parent hierarchy
         if grid_pos.level_iid.is_empty() {
             // Access the entity through the ChildOf component
-            let parent_entity = door_parent.parent();
+            let parent_entity = door_parent.get();
             
             // First check if the immediate parent is a level
             if let Ok(level_iid) = level_query.get(parent_entity) {
                 grid_pos.level_iid = level_iid.to_string();
             } else if let Ok(grandparent) = parent_query.get(parent_entity) {
                 // Check if the grandparent (parent's parent) is a level
-                let grandparent_entity = grandparent.parent();
+                let grandparent_entity = grandparent.get();
                 if let Ok(level_iid) = level_query.get(grandparent_entity) {
                     grid_pos.level_iid = level_iid.to_string();
                 }
@@ -108,13 +110,14 @@ fn wait_for_all_map_rollback_entity(
     mut entity_registery: ResMut<LdtkMapEntityLoadingRegistry>,
     mut ev_loading_map: MessageWriter<LdtkMapLoadingEvent>,
 
-    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>, Option<&EnemySpawnerComponent>), With<MapRollbackMarker>>,
+    query_map_entity: Query<(Entity, &GlobalTransform, &MapRollbackMarker, Option<&LdtkEntitySize>, Option<&DoorComponent>, Option<&DoorGridPosition>, Option<&EnemySpawnerComponent>, Option<&ChildOf>), With<MapRollbackMarker>>,
 
     collision_settings: Res<CollisionSettings>,
 
     mut id_factory: ResMut<GgrsNetIdFactory>,
 
     time: Res<Time>,
+    level_query: Query<&LevelIid>,
 ) {
 
     if entity_registery.loading_complete {
@@ -126,7 +129,7 @@ fn wait_for_all_map_rollback_entity(
 
     // Collect and sort entities by their marker name and position for deterministic order
     let mut entities_to_process: Vec<_> = query_map_entity.iter()
-        .filter(|(e, _, _, _, _, _, _)| !entity_registery.registered_entities.contains(e))
+        .filter(|(e, _, _, _, _, _, _, _)| !entity_registery.registered_entities.contains(e))
         .collect();
     
     // Sort by marker name first, then by position (x, y) for determinism
@@ -143,13 +146,21 @@ fn wait_for_all_map_rollback_entity(
             .then_with(|| pos_a.y.partial_cmp(&pos_b.y).unwrap_or(std::cmp::Ordering::Equal))
     });
 
-    for (e, global_transform, rollback_marker, ldtk_size, door_component, door_grid_pos, spawner_component) in entities_to_process {
+    for (e, global_transform, rollback_marker, ldtk_size, door_component, door_grid_pos, spawner_component, parent) in entities_to_process {
         // Skip if already registered (should not happen due to filter above, but keeping for safety)
         if entity_registery.registered_entities.contains(&e) {
             continue;
         }
 
         let translation = global_transform.translation();
+
+        // Determine the LevelIid of the current entity by checking its parent
+        let mut entity_level_id: Option<LevelId> = None;
+        if let Some(parent_component) = parent {
+            if let Ok(level_iid) = level_query.get(parent_component.get()) {
+                entity_level_id = Some(LevelId(level_iid.to_string()));
+            }
+        }
 
         // Only register entities with valid (non-zero) global transforms
         // GlobalTransform gets updated by Bevy's transform propagation system
@@ -170,6 +181,7 @@ fn wait_for_all_map_rollback_entity(
                 door_config,
                 door_grid_position,
                 spawner_config,
+                level_id: entity_level_id,
             });
             entity_registery.registered_entities.insert(e);
         }
@@ -217,6 +229,9 @@ fn wait_for_all_map_rollback_entity(
                 id,
             ));
 
+            if let Some(level_id) = &item.level_id {
+                cmd.insert(level_id.clone());
+            }
 
             match item.kind.as_str() {
                 "door" => {
@@ -357,7 +372,3 @@ fn transition_to_game_starting(
         app_state.set(AppState::GameStarting);
     }
 }
-
-
-
-
