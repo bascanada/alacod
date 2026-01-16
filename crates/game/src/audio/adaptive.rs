@@ -36,6 +36,29 @@ impl Default for AdaptiveMusicConfig {
     }
 }
 
+/// Calculate average player health percentage
+/// Returns 0.5 as default if no players exist
+fn calculate_player_health_pct(player_query: &Query<&Health, With<Player>>) -> f32 {
+    if player_query.is_empty() {
+        return 0.5; // Default if no players
+    }
+
+    // Iterate once to calculate both sum and count
+    let (total, count) = player_query.iter()
+        .fold((0.0_f32, 0_usize), |(sum, count), health| {
+            let current = health.current.to_num::<f32>();
+            let max = health.max.to_num::<f32>();
+            let pct = if max > 0.0 { current / max } else { 0.0 };
+            (sum + pct, count + 1)
+        });
+
+    if count > 0 {
+        (total / count as f32).clamp(0.0, 1.0)
+    } else {
+        0.5
+    }
+}
+
 /// System that updates harmonium parameters based on gameplay state
 pub fn update_adaptive_music(
     config: Res<AdaptiveMusicConfig>,
@@ -58,19 +81,7 @@ pub fn update_adaptive_music(
     let wave_number = wave_state.current_wave;
     let wave_phase = wave_state.phase;
 
-    // Calculate average player health percentage
-    let player_health_pct = if player_query.is_empty() {
-        0.5 // Default if no players
-    } else {
-        let total: f32 = player_query.iter()
-            .map(|health| {
-                let current = health.current.to_num::<f32>();
-                let max = health.max.to_num::<f32>();
-                if max > 0.0 { current / max } else { 0.0 }
-            })
-            .sum();
-        (total / player_query.iter().count() as f32).clamp(0.0, 1.0)
-    };
+    let player_health_pct = calculate_player_health_pct(&player_query);
 
     // === MAP TO MUSIC PARAMETERS ===
 
@@ -105,9 +116,16 @@ fn calculate_music_parameters(
     // Based on: enemy count + wave progression
     // More enemies + higher wave = faster tempo
 
-    let enemy_intensity = (enemy_count as f32 - config.low_enemy_threshold as f32)
-        / (config.high_enemy_threshold as f32 - config.low_enemy_threshold as f32);
-    let enemy_intensity = enemy_intensity.clamp(0.0, 1.0);
+    let enemy_intensity = {
+        let range = config.high_enemy_threshold as f32 - config.low_enemy_threshold as f32;
+        if range > 0.0 {
+            ((enemy_count as f32 - config.low_enemy_threshold as f32) / range).clamp(0.0, 1.0)
+        } else if enemy_count >= config.high_enemy_threshold {
+            1.0
+        } else {
+            0.0
+        }
+    };
 
     let wave_intensity = (wave_number as f32 / 10.0).min(1.0); // Scale over first 10 waves
 
@@ -178,14 +196,7 @@ pub fn debug_adaptive_music(
     let enemy_count = enemy_query.iter().count();
     let wave = wave_state.current_wave;
 
-    let player_health_pct = if player_query.is_empty() {
-        0.0
-    } else {
-        let total: f32 = player_query.iter()
-            .map(|h| (h.current.to_num::<f32>() / h.max.to_num::<f32>()).clamp(0.0, 1.0))
-            .sum();
-        total / player_query.iter().count() as f32
-    };
+    let player_health_pct = calculate_player_health_pct(&player_query);
 
     // Display debug info (this would need a proper UI system)
     // For now, just log periodically

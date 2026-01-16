@@ -27,8 +27,6 @@ impl Plugin for ZAudioPlugin {
 
         #[cfg(debug_assertions)]
         app.add_systems(PostUpdate, adaptive::debug_adaptive_music);
-
-        //app.add_systems(Startup, play_loop);
     }
 }
 
@@ -36,7 +34,7 @@ impl Plugin for ZAudioPlugin {
 fn setup_harmonium_music(mut commands: Commands) {
     use harmonium_bevy::components::{HarmoniumSource, GenerativeConfig, OdinConfig};
     use harmonium_bevy::harmonium_core::sequencer::RhythmMode;
-    
+
     // Create the music controller entity
     commands.spawn((
         Name::new("Generative Music"),
@@ -54,8 +52,4 @@ fn setup_harmonium_music(mut commands: Commands) {
             manual_visual_params: Default::default(),
         }
     ));
-}
-
-fn play_loop(asset_server: Res<AssetServer>, audio: Res<Audio>) {
-    audio.play(asset_server.load("sounds/loop.ogg")).looped();
 }
