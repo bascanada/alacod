@@ -19,6 +19,7 @@ utils = { path = "../utils"}
 map = { path = "../map"}
 animation ={ path = "../animation"}
 telemetry = { path = "../telemetry"}
+harmonium_bevy = { git = "https://github.com/bascanada/harmonium", branch = "main" }
 
 thiserror = "2.0.12"
 

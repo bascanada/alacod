@@ -6,6 +6,7 @@ use bevy_light_2d::light::PointLight2d;
 
 use leafwing_input_manager::prelude::ActionState;
 use utils::net_id::GgrsNetIdFactory;
+use harmonium_bevy::components::AiDriver;
 
 use crate::{
     character::{config::CharacterConfig, create::create_character},
@@ -73,6 +74,11 @@ pub fn create_player(
             LocalPlayer {},
             ActionState::<PlayerAction>::default(),
             get_input_map(),
+            AiDriver {
+                ai_influence: 1.0, 
+                detection_radius: 300.0,
+                ..default()
+            },
         ));
     }
 

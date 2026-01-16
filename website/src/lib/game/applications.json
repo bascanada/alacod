@@ -1,9 +1,9 @@
 [
     {
-        "id": "map_preview",
-        "name": "Map Preview",
+        "id": "map_explorer",
+        "name": "Map Explorer",
 
-        "online": false,
+        "online": true,
 
         "content": "Preview app to generate random map and preview them from an overview"
     },
